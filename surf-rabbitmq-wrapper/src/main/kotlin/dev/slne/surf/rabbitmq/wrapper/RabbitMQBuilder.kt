@@ -53,10 +53,10 @@ class RabbitMQBuilder {
         require(coroutineScope != null) { "coroutineScope can not be null" }
     }
 
-    fun build(): RabbitMQApi {
+    fun build(): RabbitMQApiImpl {
         ensureSet()
 
-        return RabbitMQApi(coroutineScope!!, configPath!!, queues)
+        return RabbitMQApiImpl(coroutineScope!!, configPath!!, queues)
     }
 
     companion object {

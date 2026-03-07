@@ -5,7 +5,7 @@ import dev.slne.surf.surfapi.core.api.config.surfConfigApi
 import java.nio.file.Path
 import kotlin.time.Duration.Companion.seconds
 
-internal data class RabbitMQConfig(
+data class RabbitMQConfig(
     val host: String = "localhost",
     val port: Int = 5672,
     val username: String = "guest",
