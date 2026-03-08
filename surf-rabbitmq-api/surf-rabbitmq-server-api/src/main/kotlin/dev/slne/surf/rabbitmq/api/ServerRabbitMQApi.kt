@@ -25,11 +25,11 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
         fun create(
             protocolVersion: Int,
             path: Path,
+            pluginName: String,
             serializer: SerializersModule = EmptySerializersModule()
         ): ServerRabbitMQApi {
             val config = RabbitMQConfig.create(path)
             val cbor = createCbor(serializer)
-            val pluginName = "EXTRACT ME"
 
             return ServerRabbitMQApi(config, pluginName, protocolVersion, cbor)
         }

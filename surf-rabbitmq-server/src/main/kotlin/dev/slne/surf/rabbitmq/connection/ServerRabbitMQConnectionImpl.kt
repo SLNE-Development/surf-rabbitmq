@@ -56,4 +56,10 @@ class ServerRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
             channel.basicAck(deliveryTag)
         }
     }
+
+    fun nackRequest(deliveryTag: ULong) {
+        api.scope.launch {
+            channel.basicNack(deliveryTag, requeue = false)
+        }
+    }
 }

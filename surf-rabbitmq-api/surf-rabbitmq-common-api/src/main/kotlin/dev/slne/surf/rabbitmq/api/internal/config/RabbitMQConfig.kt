@@ -16,7 +16,8 @@ data class RabbitMQConfig(
     val password: String = "guest",
     val vhost: String = "/",
     val timeout: Long = 60.seconds.inWholeSeconds,
-    val connectionName: String = "SurfAmqpClient"
+    val connectionName: String = "SurfAmqpClient",
+    val requestTimeout: Long = 60.seconds.inWholeSeconds
 ) {
     companion object {
         fun create(path: Path) = surfConfigApi.createSpongeYmlConfig<RabbitMQConfig>(

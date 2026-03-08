@@ -1,6 +1,8 @@
 package dev.slne.surf.rabbitmq.api
 
 import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiAlreadyFrozenException
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiNotFrozenException
 import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
 import dev.slne.surf.surfapi.core.api.serializer.SurfSerializerModule
 import dev.slne.surf.surfapi.core.api.util.logger
@@ -30,7 +32,7 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
     private var frozen = false
 
     suspend fun connect() {
-        require(isFrozen()) { "RabbitMQApi is not frozen" }
+        if (!isFrozen()) throw SurfRabbitApiNotFrozenException()
 
         connection.connect()
     }
@@ -47,7 +49,7 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
     }
 
     fun freeze() {
-        require(!isFrozen()) { "RabbitMQApi is already frozen" }
+        if (isFrozen()) throw SurfRabbitApiAlreadyFrozenException()
         frozen = true
     }
 

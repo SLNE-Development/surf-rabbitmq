@@ -1,12 +1,13 @@
 package dev.slne.surf.rabbitmq.client.connection
 
 import com.github.benmanes.caffeine.cache.Caffeine
-import com.sksamuel.aedile.core.expireAfterWrite
 import dev.kourier.amqp.channel.basicPublish
 import dev.kourier.amqp.channel.queueDeclare
 import dev.kourier.amqp.properties
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ClientRabbitMQConnection
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestTimeoutException
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundException
 import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
@@ -20,16 +21,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.KSerializer
 import java.util.UUID
-import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitMQConfig) :
     AbstractRabbitMQConnectionImpl(api, config), ClientRabbitMQConnection {
 
+    private val requestTimeoutSeconds = config.requestTimeout
+
     private val pendingRequests = Caffeine.newBuilder()
-        .expireAfterWrite(15.minutes)
+        .expireAfterWrite(requestTimeoutSeconds * 2L, java.util.concurrent.TimeUnit.SECONDS)
         .evictionListener<String, CompletableDeferred<ByteArray>> { _, deferred, _ ->
             if (deferred != null && !deferred.isCompleted) {
-                deferred.completeExceptionally(IllegalStateException("Request timed out"))
+                deferred.completeExceptionally(SurfRabbitRequestTimeoutException(requestTimeoutSeconds))
             }
         }
         .build<String, CompletableDeferred<ByteArray>>()
@@ -69,7 +72,7 @@ class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
         responseClass: Class<R>
     ): R {
         val serializer = serializerCache.get(request.javaClass) as? KSerializer<RabbitRequestPacket<*>>
-            ?: error("No serializer found for class ${request.javaClass.name}")
+            ?: throw SurfRabbitSerializerNotFoundException(request.javaClass.name)
         responseSerializerCache.register(responseClass)
 
         val requestBytes = RabbitPacketSerializer.serializeRequest(api, serializer, request)
@@ -97,14 +100,12 @@ class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
         }
 
         return try {
-            withTimeout(1.minutes) { // TODO: make timeout configurable
+            withTimeout(requestTimeoutSeconds.seconds) {
                 deferred.await()
             }
         } catch (e: TimeoutCancellationException) {
-            val completable = pendingRequests.asMap().remove(correlationId)
-            completable?.completeExceptionally(e)
-
-            error("Request timed out after 1 minute")
+            pendingRequests.asMap().remove(correlationId)
+            throw SurfRabbitRequestTimeoutException(requestTimeoutSeconds)
         }
     }
 

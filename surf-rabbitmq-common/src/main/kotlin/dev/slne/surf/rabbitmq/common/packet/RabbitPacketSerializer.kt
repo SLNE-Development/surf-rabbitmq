@@ -1,9 +1,10 @@
 package dev.slne.surf.rabbitmq.common.packet
 
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolVersionMismatchException
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundException
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
-import dev.slne.surf.rabbitmq.common.exception.ProtocolVersionMismatchException
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
 import kotlinx.serialization.*
@@ -34,11 +35,11 @@ object RabbitPacketSerializer {
 
         val version = envelope.version
         if (version != api.protocolVersion) {
-            throw ProtocolVersionMismatchException(version, api.protocolVersion)
+            throw SurfRabbitProtocolVersionMismatchException(api.protocolVersion, version)
         }
 
         val serializer = serializerCache.get(envelope.className)
-            ?: error("No serializer found for class ${envelope.className}")
+            ?: throw SurfRabbitSerializerNotFoundException(envelope.className)
 
         return api.cbor.decodeFromByteArray(serializer, envelope.body)
     }
@@ -50,7 +51,7 @@ object RabbitPacketSerializer {
         responsePacket: RabbitResponsePacket
     ): ByteArray {
         val serializer = serializerCache.get(responsePacket.javaClass)
-            ?: error("No serializer found for class ${responsePacket.javaClass.name}")
+            ?: throw SurfRabbitSerializerNotFoundException(responsePacket.javaClass.name)
 
         val envelope = RabbitResponseEnvelope(
             responsePacket.javaClass.name,
@@ -65,7 +66,8 @@ object RabbitPacketSerializer {
         serializerCache: KotlinSerializerNameCache<RabbitResponsePacket>
     ): RabbitResponsePacket {
         val envelope = api.cbor.decodeFromByteArray<RabbitResponseEnvelope>(response)
-        val serializer = serializerCache.get(envelope.responseClass) ?: error("Unknown class ${envelope.responseClass}")
+        val serializer = serializerCache.get(envelope.responseClass)
+            ?: throw SurfRabbitSerializerNotFoundException(envelope.responseClass)
         return api.cbor.decodeFromByteArray(serializer, envelope.body)
     }
 
