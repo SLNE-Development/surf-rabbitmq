@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmExtension
+
 buildscript {
     repositories {
         gradlePluginPortal()
@@ -11,4 +13,14 @@ buildscript {
 allprojects {
     group = "dev.slne.surf.rabbitmq"
     version = findProperty("version") as String
+}
+
+subprojects {
+    afterEvaluate {
+        extensions.findByType<KotlinJvmExtension>()?.apply {
+            compilerOptions {
+                optIn.add("dev.slne.surf.rabbitmq.api.InternalRabbitMQ")
+            }
+        }
+    }
 }

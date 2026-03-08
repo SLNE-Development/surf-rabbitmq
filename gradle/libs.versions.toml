@@ -2,4 +2,4 @@
 amqp-client = "0.4.2"
 
 [libraries]
-amqp-client = { module = "dev.kourier:amqp-client", version.ref = "amqp-client" }
+amqp-client = { module = "dev.kourier:amqp-client-robust", version.ref = "amqp-client" }
