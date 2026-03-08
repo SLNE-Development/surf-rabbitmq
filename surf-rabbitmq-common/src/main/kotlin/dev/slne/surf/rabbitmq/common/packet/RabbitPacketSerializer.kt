@@ -1,47 +1,77 @@
 package dev.slne.surf.rabbitmq.common.packet
 
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
+import dev.slne.surf.rabbitmq.api.exception.*
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
-import dev.slne.surf.rabbitmq.common.exception.ProtocolVersionMismatchException
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
-import kotlinx.serialization.*
+import io.netty.buffer.ByteBuf
+import io.netty.buffer.Unpooled
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
 
+/**
+ * Serializes and deserializes RabbitMQ request/response packets using a compact binary wire format.
+ *
+ * **Request wire format:**
+ * ```
+ * [4 bytes: protocolVersion] [2 bytes: classNameLength] [N bytes: className (UTF-8)] [remaining: CBOR payload]
+ * ```
+ *
+ * **Response wire format:**
+ * ```
+ * [2 bytes: classNameLength] [N bytes: className (UTF-8)] [remaining: CBOR payload]
+ * ```
+ */
 @OptIn(ExperimentalSerializationApi::class)
 object RabbitPacketSerializer {
+
+    // region Request serialization
     fun serializeRequest(
         api: RabbitMQApi,
         serializer: KSerializer<RabbitRequestPacket<*>>,
         request: RabbitRequestPacket<*>
     ): ByteArray {
-        val envelope = RabbitRequestEnvelope(
-            request.javaClass.name,
-            api.protocolVersion,
-            api.cbor.encodeToByteArray(serializer, request)
-        )
+        val classNameBytes = request.javaClass.name.encodeToByteArray()
+        val payloadBytes = wrapSerializationErrors { api.cbor.encodeToByteArray(serializer, request) }
 
-        return api.cbor.encodeToByteArray<RabbitRequestEnvelope>(envelope)
+        return writeFrame(Int.SIZE_BYTES + Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
+            buf.writeInt(api.protocolVersion)
+            buf.writeShort(classNameBytes.size)
+            buf.writeBytes(classNameBytes)
+            buf.writeBytes(payloadBytes)
+        }
     }
 
     @Suppress("UNCHECKED_CAST")
     fun deserializeRequest(
         api: RabbitMQApi,
-        byteArray: ByteArray,
+        data: ByteArray,
         serializerCache: KotlinSerializerNameCache<RabbitRequestPacket<*>>,
     ): RabbitRequestPacket<*> {
-        val envelope = api.cbor.decodeFromByteArray<RabbitRequestEnvelope>(byteArray)
+        val buf = Unpooled.wrappedBuffer(data)
 
-        val version = envelope.version
-        if (version != api.protocolVersion) {
-            throw ProtocolVersionMismatchException(version, api.protocolVersion)
+        return try {
+            val version = buf.readInt()
+            if (version != api.protocolVersion) {
+                throw SurfRabbitProtocolVersionMismatchException(api.protocolVersion, version)
+            }
+
+            val className = readClassName(buf)
+            val serializer = serializerCache.get(className)
+                ?: throw SurfRabbitSerializerNotFoundException(className)
+
+            wrapDeserializationErrors {
+                api.cbor.decodeFromByteArray(serializer, readRemainingBytes(buf, data))
+            }
+        } finally {
+            buf.release()
         }
-
-        val serializer = serializerCache.get(envelope.className)
-            ?: error("No serializer found for class ${envelope.className}")
-
-        return api.cbor.decodeFromByteArray(serializer, envelope.body)
     }
+    // endregion
+
+    // region Response serialization
 
     @Suppress("UNCHECKED_CAST")
     fun serializeResponse(
@@ -50,67 +80,76 @@ object RabbitPacketSerializer {
         responsePacket: RabbitResponsePacket
     ): ByteArray {
         val serializer = serializerCache.get(responsePacket.javaClass)
-            ?: error("No serializer found for class ${responsePacket.javaClass.name}")
+            ?: throw SurfRabbitSerializerNotFoundException(responsePacket.javaClass.name)
 
-        val envelope = RabbitResponseEnvelope(
-            responsePacket.javaClass.name,
-            api.cbor.encodeToByteArray(serializer, responsePacket)
-        )
-        return api.cbor.encodeToByteArray<RabbitResponseEnvelope>(envelope)
+        val classNameBytes = responsePacket.javaClass.name.encodeToByteArray()
+        val payloadBytes = wrapSerializationErrors { api.cbor.encodeToByteArray(serializer, responsePacket) }
+
+        return writeFrame(Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
+            buf.writeShort(classNameBytes.size)
+            buf.writeBytes(classNameBytes)
+            buf.writeBytes(payloadBytes)
+        }
     }
 
     fun deserializeResponse(
         api: RabbitMQApi,
-        response: ByteArray,
+        data: ByteArray,
         serializerCache: KotlinSerializerNameCache<RabbitResponsePacket>
     ): RabbitResponsePacket {
-        val envelope = api.cbor.decodeFromByteArray<RabbitResponseEnvelope>(response)
-        val serializer = serializerCache.get(envelope.responseClass) ?: error("Unknown class ${envelope.responseClass}")
-        return api.cbor.decodeFromByteArray(serializer, envelope.body)
-    }
+        val buf = Unpooled.wrappedBuffer(data)
+        return try {
+            val className = readClassName(buf)
+            val serializer = serializerCache.get(className)
+                ?: throw SurfRabbitSerializerNotFoundException(className)
 
-    @Serializable
-    data class RabbitResponseEnvelope(
-        val responseClass: String,
-        val body: ByteArray
-    ) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-
-            other as RabbitResponseEnvelope
-
-            if (responseClass != other.responseClass) return false
-            if (!body.contentEquals(other.body)) return false
-
-            return true
+            wrapDeserializationErrors {
+                api.cbor.decodeFromByteArray(serializer, readRemainingBytes(buf, data))
+            }
+        } finally {
+            buf.release()
         }
+    }
+    // endregion
 
-        override fun hashCode(): Int {
-            var result = responseClass.hashCode()
-            result = 31 * result + body.contentHashCode()
-            return result
+    private inline fun writeFrame(exactSize: Int, write: (ByteBuf) -> Unit): ByteArray {
+        val buf = Unpooled.buffer(exactSize, exactSize)
+        try {
+            write(buf)
+            return buf.array()
+        } finally {
+            buf.release()
         }
     }
 
-    @Serializable
-    data class RabbitRequestEnvelope(val className: String, val version: Int, val body: ByteArray) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-
-            other as RabbitRequestEnvelope
-
-            if (className != other.className) return false
-            if (!body.contentEquals(other.body)) return false
-
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = className.hashCode()
-            result = 31 * result + body.contentHashCode()
-            return result
-        }
+    private fun readClassName(buf: ByteBuf): String {
+        val length = buf.readUnsignedShort()
+        val bytes = ByteArray(length)
+        buf.readBytes(bytes)
+        return bytes.decodeToString()
     }
+
+    private fun readRemainingBytes(buf: ByteBuf, source: ByteArray): ByteArray {
+        val offset = buf.readerIndex()
+        val length = buf.readableBytes()
+        return source.copyOfRange(offset, offset + length)
+    }
+
+    private inline fun <T> wrapDeserializationErrors(block: () -> T): T =
+        try {
+            block()
+        } catch (e: SurfRabbitSerializationException) {
+            throw e
+        } catch (e: Throwable) {
+            throw SurfRabbitEnvelopeDeserializationException(e)
+        }
+
+    private inline fun <T> wrapSerializationErrors(block: () -> T): T =
+        try {
+            block()
+        } catch (e: SurfRabbitSerializationException) {
+            throw e
+        } catch (e: Throwable) {
+            throw SurfRabbitEnvelopeSerializationException(e)
+        }
 }
