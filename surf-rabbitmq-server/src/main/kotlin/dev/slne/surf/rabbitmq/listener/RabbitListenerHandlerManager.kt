@@ -14,7 +14,6 @@ import dev.slne.surf.surfapi.core.api.util.logger
 import dev.slne.surf.surfapi.core.api.util.mutableObject2ObjectMapOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
@@ -76,7 +75,7 @@ class RabbitListenerHandlerManager(private val api: RabbitMQApi, private val con
         }
     }
 
-    fun handleRequest(correlationId: String, replyTo: String, body: ByteArray, deliveryTag: ULong) {
+    suspend fun handleRequest(correlationId: String, replyTo: String, body: ByteArray, deliveryTag: ULong) {
         val request = try {
             RabbitPacketSerializer.deserializeRequest(api, body, requestSerializerCache)
         } catch (e: SurfRabbitProtocolVersionMismatchException) { // TODO: correctly handle protocol version mismatch
@@ -114,27 +113,25 @@ class RabbitListenerHandlerManager(private val api: RabbitMQApi, private val con
             return
         }
 
-        api.scope.launch {
-            val requestTimeoutSeconds = api.config.requestTimeoutSeconds.seconds
-            try {
-                val response = withTimeout(requestTimeoutSeconds) {
-                    request.responseDeferred.await()
-                }
-                val responseBytes = RabbitPacketSerializer.serializeResponse(api, serializerCache, response)
-                connection.replyToRequest(correlationId, replyTo, deliveryTag, responseBytes)
-            } catch (e: TimeoutCancellationException) {
-                log.atSevere()
-                    .log(
-                        "Handler for ${request.javaClass.name} did not respond within ${requestTimeoutSeconds}s, discarding message"
-                    )
-                connection.nackRequest(deliveryTag)
-            } catch (e: Throwable) {
-                if (e is CancellationException) throw e
-                log.atSevere()
-                    .withCause(e)
-                    .log("Error handling request of type ${request.javaClass.name}, discarding message")
-                connection.nackRequest(deliveryTag)
+        val requestTimeoutSeconds = api.config.requestTimeoutSeconds.seconds
+        try {
+            val response = withTimeout(requestTimeoutSeconds) {
+                request.responseDeferred.await()
             }
+            val responseBytes = RabbitPacketSerializer.serializeResponse(api, serializerCache, response)
+            connection.replyToRequest(correlationId, replyTo, deliveryTag, responseBytes)
+        } catch (e: TimeoutCancellationException) {
+            log.atSevere()
+                .log(
+                    "Handler for ${request.javaClass.name} did not respond within ${requestTimeoutSeconds}s, discarding message"
+                )
+            connection.nackRequest(deliveryTag)
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            log.atSevere()
+                .withCause(e)
+                .log("Error handling request of type ${request.javaClass.name}, discarding message")
+            connection.nackRequest(deliveryTag)
         }
     }
 

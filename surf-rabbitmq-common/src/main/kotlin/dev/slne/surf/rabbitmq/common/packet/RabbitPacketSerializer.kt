@@ -27,13 +27,16 @@ import kotlinx.serialization.KSerializer
 @OptIn(ExperimentalSerializationApi::class)
 object RabbitPacketSerializer {
 
-    // region Request serialization
+    private val classNameBytesCache = object : ClassValue<ByteArray>() {
+        override fun computeValue(type: Class<*>): ByteArray = type.name.encodeToByteArray()
+    }
+
     fun serializeRequest(
         api: RabbitMQApi,
         serializer: KSerializer<RabbitRequestPacket<*>>,
         request: RabbitRequestPacket<*>
     ): ByteArray {
-        val classNameBytes = request.javaClass.name.encodeToByteArray()
+        val classNameBytes = classNameBytesCache.get(request.javaClass)
         val payloadBytes = wrapSerializationErrors { api.cbor.encodeToByteArray(serializer, request) }
 
         return writeFrame(Int.SIZE_BYTES + Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
@@ -69,9 +72,6 @@ object RabbitPacketSerializer {
             buf.release()
         }
     }
-    // endregion
-
-    // region Response serialization
 
     @Suppress("UNCHECKED_CAST")
     fun serializeResponse(
@@ -82,7 +82,7 @@ object RabbitPacketSerializer {
         val serializer = serializerCache.get(responsePacket.javaClass)
             ?: throw SurfRabbitSerializerNotFoundException(responsePacket.javaClass.name)
 
-        val classNameBytes = responsePacket.javaClass.name.encodeToByteArray()
+        val classNameBytes = classNameBytesCache.get(responsePacket.javaClass)
         val payloadBytes = wrapSerializationErrors { api.cbor.encodeToByteArray(serializer, responsePacket) }
 
         return writeFrame(Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
@@ -110,7 +110,6 @@ object RabbitPacketSerializer {
             buf.release()
         }
     }
-    // endregion
 
     private inline fun writeFrame(exactSize: Int, write: (ByteBuf) -> Unit): ByteArray {
         val buf = Unpooled.buffer(exactSize, exactSize)
@@ -124,9 +123,9 @@ object RabbitPacketSerializer {
 
     private fun readClassName(buf: ByteBuf): String {
         val length = buf.readUnsignedShort()
-        val bytes = ByteArray(length)
-        buf.readBytes(bytes)
-        return bytes.decodeToString()
+        val className = buf.toString(buf.readerIndex(), length, Charsets.UTF_8)
+        buf.skipBytes(length)
+        return className
     }
 
     private fun readRemainingBytes(buf: ByteBuf, source: ByteArray): ByteArray {

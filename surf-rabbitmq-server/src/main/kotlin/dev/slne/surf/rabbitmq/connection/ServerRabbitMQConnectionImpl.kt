@@ -1,5 +1,6 @@
 package dev.slne.surf.rabbitmq.connection
 
+import dev.kourier.amqp.channel.AMQPChannel
 import dev.kourier.amqp.channel.basicPublish
 import dev.kourier.amqp.properties
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
@@ -13,11 +14,16 @@ class ServerRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
     AbstractRabbitMQConnectionImpl(api, config), ServerRabbitMQConnection {
 
     private val listenerHandler = RabbitListenerHandlerManager(api, this)
+    private val prefetchCount = config.serverPrefetchCount.coerceAtLeast(1).toUShort()
+    private val persistResponses = config.persistResponses
+
+    private lateinit var replyChannel: AMQPChannel
 
     override suspend fun connect() {
         super.connect()
+        replyChannel = connection.openChannel()
 
-        channel.basicQos(count = 1u)
+        channel.basicQos(count = prefetchCount)
         startConsumingRequests()
     }
 
@@ -31,33 +37,45 @@ class ServerRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
         api.scope.launch {
             for (message in consume) {
                 val property = message.message.properties
-                val correlationId = property.correlationId ?: continue
-                val replyTo = property.replyTo ?: continue
                 val body = message.message.body
                 val deliveryTag = message.message.deliveryTag
+                val correlationId = property.correlationId
+                val replyTo = property.replyTo
 
-                listenerHandler.handleRequest(correlationId, replyTo, body, deliveryTag)
+                if (correlationId == null || replyTo == null) {
+                    nackRequest(deliveryTag)
+                    continue
+                }
+
+                api.scope.launch {
+                    listenerHandler.handleRequest(correlationId, replyTo, body, deliveryTag)
+                }
             }
         }
     }
 
     suspend fun replyToRequest(correlationId: String, replyTo: String, deliveryTag: ULong, body: ByteArray) {
-        channel.basicPublish {
+        replyChannel.basicPublish {
             this.body = body
             exchange = ""
             routingKey = replyTo
             properties = properties {
                 this.correlationId = correlationId
-                deliveryMode = 2u // Persistent message by default; only works with durable queues
+                deliveryMode = if (persistResponses) 2u else 1u
             }
         }
 
         channel.basicAck(deliveryTag)
     }
 
-    fun nackRequest(deliveryTag: ULong) {
-        api.scope.launch {
-            channel.basicNack(deliveryTag, requeue = false)
+    suspend fun nackRequest(deliveryTag: ULong) {
+        channel.basicNack(deliveryTag, requeue = false)
+    }
+
+    override suspend fun disconnect() {
+        if (this::replyChannel.isInitialized) {
+            replyChannel.close()
         }
+        super.disconnect()
     }
 }

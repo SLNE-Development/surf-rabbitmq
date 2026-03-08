@@ -2,6 +2,7 @@ package dev.slne.surf.rabbitmq.client.connection
 
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.sksamuel.aedile.core.expireAfterWrite
+import dev.kourier.amqp.channel.AMQPChannel
 import dev.kourier.amqp.channel.basicPublish
 import dev.kourier.amqp.channel.queueDeclare
 import dev.kourier.amqp.properties
@@ -20,13 +21,15 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
-import java.util.*
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.seconds
 
 class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitMQConfig) :
     AbstractRabbitMQConnectionImpl(api, config), ClientRabbitMQConnection {
 
     private val requestTimeoutSeconds = config.requestTimeoutSeconds.seconds
+    private val persistRequests = config.persistRequests
+
     private val pendingRequests = Caffeine.newBuilder()
         .expireAfterWrite(requestTimeoutSeconds * 2)
         .evictionListener<String, CompletableDeferred<ByteArray>> { _, deferred, _ ->
@@ -38,11 +41,15 @@ class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
 
     private val requestSerializerCache = KotlinSerializerCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
     private val responseSerializerCache = KotlinSerializerNameCache<RabbitResponsePacket>(api.cbor.serializersModule)
+    private val correlationIdSequence = AtomicLong()
+    private val correlationIdPrefix = "${api.pluginName}-${System.nanoTime()}"
 
     private lateinit var callbackQueueName: String
+    private lateinit var publishChannel: AMQPChannel
 
     override suspend fun connect() {
         super.connect()
+        publishChannel = connection.openChannel()
 
         callbackQueueName = channel.queueDeclare {
             name = queueName + "_callback"
@@ -81,21 +88,25 @@ class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
         return response as R
     }
 
-
     private suspend fun awaitResponse(body: ByteArray): ByteArray {
-        val correlationId = UUID.randomUUID().toString()
+        val correlationId = nextCorrelationId()
         val deferred = CompletableDeferred<ByteArray>()
         pendingRequests.put(correlationId, deferred)
 
-        channel.basicPublish {
-            this.body = body
-            exchange = ""
-            routingKey = queueName
-            properties = properties {
-                deliveryMode = 2u // Persistent message by default; only works with durable queues
-                this.correlationId = correlationId
-                this.replyTo = callbackQueueName
+        try {
+            publishChannel.basicPublish {
+                this.body = body
+                exchange = ""
+                routingKey = queueName
+                properties = properties {
+                    deliveryMode = if (persistRequests) 2u else 1u
+                    this.correlationId = correlationId
+                    this.replyTo = callbackQueueName
+                }
             }
+        } catch (t: Throwable) {
+            pendingRequests.invalidate(correlationId)
+            throw t
         }
 
         return try {
@@ -109,6 +120,11 @@ class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
     }
 
     override suspend fun disconnect() {
+        if (this::publishChannel.isInitialized) {
+            publishChannel.close()
+        }
         super.disconnect()
     }
+
+    private fun nextCorrelationId(): String = "$correlationIdPrefix-${correlationIdSequence.incrementAndGet()}"
 }
