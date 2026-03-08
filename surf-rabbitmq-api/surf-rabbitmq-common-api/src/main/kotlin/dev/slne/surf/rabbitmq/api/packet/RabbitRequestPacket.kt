@@ -15,7 +15,7 @@ abstract class RabbitRequestPacket<ResponsePacket : RabbitResponsePacket> : Rabb
         @InternalRabbitMQ set
 
     @InternalRabbitMQ
-    val responseDeferred by lazy { CompletableDeferred<ResponsePacket>() }
+    val responseDeferred = CompletableDeferred<ResponsePacket>()
 
     fun respond(response: ResponsePacket) {
         if (responseDeferred.isCompleted) throw SurfRabbitRequestAlreadyRespondedException()

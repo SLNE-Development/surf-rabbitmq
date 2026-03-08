@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 
 object RabbitPacketPropertiesInjector {
 
+    @JvmStatic
     fun inject(packet: RabbitRequestPacket<*>, scope: CoroutineScope) {
         packet.coroutineContext = scope.coroutineContext
     }

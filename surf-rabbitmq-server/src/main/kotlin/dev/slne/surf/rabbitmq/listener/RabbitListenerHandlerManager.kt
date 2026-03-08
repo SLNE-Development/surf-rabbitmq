@@ -11,18 +11,15 @@ import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
 import dev.slne.surf.rabbitmq.connection.ServerRabbitMQConnectionImpl
 import dev.slne.surf.surfapi.core.api.util.logger
-import dev.slne.surf.surfapi.core.api.util.mutableObject2ObjectMapOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
-import java.util.concurrent.locks.ReentrantReadWriteLock
-import kotlin.concurrent.write
 import kotlin.time.Duration.Companion.seconds
 
 class RabbitListenerHandlerManager(private val api: RabbitMQApi, private val connection: ServerRabbitMQConnectionImpl) {
-    private val handlers = mutableObject2ObjectMapOf<Class<*>, RabbitListenerHandler>()
-    private val registrationLock = ReentrantReadWriteLock()
+    // Using ConcurrentHashMap for lock-free reads after initialization
+    private val handlers = java.util.concurrent.ConcurrentHashMap<Class<*>, RabbitListenerHandler>()
 
     private val requestSerializerCache = KotlinSerializerNameCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
     private val serializerCache = KotlinSerializerCache<RabbitResponsePacket>(api.cbor.serializersModule)
@@ -65,7 +62,7 @@ class RabbitListenerHandlerManager(private val api: RabbitMQApi, private val con
             requestSerializerCache.register(parameterType)
 
             val handler = RabbitListenerHandlerFactory.create(instance, method, parameterType)
-            val current = registrationLock.write { handlers.putIfAbsent(parameterType, handler) }
+            val current = handlers.putIfAbsent(parameterType, handler)
             if (current != null) {
                 throw SurfRabbitDuplicateHandlerException(
                     parameterType.name,

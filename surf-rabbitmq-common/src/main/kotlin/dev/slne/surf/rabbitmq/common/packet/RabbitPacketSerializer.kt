@@ -31,6 +31,7 @@ object RabbitPacketSerializer {
     private val classNameBytesCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
 
     // region Request serialization
+    @JvmStatic
     fun serializeRequest(
         api: RabbitMQApi,
         serializer: KSerializer<RabbitRequestPacket<*>>,
@@ -48,6 +49,7 @@ object RabbitPacketSerializer {
         }
     }
 
+    @JvmStatic
     @Suppress("UNCHECKED_CAST")
     fun deserializeRequest(
         api: RabbitMQApi,
@@ -77,6 +79,7 @@ object RabbitPacketSerializer {
 
     // region Response serialization
 
+    @JvmStatic
     @Suppress("UNCHECKED_CAST")
     fun serializeResponse(
         api: RabbitMQApi,
@@ -97,6 +100,7 @@ object RabbitPacketSerializer {
         }
     }
 
+    @JvmStatic
     fun deserializeResponse(
         api: RabbitMQApi,
         data: ByteArray,
