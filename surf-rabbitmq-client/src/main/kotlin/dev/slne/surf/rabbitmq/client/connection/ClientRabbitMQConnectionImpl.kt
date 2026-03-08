@@ -60,7 +60,11 @@ class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
         api.scope.launch {
             for (message in consume) {
                 val correlationId = message.message.properties.correlationId ?: continue
-                pendingRequests.asMap().remove(correlationId)?.complete(message.message.body)
+                // Use getIfPresent + invalidate instead of remove for better performance with Caffeine
+                pendingRequests.getIfPresent(correlationId)?.let { deferred ->
+                    pendingRequests.invalidate(correlationId)
+                    deferred.complete(message.message.body)
+                }
             }
         }
     }
