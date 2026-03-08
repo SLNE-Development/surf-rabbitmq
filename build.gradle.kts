@@ -1,3 +1,4 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmExtension
 
 buildscript {
@@ -21,6 +22,10 @@ subprojects {
             compilerOptions {
                 optIn.add("dev.slne.surf.rabbitmq.api.InternalRabbitMQ")
             }
+        }
+
+        tasks.withType<ShadowJar> {
+            relocate("io.netty.buffer", "dev.slne.surf.rabbitmq.libs.io.netty.buffer")
         }
     }
 }

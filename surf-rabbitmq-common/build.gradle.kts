@@ -5,4 +5,5 @@ plugins {
 
 dependencies {
     api(projects.surfRabbitmqApi.surfRabbitmqCommonApi)
+    api(libs.netty.buffer)
 }

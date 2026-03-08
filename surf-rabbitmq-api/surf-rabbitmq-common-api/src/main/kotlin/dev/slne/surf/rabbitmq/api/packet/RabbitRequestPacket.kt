@@ -1,6 +1,7 @@
 package dev.slne.surf.rabbitmq.api.packet
 
 import dev.slne.surf.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestAlreadyRespondedException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.Serializable
@@ -17,7 +18,7 @@ abstract class RabbitRequestPacket<ResponsePacket : RabbitResponsePacket> : Rabb
     val responseDeferred by lazy { CompletableDeferred<ResponsePacket>() }
 
     fun respond(response: ResponsePacket) {
-        require(responseDeferred.isCompleted.not()) { "Response already sent" }
+        if (responseDeferred.isCompleted) throw SurfRabbitRequestAlreadyRespondedException()
         responseDeferred.complete(response)
     }
 }

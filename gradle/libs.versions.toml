@@ -1,5 +1,7 @@
 [versions]
 amqp-client = "0.4.2"
+netty-buffer = "4.2.10.Final"
 
 [libraries]
 amqp-client = { module = "dev.kourier:amqp-client-robust", version.ref = "amqp-client" }
+netty-buffer = { module = "io.netty:netty-buffer", version.ref = "netty-buffer" }

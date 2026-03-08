@@ -41,19 +41,23 @@ class ServerRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
         }
     }
 
-    fun replyToRequest(correlationId: String, replyTo: String, deliveryTag: ULong, body: ByteArray) {
-        api.scope.launch {
-            channel.basicPublish {
-                this.body = body
-                exchange = ""
-                routingKey = replyTo
-                properties = properties {
-                    this.correlationId = correlationId
-                    deliveryMode = 2u // Persistent message by default; only works with durable queues
-                }
+    suspend fun replyToRequest(correlationId: String, replyTo: String, deliveryTag: ULong, body: ByteArray) {
+        channel.basicPublish {
+            this.body = body
+            exchange = ""
+            routingKey = replyTo
+            properties = properties {
+                this.correlationId = correlationId
+                deliveryMode = 2u // Persistent message by default; only works with durable queues
             }
+        }
 
-            channel.basicAck(deliveryTag)
+        channel.basicAck(deliveryTag)
+    }
+
+    fun nackRequest(deliveryTag: ULong) {
+        api.scope.launch {
+            channel.basicNack(deliveryTag, requeue = false)
         }
     }
 }
