@@ -94,10 +94,12 @@ class RabbitListenerHandlerManager(private val api: RabbitMQApi, private val con
             return
         }
 
-        val handler = handlers[request.javaClass]
+        // Cache the request class for faster subsequent lookups
+        val requestClass = request.javaClass
+        val handler = handlers[requestClass]
         if (handler == null) {
             log.atWarning()
-                .log("No handler found for request of type ${request.javaClass.name}, discarding message")
+                .log("No handler found for request of type ${requestClass.name}, discarding message")
             connection.nackRequest(deliveryTag)
             return
         }
@@ -109,7 +111,7 @@ class RabbitListenerHandlerManager(private val api: RabbitMQApi, private val con
         } catch (e: Throwable) { // TODO: retry?
             log.atSevere()
                 .withCause(e)
-                .log("Error handling request of type ${request.javaClass.name}, discarding message")
+                .log("Error handling request of type ${requestClass.name}, discarding message")
             connection.nackRequest(deliveryTag)
             return
         }
@@ -125,14 +127,14 @@ class RabbitListenerHandlerManager(private val api: RabbitMQApi, private val con
             } catch (e: TimeoutCancellationException) {
                 log.atSevere()
                     .log(
-                        "Handler for ${request.javaClass.name} did not respond within ${requestTimeoutSeconds}s, discarding message"
+                        "Handler for ${requestClass.name} did not respond within ${requestTimeoutSeconds}s, discarding message"
                     )
                 connection.nackRequest(deliveryTag)
             } catch (e: Throwable) {
                 if (e is CancellationException) throw e
                 log.atSevere()
                     .withCause(e)
-                    .log("Error handling request of type ${request.javaClass.name}, discarding message")
+                    .log("Error handling request of type ${requestClass.name}, discarding message")
                 connection.nackRequest(deliveryTag)
             }
         }

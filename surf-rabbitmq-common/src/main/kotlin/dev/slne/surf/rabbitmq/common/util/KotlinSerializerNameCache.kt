@@ -10,7 +10,10 @@ class KotlinSerializerNameCache<T>(private val module: SerializersModule) {
 
     @Suppress("UNCHECKED_CAST")
     fun get(className: String): KSerializer<T>? {
-        val cached = cache[className] ?: return null
+        // Use computeIfAbsent for efficient lazy lookup
+        val cached = cache.computeIfAbsent(className) {
+            module.serializerOrNull(Class.forName(it)) ?: NULL_MARKER
+        }
         if (cached === NULL_MARKER) return null
         return cached as? KSerializer<T>
     }

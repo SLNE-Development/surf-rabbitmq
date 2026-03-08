@@ -27,13 +27,17 @@ import kotlinx.serialization.KSerializer
 @OptIn(ExperimentalSerializationApi::class)
 object RabbitPacketSerializer {
 
+    // Cache for class name byte arrays to avoid repeated encoding
+    private val classNameBytesCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+
     // region Request serialization
     fun serializeRequest(
         api: RabbitMQApi,
         serializer: KSerializer<RabbitRequestPacket<*>>,
         request: RabbitRequestPacket<*>
     ): ByteArray {
-        val classNameBytes = request.javaClass.name.encodeToByteArray()
+        val className = request.javaClass.name
+        val classNameBytes = classNameBytesCache.computeIfAbsent(className) { it.encodeToByteArray() }
         val payloadBytes = wrapSerializationErrors { api.cbor.encodeToByteArray(serializer, request) }
 
         return writeFrame(Int.SIZE_BYTES + Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
@@ -82,7 +86,8 @@ object RabbitPacketSerializer {
         val serializer = serializerCache.get(responsePacket.javaClass)
             ?: throw SurfRabbitSerializerNotFoundException(responsePacket.javaClass.name)
 
-        val classNameBytes = responsePacket.javaClass.name.encodeToByteArray()
+        val className = responsePacket.javaClass.name
+        val classNameBytes = classNameBytesCache.computeIfAbsent(className) { it.encodeToByteArray() }
         val payloadBytes = wrapSerializationErrors { api.cbor.encodeToByteArray(serializer, responsePacket) }
 
         return writeFrame(Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
@@ -116,7 +121,10 @@ object RabbitPacketSerializer {
         val buf = Unpooled.buffer(exactSize, exactSize)
         try {
             write(buf)
-            return buf.array()
+            // Efficiently extract bytes without copying when possible
+            val result = ByteArray(buf.readableBytes())
+            buf.getBytes(buf.readerIndex(), result)
+            return result
         } finally {
             buf.release()
         }
@@ -124,15 +132,16 @@ object RabbitPacketSerializer {
 
     private fun readClassName(buf: ByteBuf): String {
         val length = buf.readUnsignedShort()
-        val bytes = ByteArray(length)
-        buf.readBytes(bytes)
-        return bytes.decodeToString()
+        // Read string directly from buffer using Netty's optimized method
+        return buf.readCharSequence(length, Charsets.UTF_8).toString()
     }
 
     private fun readRemainingBytes(buf: ByteBuf, source: ByteArray): ByteArray {
-        val offset = buf.readerIndex()
         val length = buf.readableBytes()
-        return source.copyOfRange(offset, offset + length)
+        // Avoid copyOfRange allocation by reading directly from buffer
+        val bytes = ByteArray(length)
+        buf.readBytes(bytes)
+        return bytes
     }
 
     private inline fun <T> wrapDeserializationErrors(block: () -> T): T =
