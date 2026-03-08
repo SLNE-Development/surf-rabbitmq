@@ -18,3 +18,6 @@ include("surf-rabbitmq-api:surf-rabbitmq-server-api")
 include("surf-rabbitmq-server")
 include("surf-rabbitmq-client")
 include("surf-rabbitmq-common")
+
+include("surf-rabbitmq-paper")
+include("surf-rabbitmq-velocity")

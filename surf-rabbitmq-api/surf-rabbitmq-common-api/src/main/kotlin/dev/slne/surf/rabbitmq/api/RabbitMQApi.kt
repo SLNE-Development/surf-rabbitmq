@@ -11,6 +11,7 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.overwriteWith
+import org.jetbrains.annotations.MustBeInvokedByOverriders
 
 @OptIn(ExperimentalSerializationApi::class)
 abstract class RabbitMQApi @InternalRabbitMQ constructor(
@@ -31,7 +32,8 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
     open val connection = RabbitMQConnection.create(this)
     private var frozen = false
 
-    suspend fun connect() {
+    @MustBeInvokedByOverriders
+    open suspend fun connect() {
         if (!isFrozen()) throw SurfRabbitApiNotFrozenException()
 
         connection.connect()
@@ -42,7 +44,8 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
         connect()
     }
 
-    suspend fun disconnect() {
+    @MustBeInvokedByOverriders
+    open suspend fun disconnect() {
         connection.disconnect()
 
         scope.cancel("RabbitMQApi disconnected")

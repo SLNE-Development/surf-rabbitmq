@@ -1,9 +1,11 @@
 package dev.slne.surf.rabbitmq.api
 
 import dev.slne.surf.rabbitmq.api.connection.ClientRabbitMQConnection
+import dev.slne.surf.rabbitmq.api.internal.PlatformDependent
 import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
+import dev.slne.surf.surfapi.core.api.util.getCallerClass
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.modules.EmptySerializersModule
@@ -33,12 +35,15 @@ class ClientRabbitMQApi @InternalRabbitMQ constructor(
     companion object {
         fun create(
             protocolVersion: Int,
-            path: Path,
+            pluginName: String,
+            path: Path? = null,
             serializer: SerializersModule = EmptySerializersModule()
         ): ClientRabbitMQApi {
+            val caller = getCallerClass() ?: error("Cannot get caller class")
+            val path = path ?: PlatformDependent.instance.getDataPathFromCallingPlugin(caller)
+
             val config = RabbitMQConfig.create(path)
             val cbor = createCbor(serializer)
-            val pluginName = "EXTRACT ME"
 
             return ClientRabbitMQApi(config, pluginName, protocolVersion, cbor)
         }

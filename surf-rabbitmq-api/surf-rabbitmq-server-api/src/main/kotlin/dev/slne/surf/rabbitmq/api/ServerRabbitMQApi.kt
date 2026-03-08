@@ -1,6 +1,7 @@
 package dev.slne.surf.rabbitmq.api
 
 import dev.slne.surf.rabbitmq.api.connection.ServerRabbitMQConnection
+import dev.slne.surf.rabbitmq.api.internal.StandaloneLifecycleHook
 import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
@@ -21,12 +22,24 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
         connection.registerRequestHandler(instance)
     }
 
+    override suspend fun connect() {
+        StandaloneLifecycleHook.instance.beforeConnect()
+        super.connect()
+    }
+
+    override suspend fun disconnect() {
+        super.disconnect()
+        StandaloneLifecycleHook.instance.afterDisconnect()
+    }
+
     companion object {
         fun create(
             protocolVersion: Int,
             path: Path,
             serializer: SerializersModule = EmptySerializersModule()
         ): ServerRabbitMQApi {
+            StandaloneLifecycleHook.instance.onInit()
+
             val config = RabbitMQConfig.create(path)
             val cbor = createCbor(serializer)
             val pluginName = "EXTRACT ME"
