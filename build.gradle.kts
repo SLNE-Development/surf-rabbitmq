@@ -25,7 +25,14 @@ subprojects {
         }
 
         tasks.withType<ShadowJar> {
-            relocate("io.netty.buffer", "dev.slne.surf.rabbitmq.libs.io.netty.buffer")
+            relocate("io.netty", "dev.slne.surf.rabbitmq.libs.io.netty")
+
+            exclude("kotlin/**")
+            exclude("kotlinx/**")
+            exclude("org/jetbrains/**")
+            exclude("org/intellij/**")
+            exclude("org/slf4j/**")
+            exclude("io/ktor/**")
         }
     }
 }
