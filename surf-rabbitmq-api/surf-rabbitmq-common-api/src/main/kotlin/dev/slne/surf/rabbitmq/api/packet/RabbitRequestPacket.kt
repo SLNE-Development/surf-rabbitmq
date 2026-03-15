@@ -5,6 +5,7 @@ import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestAlreadyRespondedExc
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlin.coroutines.CoroutineContext
 import kotlin.properties.Delegates
 
@@ -15,6 +16,7 @@ abstract class RabbitRequestPacket<ResponsePacket : RabbitResponsePacket> : Rabb
         @InternalRabbitMQ set
 
     @InternalRabbitMQ
+    @Transient
     val responseDeferred = CompletableDeferred<ResponsePacket>()
 
     fun respond(response: ResponsePacket) {

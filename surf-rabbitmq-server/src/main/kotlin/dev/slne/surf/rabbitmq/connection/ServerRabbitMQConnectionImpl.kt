@@ -7,14 +7,15 @@ import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ServerRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
 import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
+import dev.slne.surf.rabbitmq.api.internal.Platform
 import dev.slne.surf.rabbitmq.listener.RabbitListenerHandlerManager
 import kotlinx.coroutines.launch
 
 class ServerRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitMQConfig) :
-    AbstractRabbitMQConnectionImpl(api, config), ServerRabbitMQConnection {
+    AbstractRabbitMQConnectionImpl(api, config, Platform.SERVER), ServerRabbitMQConnection {
 
     private val listenerHandler = RabbitListenerHandlerManager(api, this)
-    private val prefetchCount = config.serverPrefetchCount.coerceAtLeast(1).toUShort()
+    private val prefetchCount = config.serverPrefetchCount.coerceAtLeast(0).toUShort()
     private val persistResponses = config.persistResponses
 
     private lateinit var replyChannel: AMQPChannel

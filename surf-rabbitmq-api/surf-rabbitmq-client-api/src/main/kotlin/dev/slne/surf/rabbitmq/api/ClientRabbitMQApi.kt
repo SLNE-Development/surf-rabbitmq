@@ -39,7 +39,8 @@ class ClientRabbitMQApi @InternalRabbitMQ constructor(
             path: Path? = null,
             serializer: SerializersModule = EmptySerializersModule()
         ): ClientRabbitMQApi {
-            val caller = getCallerClass() ?: error("Cannot get caller class")
+            val caller = getCallerClass(0) ?: error("Cannot get caller class")
+            println("Creating ClientRabbitMQApi for plugin $pluginName with protocol version $protocolVersion and path $path (caller: ${caller.name})")
             val path = path ?: PlatformDependent.instance.getDataPathFromCallingPlugin(caller)
 
             val config = RabbitMQConfig.create(path)

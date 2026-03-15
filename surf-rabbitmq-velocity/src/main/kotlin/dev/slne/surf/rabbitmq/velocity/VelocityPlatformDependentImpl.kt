@@ -1,6 +1,7 @@
 package dev.slne.surf.rabbitmq.velocity
 
 import com.google.auto.service.AutoService
+import dev.slne.surf.rabbitmq.api.internal.Platform
 import dev.slne.surf.rabbitmq.api.internal.PlatformDependent
 import dev.slne.surf.rabbitmq.velocity.reflection.JavaPluginLoaderProxy
 import dev.slne.surf.rabbitmq.velocity.reflection.SerializedPluginDescriptionProxy
@@ -12,6 +13,8 @@ import kotlin.jvm.optionals.getOrNull
 
 @AutoService(PlatformDependent::class)
 class VelocityPlatformDependentImpl : PlatformDependent {
+    override val platform: Platform = Platform.VELOCITY
+
     private val velocityPluginLoader by lazy {
         JavaPluginLoaderProxy.get().createInstance(plugin.proxy, Path("plugins"))
     }

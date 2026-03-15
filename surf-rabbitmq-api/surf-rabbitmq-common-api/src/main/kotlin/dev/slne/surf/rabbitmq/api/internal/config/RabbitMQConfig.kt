@@ -16,9 +16,8 @@ data class RabbitMQConfig(
     val password: String = "guest",
     val vhost: String = "/",
     val timeout: Long = 60.seconds.inWholeSeconds,
-    val connectionName: String = "SurfAmqpClient",
     val requestTimeoutSeconds: Long = 60.seconds.inWholeSeconds,
-    val serverPrefetchCount: Short = 32,
+    val serverPrefetchCount: Short = 128,
     val persistRequests: Boolean = true,
     val persistResponses: Boolean = false
 ) {

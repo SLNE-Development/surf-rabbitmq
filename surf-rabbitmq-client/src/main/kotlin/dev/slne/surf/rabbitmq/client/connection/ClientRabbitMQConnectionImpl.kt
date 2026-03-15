@@ -10,6 +10,7 @@ import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ClientRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestTimeoutException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundException
+import dev.slne.surf.rabbitmq.api.internal.PlatformDependent
 import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
@@ -24,8 +25,11 @@ import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.seconds
 
-class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitMQConfig) :
-    AbstractRabbitMQConnectionImpl(api, config), ClientRabbitMQConnection {
+class ClientRabbitMQConnectionImpl(
+    private val api: RabbitMQApi,
+    config: RabbitMQConfig
+) : AbstractRabbitMQConnectionImpl(api, config, PlatformDependent.instance.platform),
+    ClientRabbitMQConnection {
 
     private val requestTimeoutSeconds = config.requestTimeoutSeconds.seconds
     private val persistRequests = config.persistRequests
@@ -41,6 +45,7 @@ class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
 
     private val requestSerializerCache = KotlinSerializerCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
     private val responseSerializerCache = KotlinSerializerNameCache<RabbitResponsePacket>(api.cbor.serializersModule)
+
     private val correlationIdSequence = AtomicLong()
     private val correlationIdPrefix = "${api.pluginName}-${System.nanoTime()}"
 
@@ -66,8 +71,19 @@ class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
 
         api.scope.launch {
             for (message in consume) {
-                val correlationId = message.message.properties.correlationId ?: continue
-                pendingRequests.asMap().remove(correlationId)?.complete(message.message.body)
+                val correlationId = message.message.properties.correlationId
+                val body = message.message.body
+                val deliveryTag = message.message.deliveryTag
+
+                val deferred = correlationId?.let { pendingRequests.asMap().remove(it) }
+
+                // The response must always be removed from the callback queue,
+                // even if the request has already timed out on the client side.
+                channel.basicAck(deliveryTag)
+
+                if (deferred != null && !deferred.isCompleted) {
+                    deferred.complete(body)
+                }
             }
         }
     }
@@ -102,6 +118,10 @@ class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
                     deliveryMode = if (persistRequests) 2u else 1u
                     this.correlationId = correlationId
                     this.replyTo = callbackQueueName
+
+                    // If the request is still in the queue and has not yet been sent to the
+                    // server, it should expire after the timeout.
+                    expiration = requestTimeoutSeconds.inWholeMilliseconds.toString()
                 }
             }
         } catch (t: Throwable) {
@@ -116,6 +136,9 @@ class ClientRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
         } catch (e: TimeoutCancellationException) {
             pendingRequests.invalidate(correlationId)
             throw SurfRabbitRequestTimeoutException(requestTimeoutSeconds)
+        } catch (t: Throwable) {
+            pendingRequests.invalidate(correlationId)
+            throw t
         }
     }
 

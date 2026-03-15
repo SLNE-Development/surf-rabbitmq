@@ -9,6 +9,8 @@ interface PlatformDependent {
 
     fun getDataPathFromCallingPlugin(clazz: Class<*>): Path
 
+    val platform: Platform
+
     companion object {
         val instance = requiredService<PlatformDependent>()
     }
