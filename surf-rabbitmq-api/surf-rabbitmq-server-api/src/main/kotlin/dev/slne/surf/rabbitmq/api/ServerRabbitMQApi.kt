@@ -7,7 +7,7 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.modules.EmptySerializersModule
 import kotlinx.serialization.modules.SerializersModule
-import java.nio.file.Path
+import kotlin.io.path.Path
 
 @OptIn(ExperimentalSerializationApi::class)
 class ServerRabbitMQApi @InternalRabbitMQ constructor(
@@ -35,14 +35,13 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
     companion object {
         fun create(
             protocolVersion: Int,
-            path: Path,
+            pluginName: String,
             serializer: SerializersModule = EmptySerializersModule()
         ): ServerRabbitMQApi {
             StandaloneLifecycleHook.instance.onInit()
 
-            val config = RabbitMQConfig.create(path)
+            val config = RabbitMQConfig.create(Path("data/rabbitmq"))
             val cbor = createCbor(serializer)
-            val pluginName = "EXTRACT ME"
 
             return ServerRabbitMQApi(config, pluginName, protocolVersion, cbor)
         }
