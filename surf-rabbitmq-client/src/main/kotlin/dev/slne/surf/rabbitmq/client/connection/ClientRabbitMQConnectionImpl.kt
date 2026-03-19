@@ -38,13 +38,19 @@ class ClientRabbitMQConnectionImpl(
         .expireAfterWrite(requestTimeoutSeconds * 2)
         .evictionListener<String, CompletableDeferred<ByteArray>> { _, deferred, _ ->
             if (deferred != null && !deferred.isCompleted) {
-                deferred.completeExceptionally(SurfRabbitRequestTimeoutException(requestTimeoutSeconds))
+                deferred.completeExceptionally(
+                    SurfRabbitRequestTimeoutException(
+                        requestTimeoutSeconds
+                    )
+                )
             }
         }
         .build<String, CompletableDeferred<ByteArray>>()
 
-    private val requestSerializerCache = KotlinSerializerCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
-    private val responseSerializerCache = KotlinSerializerNameCache<RabbitResponsePacket>(api.cbor.serializersModule)
+    private val requestSerializerCache =
+        KotlinSerializerCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
+    private val responseSerializerCache =
+        KotlinSerializerNameCache<RabbitResponsePacket>(api.cbor.serializersModule)
 
     private val correlationIdSequence = AtomicLong()
     private val correlationIdPrefix = "${api.pluginName}-${System.nanoTime()}"
@@ -59,7 +65,7 @@ class ClientRabbitMQConnectionImpl(
         callbackQueueName = channel.queueDeclare {
             name = queueName + "_callback"
             durable = false
-            exclusive = true
+//            exclusive = true
             autoDelete = true
         }.queueName
 
@@ -99,7 +105,8 @@ class ClientRabbitMQConnectionImpl(
 
         val requestBytes = RabbitPacketSerializer.serializeRequest(api, serializer, request)
         val responseBytes = awaitResponse(requestBytes)
-        val response = RabbitPacketSerializer.deserializeResponse(api, responseBytes, responseSerializerCache)
+        val response =
+            RabbitPacketSerializer.deserializeResponse(api, responseBytes, responseSerializerCache)
 
         return response as R
     }
@@ -149,5 +156,6 @@ class ClientRabbitMQConnectionImpl(
         super.disconnect()
     }
 
-    private fun nextCorrelationId(): String = "$correlationIdPrefix-${correlationIdSequence.incrementAndGet()}"
+    private fun nextCorrelationId(): String =
+        "$correlationIdPrefix-${correlationIdSequence.incrementAndGet()}"
 }
