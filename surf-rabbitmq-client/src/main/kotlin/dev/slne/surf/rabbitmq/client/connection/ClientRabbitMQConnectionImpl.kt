@@ -31,9 +31,11 @@ import kotlin.time.Duration.Companion.seconds
 class ClientRabbitMQConnectionImpl(
     private val api: RabbitMQApi,
     config: RabbitMQConfig
-) : AbstractRabbitMQConnectionImpl(api, config, PlatformDependent.instance.platform),
-    ClientRabbitMQConnection {
-
+) : AbstractRabbitMQConnectionImpl(
+    api = api,
+    config = config,
+    platform = PlatformDependent.instance.platform
+), ClientRabbitMQConnection {
     private val requestTimeoutSeconds = config.requestTimeoutSeconds.seconds
     private val persistRequests = config.persistRequests
 
@@ -70,13 +72,21 @@ class ClientRabbitMQConnectionImpl(
         publishChannel = connection.openChannel()
 
         callbackQueueName = channel.queueDeclare {
-            name = queueName + "_callback"
+            name = queueName + "_callback_" + generateRandomQueueSuffix()
             durable = false
-//            exclusive = true
+            exclusive = true
             autoDelete = true
         }.queueName
 
         startConsumingResponses()
+    }
+
+    private fun generateRandomQueueSuffix(length: Int = 8): String {
+        val chars = ('a'..'z') + ('0'..'9')
+
+        return (1..length)
+            .map { chars.random() }
+            .joinToString("")
     }
 
     private suspend fun startConsumingResponses() {
@@ -88,8 +98,8 @@ class ClientRabbitMQConnectionImpl(
                 val body = message.message.body
                 val deliveryTag = message.message.deliveryTag
 
-                val pair = correlationId?.let { pendingRequests.asMap().remove(it) }
-                val deferred = pair?.second
+                val (_, deferred) =
+                    correlationId?.let { pendingRequests.asMap().remove(it) } ?: continue
 
                 // The response must always be removed from the callback queue,
                 // even if the request has already timed out on the client side.
