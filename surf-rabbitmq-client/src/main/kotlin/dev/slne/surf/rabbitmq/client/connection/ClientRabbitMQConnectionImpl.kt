@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package dev.slne.surf.rabbitmq.client.connection
 
 import com.github.benmanes.caffeine.cache.Caffeine
@@ -22,6 +24,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.ExperimentalSerializationApi
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.seconds
 
@@ -36,16 +39,20 @@ class ClientRabbitMQConnectionImpl(
 
     private val pendingRequests = Caffeine.newBuilder()
         .expireAfterWrite(requestTimeoutSeconds * 2)
-        .evictionListener<String, CompletableDeferred<ByteArray>> { _, deferred, _ ->
+        .evictionListener<String, Pair<RabbitRequestPacket<*>, CompletableDeferred<ByteArray>?>> { _, pair, _ ->
+            val request = pair?.first
+            val deferred = pair?.second
+
             if (deferred != null && !deferred.isCompleted) {
                 deferred.completeExceptionally(
                     SurfRabbitRequestTimeoutException(
+                        request,
                         requestTimeoutSeconds
                     )
                 )
             }
         }
-        .build<String, CompletableDeferred<ByteArray>>()
+        .build<String, Pair<RabbitRequestPacket<*>, CompletableDeferred<ByteArray>?>>()
 
     private val requestSerializerCache =
         KotlinSerializerCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
@@ -81,7 +88,8 @@ class ClientRabbitMQConnectionImpl(
                 val body = message.message.body
                 val deliveryTag = message.message.deliveryTag
 
-                val deferred = correlationId?.let { pendingRequests.asMap().remove(it) }
+                val pair = correlationId?.let { pendingRequests.asMap().remove(it) }
+                val deferred = pair?.second
 
                 // The response must always be removed from the callback queue,
                 // even if the request has already timed out on the client side.
@@ -99,26 +107,30 @@ class ClientRabbitMQConnectionImpl(
         request: RabbitRequestPacket<R>,
         responseClass: Class<R>
     ): R {
-        val serializer = requestSerializerCache.get(request.javaClass)
-            ?: throw SurfRabbitSerializerNotFoundException(request.javaClass.name)
-        responseSerializerCache.register(responseClass)
-
-        val requestBytes = RabbitPacketSerializer.serializeRequest(api, serializer, request)
-        val responseBytes = awaitResponse(requestBytes)
+        val responseBytes = awaitResponse(request, responseClass)
         val response =
             RabbitPacketSerializer.deserializeResponse(api, responseBytes, responseSerializerCache)
 
         return response as R
     }
 
-    private suspend fun awaitResponse(body: ByteArray): ByteArray {
+    private suspend fun <R : RabbitResponsePacket> awaitResponse(
+        request: RabbitRequestPacket<R>,
+        responseClass: Class<R>
+    ): ByteArray {
         val correlationId = nextCorrelationId()
         val deferred = CompletableDeferred<ByteArray>()
-        pendingRequests.put(correlationId, deferred)
+
+        val serializer = requestSerializerCache.get(request.javaClass)
+            ?: throw SurfRabbitSerializerNotFoundException(request.javaClass.name)
+        responseSerializerCache.register(responseClass)
+        val requestBytes = RabbitPacketSerializer.serializeRequest(api, serializer, request)
+
+        pendingRequests.put(correlationId, request to deferred)
 
         try {
             publishChannel.basicPublish {
-                this.body = body
+                this.body = requestBytes
                 exchange = ""
                 routingKey = queueName
                 properties = properties {
@@ -142,7 +154,7 @@ class ClientRabbitMQConnectionImpl(
             }
         } catch (e: TimeoutCancellationException) {
             pendingRequests.invalidate(correlationId)
-            throw SurfRabbitRequestTimeoutException(requestTimeoutSeconds)
+            throw SurfRabbitRequestTimeoutException(request, requestTimeoutSeconds)
         } catch (t: Throwable) {
             pendingRequests.invalidate(correlationId)
             throw t
