@@ -1,8 +1,8 @@
 package dev.slne.surf.rabbitmq.api
 
 import dev.slne.surf.rabbitmq.api.connection.ServerRabbitMQConnection
+import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import dev.slne.surf.rabbitmq.api.internal.StandaloneLifecycleHook
-import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.modules.EmptySerializersModule
@@ -13,9 +13,8 @@ import kotlin.io.path.Path
 class ServerRabbitMQApi @InternalRabbitMQ constructor(
     config: RabbitMQConfig,
     pluginName: String,
-    protocolVersion: Int,
     cbor: Cbor
-) : RabbitMQApi(config, pluginName, protocolVersion, cbor) {
+) : RabbitMQApi(config, pluginName, cbor) {
     override val connection get() = super.connection as ServerRabbitMQConnection
 
     fun registerRequestHandler(instance: Any) {
@@ -43,7 +42,7 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
             val config = RabbitMQConfig.create(Path("data/rabbitmq"))
             val cbor = createCbor(serializer)
 
-            return ServerRabbitMQApi(config, pluginName, protocolVersion, cbor)
+            return ServerRabbitMQApi(config, pluginName, cbor)
         }
     }
 }

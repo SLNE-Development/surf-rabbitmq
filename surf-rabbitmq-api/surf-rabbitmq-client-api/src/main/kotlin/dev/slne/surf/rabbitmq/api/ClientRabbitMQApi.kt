@@ -1,11 +1,9 @@
 package dev.slne.surf.rabbitmq.api
 
 import dev.slne.surf.rabbitmq.api.connection.ClientRabbitMQConnection
-import dev.slne.surf.rabbitmq.api.internal.PlatformDependent
-import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
-import dev.slne.surf.surfapi.core.api.util.getCallerClass
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.modules.EmptySerializersModule
@@ -16,9 +14,8 @@ import java.nio.file.Path
 class ClientRabbitMQApi @InternalRabbitMQ constructor(
     config: RabbitMQConfig,
     pluginName: String,
-    protocolVersion: Int,
     cbor: Cbor
-) : RabbitMQApi(config, pluginName, protocolVersion, cbor) {
+) : RabbitMQApi(config, pluginName, cbor) {
     override val connection get() = super.connection as ClientRabbitMQConnection
 
     suspend fun <R : RabbitResponsePacket> sendRequest(
@@ -34,19 +31,14 @@ class ClientRabbitMQApi @InternalRabbitMQ constructor(
 
     companion object {
         fun create(
-            protocolVersion: Int,
             pluginName: String,
-            path: Path? = null,
+            path: Path,
             serializer: SerializersModule = EmptySerializersModule()
         ): ClientRabbitMQApi {
-            val caller = getCallerClass(0) ?: error("Cannot get caller class")
-            println("Creating ClientRabbitMQApi for plugin $pluginName with protocol version $protocolVersion and path $path (caller: ${caller.name})")
-            val path = path ?: PlatformDependent.instance.getDataPathFromCallingPlugin(caller)
-
             val config = RabbitMQConfig.create(path)
             val cbor = createCbor(serializer)
 
-            return ClientRabbitMQApi(config, pluginName, protocolVersion, cbor)
+            return ClientRabbitMQApi(config, pluginName, cbor)
         }
     }
 }

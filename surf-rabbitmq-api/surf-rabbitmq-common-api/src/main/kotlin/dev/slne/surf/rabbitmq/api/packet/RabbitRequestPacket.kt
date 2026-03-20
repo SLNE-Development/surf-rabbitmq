@@ -10,8 +10,8 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.properties.Delegates
 
 @Serializable
-abstract class RabbitRequestPacket<ResponsePacket : RabbitResponsePacket> : RabbitPacket(), CoroutineScope {
-
+abstract class RabbitRequestPacket<ResponsePacket : RabbitResponsePacket> : RabbitPacket(),
+    CoroutineScope {
     final override var coroutineContext: CoroutineContext by Delegates.notNull()
         @InternalRabbitMQ set
 

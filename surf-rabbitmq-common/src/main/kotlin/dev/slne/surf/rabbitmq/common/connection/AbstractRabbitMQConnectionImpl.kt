@@ -7,14 +7,12 @@ import dev.kourier.amqp.connection.amqpConfig
 import dev.kourier.amqp.robust.createRobustAMQPConnection
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
-import dev.slne.surf.rabbitmq.api.internal.Platform
-import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import kotlin.time.Duration.Companion.seconds
 
 abstract class AbstractRabbitMQConnectionImpl(
     private val api: RabbitMQApi,
     private val config: RabbitMQConfig,
-    platform: Platform
 ) : RabbitMQConnection {
     override lateinit var connection: AMQPConnection
     override lateinit var channel: AMQPChannel
@@ -29,7 +27,7 @@ abstract class AbstractRabbitMQConnectionImpl(
             password = config.password
             vhost = config.vhost
             timeout = config.timeout.seconds
-            connectionName = api.pluginName + "_" + platform
+            connectionName = api.pluginName
         }
     }
 

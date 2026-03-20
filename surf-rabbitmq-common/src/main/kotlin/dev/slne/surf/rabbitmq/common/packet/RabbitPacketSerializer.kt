@@ -1,7 +1,11 @@
 package dev.slne.surf.rabbitmq.common.packet
 
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
-import dev.slne.surf.rabbitmq.api.exception.*
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitEnvelopeDeserializationException
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitEnvelopeSerializationException
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializationException
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundException
+import dev.slne.surf.rabbitmq.api.packet.RabbitPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
@@ -37,30 +41,25 @@ object RabbitPacketSerializer {
         request: RabbitRequestPacket<*>
     ): ByteArray {
         val classNameBytes = classNameBytesCache.get(request.javaClass)
-        val payloadBytes = wrapSerializationErrors { api.cbor.encodeToByteArray(serializer, request) }
+        val payloadBytes = wrapSerializationErrors {
+            api.cbor.encodeToByteArray(serializer, request)
+        }
 
         return writeFrame(Int.SIZE_BYTES + Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
-            buf.writeInt(api.protocolVersion)
             buf.writeShort(classNameBytes.size)
             buf.writeBytes(classNameBytes)
             buf.writeBytes(payloadBytes)
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
-    fun deserializeRequest(
+    private fun <R : RabbitPacket> deserialize(
         api: RabbitMQApi,
         data: ByteArray,
-        serializerCache: KotlinSerializerNameCache<RabbitRequestPacket<*>>,
-    ): RabbitRequestPacket<*> {
+        serializerCache: KotlinSerializerNameCache<R>
+    ): R {
         val buf = Unpooled.wrappedBuffer(data)
 
         return try {
-            val version = buf.readInt()
-            if (version != api.protocolVersion) {
-                throw SurfRabbitProtocolVersionMismatchException(api.protocolVersion, version)
-            }
-
             val className = readClassName(buf)
             val serializer = serializerCache.get(className)
                 ?: throw SurfRabbitSerializerNotFoundException(className)
@@ -71,6 +70,23 @@ object RabbitPacketSerializer {
         } finally {
             buf.release()
         }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun deserializeRequest(
+        api: RabbitMQApi,
+        data: ByteArray,
+        serializerCache: KotlinSerializerNameCache<RabbitRequestPacket<*>>,
+    ): RabbitRequestPacket<*> {
+        return deserialize(api, data, serializerCache)
+    }
+
+    fun deserializeResponse(
+        api: RabbitMQApi,
+        data: ByteArray,
+        serializerCache: KotlinSerializerNameCache<RabbitResponsePacket>
+    ): RabbitResponsePacket {
+        return deserialize(api, data, serializerCache)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -83,31 +99,13 @@ object RabbitPacketSerializer {
             ?: throw SurfRabbitSerializerNotFoundException(responsePacket.javaClass.name)
 
         val classNameBytes = classNameBytesCache.get(responsePacket.javaClass)
-        val payloadBytes = wrapSerializationErrors { api.cbor.encodeToByteArray(serializer, responsePacket) }
+        val payloadBytes =
+            wrapSerializationErrors { api.cbor.encodeToByteArray(serializer, responsePacket) }
 
         return writeFrame(Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
             buf.writeShort(classNameBytes.size)
             buf.writeBytes(classNameBytes)
             buf.writeBytes(payloadBytes)
-        }
-    }
-
-    fun deserializeResponse(
-        api: RabbitMQApi,
-        data: ByteArray,
-        serializerCache: KotlinSerializerNameCache<RabbitResponsePacket>
-    ): RabbitResponsePacket {
-        val buf = Unpooled.wrappedBuffer(data)
-        return try {
-            val className = readClassName(buf)
-            val serializer = serializerCache.get(className)
-                ?: throw SurfRabbitSerializerNotFoundException(className)
-
-            wrapDeserializationErrors {
-                api.cbor.decodeFromByteArray(serializer, readRemainingBytes(buf, data))
-            }
-        } finally {
-            buf.release()
         }
     }
 

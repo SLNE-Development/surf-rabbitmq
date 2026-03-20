@@ -1,4 +1,4 @@
-package dev.slne.surf.rabbitmq.api.internal.config
+package dev.slne.surf.rabbitmq.api.internal
 
 import dev.slne.surf.rabbitmq.api.InternalRabbitMQ
 import dev.slne.surf.surfapi.core.api.config.createSpongeYmlConfig

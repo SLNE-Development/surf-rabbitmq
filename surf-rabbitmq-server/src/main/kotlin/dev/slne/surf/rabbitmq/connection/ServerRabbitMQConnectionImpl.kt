@@ -5,15 +5,15 @@ import dev.kourier.amqp.channel.basicPublish
 import dev.kourier.amqp.properties
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ServerRabbitMQConnection
-import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
-import dev.slne.surf.rabbitmq.api.internal.Platform
 import dev.slne.surf.rabbitmq.listener.RabbitListenerHandlerManager
 import kotlinx.coroutines.launch
 
-class ServerRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitMQConfig) :
-    AbstractRabbitMQConnectionImpl(api, config, Platform.SERVER), ServerRabbitMQConnection {
-
+class ServerRabbitMQConnectionImpl(
+    private val api: RabbitMQApi,
+    config: RabbitMQConfig
+) : AbstractRabbitMQConnectionImpl(api, config), ServerRabbitMQConnection {
     private val listenerHandler = RabbitListenerHandlerManager(api, this)
     private val prefetchCount = config.serverPrefetchCount.coerceAtLeast(0).toUShort()
     private val persistResponses = config.persistResponses
@@ -55,7 +55,12 @@ class ServerRabbitMQConnectionImpl(private val api: RabbitMQApi, config: RabbitM
         }
     }
 
-    suspend fun replyToRequest(correlationId: String, replyTo: String, deliveryTag: ULong, body: ByteArray) {
+    suspend fun replyToRequest(
+        correlationId: String,
+        replyTo: String,
+        deliveryTag: ULong,
+        body: ByteArray
+    ) {
         replyChannel.basicPublish {
             this.body = body
             exchange = ""

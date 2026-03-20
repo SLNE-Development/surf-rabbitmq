@@ -4,7 +4,6 @@ import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
 
 interface ClientRabbitMQConnection : RabbitMQConnection {
-
     suspend fun <R : RabbitResponsePacket> sendRequest(
         request: RabbitRequestPacket<R>,
         responseClass: Class<R>

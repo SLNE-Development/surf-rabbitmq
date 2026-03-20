@@ -3,7 +3,7 @@ package dev.slne.surf.rabbitmq.api
 import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiAlreadyFrozenException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiNotFrozenException
-import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import dev.slne.surf.surfapi.core.api.serializer.SurfSerializerModule
 import dev.slne.surf.surfapi.core.api.util.logger
 import kotlinx.coroutines.*
@@ -17,10 +17,8 @@ import org.jetbrains.annotations.MustBeInvokedByOverriders
 abstract class RabbitMQApi @InternalRabbitMQ constructor(
     @InternalRabbitMQ val config: RabbitMQConfig,
     @InternalRabbitMQ val pluginName: String,
-    val protocolVersion: Int,
     val cbor: Cbor
 ) {
-
     @InternalRabbitMQ
     val scope =
         CoroutineScope(Dispatchers.Default + CoroutineName("RabbitMQApi-$pluginName") + SupervisorJob() + CoroutineExceptionHandler { context, throwable ->

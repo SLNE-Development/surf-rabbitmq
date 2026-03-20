@@ -6,7 +6,6 @@ import dev.slne.surf.surfapi.core.api.util.requiredService
 
 @InternalRabbitMQ
 interface RabbitMQConnectionFactory {
-
     fun createConnection(api: RabbitMQApi): RabbitMQConnection
 
     companion object {

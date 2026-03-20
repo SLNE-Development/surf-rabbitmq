@@ -12,8 +12,7 @@ import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ClientRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestTimeoutException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundException
-import dev.slne.surf.rabbitmq.api.internal.PlatformDependent
-import dev.slne.surf.rabbitmq.api.internal.config.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
 import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
@@ -34,7 +33,6 @@ class ClientRabbitMQConnectionImpl(
 ) : AbstractRabbitMQConnectionImpl(
     api = api,
     config = config,
-    platform = PlatformDependent.instance.platform
 ), ClientRabbitMQConnection {
     private val requestTimeoutSeconds = config.requestTimeoutSeconds.seconds
     private val persistRequests = config.persistRequests

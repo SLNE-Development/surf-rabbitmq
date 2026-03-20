@@ -8,7 +8,6 @@ class KotlinSerializerCache<T>(
     private val module: SerializersModule,
     private val clazz: Class<T>
 ) : ClassValue<KSerializer<T>?>() {
-
     @Suppress("UNCHECKED_CAST")
     override fun computeValue(type: Class<*>): KSerializer<T>? {
         if (!clazz.isAssignableFrom(type)) return null
