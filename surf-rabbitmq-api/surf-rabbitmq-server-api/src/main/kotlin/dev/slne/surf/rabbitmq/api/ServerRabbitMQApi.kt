@@ -40,7 +40,7 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
         ): ServerRabbitMQApi {
             StandaloneLifecycleHook.instance.onInit()
 
-            val config = RabbitMQConfig.create(Path("."))
+            val config = RabbitMQConfig.create(Path("config"))
             val cbor = createCbor(serializer)
 
             return ServerRabbitMQApi(config, pluginName, protocolVersion, cbor)
