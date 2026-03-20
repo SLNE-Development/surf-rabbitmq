@@ -30,9 +30,21 @@ import kotlinx.serialization.KSerializer
  */
 @OptIn(ExperimentalSerializationApi::class)
 object RabbitPacketSerializer {
-
     private val classNameBytesCache = object : ClassValue<ByteArray>() {
         override fun computeValue(type: Class<*>): ByteArray = type.name.encodeToByteArray()
+    }
+
+
+    @Suppress("UNCHECKED_CAST")
+    fun serializeResponse(
+        api: RabbitMQApi,
+        serializerCache: KotlinSerializerCache<RabbitResponsePacket>,
+        responsePacket: RabbitResponsePacket
+    ): ByteArray {
+        val serializer = serializerCache.get(responsePacket.javaClass)
+            ?: throw SurfRabbitSerializerNotFoundException(responsePacket.javaClass.name)
+
+        return serialize(api, serializer, responsePacket)
     }
 
     fun serializeRequest(
@@ -40,12 +52,20 @@ object RabbitPacketSerializer {
         serializer: KSerializer<RabbitRequestPacket<*>>,
         request: RabbitRequestPacket<*>
     ): ByteArray {
-        val classNameBytes = classNameBytesCache.get(request.javaClass)
+        return serialize(api, serializer, request)
+    }
+
+    private fun <P : RabbitPacket> serialize(
+        api: RabbitMQApi,
+        serializer: KSerializer<P>,
+        packet: P
+    ): ByteArray {
+        val classNameBytes = classNameBytesCache.get(packet.javaClass)
         val payloadBytes = wrapSerializationErrors {
-            api.cbor.encodeToByteArray(serializer, request)
+            api.cbor.encodeToByteArray(serializer, packet)
         }
 
-        return writeFrame(Int.SIZE_BYTES + Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
+        return writeFrame(Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
             buf.writeShort(classNameBytes.size)
             buf.writeBytes(classNameBytes)
             buf.writeBytes(payloadBytes)
@@ -89,28 +109,9 @@ object RabbitPacketSerializer {
         return deserialize(api, data, serializerCache)
     }
 
-    @Suppress("UNCHECKED_CAST")
-    fun serializeResponse(
-        api: RabbitMQApi,
-        serializerCache: KotlinSerializerCache<RabbitResponsePacket>,
-        responsePacket: RabbitResponsePacket
-    ): ByteArray {
-        val serializer = serializerCache.get(responsePacket.javaClass)
-            ?: throw SurfRabbitSerializerNotFoundException(responsePacket.javaClass.name)
-
-        val classNameBytes = classNameBytesCache.get(responsePacket.javaClass)
-        val payloadBytes =
-            wrapSerializationErrors { api.cbor.encodeToByteArray(serializer, responsePacket) }
-
-        return writeFrame(Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
-            buf.writeShort(classNameBytes.size)
-            buf.writeBytes(classNameBytes)
-            buf.writeBytes(payloadBytes)
-        }
-    }
-
     private inline fun writeFrame(exactSize: Int, write: (ByteBuf) -> Unit): ByteArray {
         val buf = Unpooled.buffer(exactSize, exactSize)
+
         try {
             write(buf)
             return buf.array()
