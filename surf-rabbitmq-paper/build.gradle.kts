@@ -5,6 +5,7 @@ plugins {
 surfPaperPluginApi {
     mainClass("dev.slne.surf.rabbitmq.paper.PaperMain")
     bootstrapper("dev.slne.surf.rabbitmq.paper.PaperBootstrap")
+    foliaSupported(true)
 }
 
 dependencies {
