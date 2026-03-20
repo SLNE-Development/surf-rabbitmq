@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package dev.slne.surf.rabbitmq.listener
 
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
@@ -15,16 +17,23 @@ import dev.slne.surf.surfapi.core.api.util.mutableObject2ObjectMapOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.ExperimentalSerializationApi
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
 import kotlin.time.Duration.Companion.seconds
 
-class RabbitListenerHandlerManager(private val api: RabbitMQApi, private val connection: ServerRabbitMQConnectionImpl) {
+class RabbitListenerHandlerManager(
+    private val api: RabbitMQApi,
+    private val connection: ServerRabbitMQConnectionImpl
+) {
     private val handlers = mutableObject2ObjectMapOf<Class<*>, RabbitListenerHandler>()
     private val registrationLock = ReentrantReadWriteLock()
 
-    private val requestSerializerCache = KotlinSerializerNameCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
-    private val serializerCache = KotlinSerializerCache<RabbitResponsePacket>(api.cbor.serializersModule)
+    private val requestSerializerCache =
+        KotlinSerializerNameCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
+    
+    private val serializerCache =
+        KotlinSerializerCache<RabbitResponsePacket>(api.cbor.serializersModule)
 
     fun registerRequestHandler(instance: Any) {
         if (api.isFrozen()) throw SurfRabbitApiAlreadyFrozenException()
@@ -75,7 +84,12 @@ class RabbitListenerHandlerManager(private val api: RabbitMQApi, private val con
         }
     }
 
-    suspend fun handleRequest(correlationId: String, replyTo: String, body: ByteArray, deliveryTag: ULong) {
+    suspend fun handleRequest(
+        correlationId: String,
+        replyTo: String,
+        body: ByteArray,
+        deliveryTag: ULong
+    ) {
         val request = try {
             RabbitPacketSerializer.deserializeRequest(api, body, requestSerializerCache)
         } catch (e: SurfRabbitProtocolVersionMismatchException) { // TODO: correctly handle protocol version mismatch
@@ -118,7 +132,8 @@ class RabbitListenerHandlerManager(private val api: RabbitMQApi, private val con
             val response = withTimeout(requestTimeoutSeconds) {
                 request.responseDeferred.await()
             }
-            val responseBytes = RabbitPacketSerializer.serializeResponse(api, serializerCache, response)
+            val responseBytes =
+                RabbitPacketSerializer.serializeResponse(api, serializerCache, response)
             connection.replyToRequest(correlationId, replyTo, deliveryTag, responseBytes)
         } catch (e: TimeoutCancellationException) {
             log.atSevere()
