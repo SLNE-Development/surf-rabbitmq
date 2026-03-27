@@ -4,12 +4,19 @@ import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiAlreadyFrozenException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiNotFrozenException
 import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.packet.standard.response.StringResponsePacket
+import dev.slne.surf.rabbitmq.api.packet.standard.response.optional.OptionalStringResponsePacket
+import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.OptionalPrimitiveResponse
+import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.PrimitiveResponse
+import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.array.ArrayResponse
+import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.array.OptionalArrayResponse
 import dev.slne.surf.surfapi.core.api.serializer.SurfSerializerModule
 import dev.slne.surf.surfapi.core.api.util.logger
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.contextual
 import kotlinx.serialization.modules.overwriteWith
 import org.jetbrains.annotations.MustBeInvokedByOverriders
 
@@ -64,7 +71,18 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
             ignoreUnknownKeys = true
             serializersModule = SerializersModule {
                 include(SurfSerializerModule.all.overwriteWith(additionalSerializerModule))
+                include(defaultSerializersModule)
             }
+        }
+
+        private val defaultSerializersModule = SerializersModule {
+            include(PrimitiveResponse.SERIALIZER_MODULE)
+            include(OptionalPrimitiveResponse.SERIALIZER_MODULE)
+            include(ArrayResponse.SERIALIZER_MODULE)
+            include(OptionalArrayResponse.SERIALIZER_MODULE)
+
+            contextual(StringResponsePacket.serializer())
+            contextual(OptionalStringResponsePacket.serializer())
         }
     }
 }

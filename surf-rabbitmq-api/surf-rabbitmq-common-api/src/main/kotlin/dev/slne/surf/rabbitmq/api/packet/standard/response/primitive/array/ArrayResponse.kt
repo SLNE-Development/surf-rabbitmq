@@ -3,6 +3,8 @@ package dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.array
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.contextual
 
 @Serializable
 abstract class ArrayResponse<A>(
@@ -11,8 +13,21 @@ abstract class ArrayResponse<A>(
     @Transient
     open val value: Array<A> = arrayInitializer()
 ) : RabbitResponsePacket(), Iterable<A> {
+    companion object {
+        val SERIALIZER_MODULE = SerializersModule {
+            contextual(BooleanArrayResponsePacket.serializer())
+            contextual(ByteArrayResponsePacket.serializer())
+            contextual(CharArrayResponsePacket.serializer())
+            contextual(DoubleArrayResponsePacket.serializer())
+            contextual(FloatArrayResponsePacket.serializer())
+            contextual(IntArrayResponsePacket.serializer())
+            contextual(LongArrayResponsePacket.serializer())
+            contextual(ShortArrayResponsePacket.serializer())
+        }
+    }
+
     override fun iterator() = value.iterator()
-    
+
     @Serializable
     open class BooleanArrayResponsePacket(
         override val value: Array<Boolean>
