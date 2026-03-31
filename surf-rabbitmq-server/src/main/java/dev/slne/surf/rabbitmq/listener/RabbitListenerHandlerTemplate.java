@@ -23,7 +23,7 @@ final class RabbitListenerHandlerTemplate implements RabbitListenerHandler {
     static {
         try {
             final MethodHandles.Lookup lookup = MethodHandles.lookup();
-            final InvokerClassData classData = HiddenInvokerUtil.loadClassData(lookup, MethodType.methodType(void.class, RabbitRequestPacket.class));
+            final InvokerClassData classData = HiddenInvokerUtil.loadClassDataWithAutoSuspend(lookup, MethodType.methodType(void.class, RabbitRequestPacket.class));
 
             METHOD = classData.method();
             METHOD_HANDLE = classData.methodHandle();
