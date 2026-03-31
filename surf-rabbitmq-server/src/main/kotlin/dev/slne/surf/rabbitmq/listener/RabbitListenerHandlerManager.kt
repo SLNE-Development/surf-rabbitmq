@@ -136,8 +136,21 @@ class RabbitListenerHandlerManager(
             val handlerScope = api.scope + requestJob
             RabbitPacketPropertiesInjector.inject(request, handlerScope)
 
-            handlerScope.launch {
+            val handlerJob = handlerScope.launch {
                 handler.handle(request)
+            }
+
+            handlerJob.invokeOnCompletion { cause ->
+                if (cause != null && cause !is CancellationException) {
+                    log.atSevere()
+                        .withCause(cause)
+                        .log("Error in handler for request of type ${request.javaClass.name}, discarding message")
+                    request.responseDeferred.cancel("Error in handler", cause)
+
+                    api.scope.launch {
+                        connection.nackRequest(deliveryTag)
+                    }
+                }
             }
 
             val requestTimeoutSeconds = api.config.requestTimeoutSeconds.seconds
