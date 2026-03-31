@@ -12,18 +12,19 @@ import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
 import dev.slne.surf.rabbitmq.connection.ServerRabbitMQConnectionImpl
+import dev.slne.surf.surfapi.core.api.invoker.HiddenInvokerUtil
+import dev.slne.surf.surfapi.core.api.invoker.InvokerFactory
 import dev.slne.surf.surfapi.core.api.util.logger
 import dev.slne.surf.surfapi.core.api.util.mutableObject2ObjectMapOf
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.job
-import kotlinx.coroutines.withTimeout
+import dev.slne.surf.surfapi.shared.api.util.InternalInvokerApi
+import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
 import kotlin.time.Duration.Companion.seconds
 
+@Suppress("UnstableApiUsage")
+@OptIn(InternalInvokerApi::class)
 class RabbitListenerHandlerManager(
     private val api: RabbitMQApi,
     private val connection: ServerRabbitMQConnectionImpl
@@ -33,9 +34,18 @@ class RabbitListenerHandlerManager(
 
     private val requestSerializerCache =
         KotlinSerializerNameCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
-    
+
     private val serializerCache =
         KotlinSerializerCache<RabbitResponsePacket>(api.cbor.serializersModule)
+
+    companion object {
+        private val log = logger()
+        private val HANDLER_FACTORY = InvokerFactory(
+            /* templateClass = */ RabbitListenerHandlerTemplate::class.java,
+            /* invokerInterface = */ RabbitListenerHandler::class.java,
+            /* lookup = */ RabbitListenerMethodHandleProvider.LOOKUP
+        )
+    }
 
     fun registerRequestHandler(instance: Any) {
         if (api.isFrozen()) throw SurfRabbitApiAlreadyFrozenException()
@@ -43,7 +53,11 @@ class RabbitListenerHandlerManager(
         for (method in instance.javaClass.declaredMethods) {
             if (!method.isAnnotationPresent(RabbitHandler::class.java)) continue
 
-            if (method.parameterCount != 1) {
+            val validParamCount = when {
+                HiddenInvokerUtil.isSuspendFunction(method) -> 2
+                else -> 1
+            }
+            if (method.parameterCount != validParamCount) {
                 throw SurfRabbitInvalidHandlerParameterCountException(
                     instance::class.qualifiedName ?: instance.javaClass.name,
                     method.name,
@@ -62,7 +76,7 @@ class RabbitListenerHandlerManager(
             }
 
             val handlerClass = method.declaringClass
-            if (!RabbitListenerHandlerFactory.canAccess(instance, method)) {
+            if (!HANDLER_FACTORY.canAccess(instance, method)) {
                 throw SurfRabbitHandlerNotAccessibleException(
                     method.name,
                     handlerClass.name,
@@ -74,7 +88,7 @@ class RabbitListenerHandlerManager(
             parameterType as Class<out RabbitRequestPacket<*>>
             requestSerializerCache.register(parameterType)
 
-            val handler = RabbitListenerHandlerFactory.create(instance, method, parameterType)
+            val handler = HANDLER_FACTORY.create(instance, method, parameterType)
             val current = registrationLock.write { handlers.putIfAbsent(parameterType, handler) }
             if (current != null) {
                 throw SurfRabbitDuplicateHandlerException(
@@ -119,9 +133,12 @@ class RabbitListenerHandlerManager(
 
         val requestJob = Job(api.scope.coroutineContext.job)
         try {
-            RabbitPacketPropertiesInjector.inject(request, api.scope, requestJob)
+            val handlerScope = api.scope + requestJob
+            RabbitPacketPropertiesInjector.inject(request, handlerScope)
 
-            handler.handle(request)
+            handlerScope.launch {
+                handler.handle(request)
+            }
 
             val requestTimeoutSeconds = api.config.requestTimeoutSeconds.seconds
             try {
@@ -136,6 +153,7 @@ class RabbitListenerHandlerManager(
                     .log(
                         "Handler for ${request.javaClass.name} did not respond within ${requestTimeoutSeconds}s, discarding message"
                     )
+                requestJob.cancel("Handler timed out")
                 connection.nackRequest(deliveryTag)
             } catch (e: Throwable) {
                 if (e is CancellationException) throw e
@@ -151,12 +169,8 @@ class RabbitListenerHandlerManager(
                 .log("Error handling request of type ${request.javaClass.name}, discarding message")
             connection.nackRequest(deliveryTag)
         } finally {
-            requestJob.cancel()
+            requestJob.cancel("Request handler finished")
             request.responseDeferred.cancel()
         }
-    }
-
-    companion object {
-        private val log = logger()
     }
 }
