@@ -4,7 +4,6 @@ import dev.kourier.amqp.channel.AMQPChannel
 import dev.kourier.amqp.channel.queueDeclare
 import dev.kourier.amqp.connection.AMQPConnection
 import dev.kourier.amqp.connection.amqpConfig
-import dev.kourier.amqp.robust.createRobustAMQPConnection
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
 import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
@@ -32,7 +31,7 @@ abstract class AbstractRabbitMQConnectionImpl(
     }
 
     override suspend fun connect() {
-        connection = createRobustAMQPConnection(api.scope, rabbitConfig)
+        connection = SurfRobustAMQPConnection.create(api.scope, rabbitConfig)
         channel = connection.openChannel()
 
         queueName = channel.queueDeclare {
