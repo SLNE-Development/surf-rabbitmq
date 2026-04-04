@@ -1,12 +1,12 @@
 package dev.slne.surf.rabbitmq
 
 import com.google.auto.service.AutoService
+import dev.slne.surf.api.standalone.SurfApiStandaloneBootstrap
 import dev.slne.surf.rabbitmq.api.internal.StandaloneLifecycleHook
-import dev.slne.surf.surfapi.standalone.SurfApiStandaloneBootstrap
 import kotlinx.coroutines.runBlocking
 
 @AutoService(StandaloneLifecycleHook::class)
-class StandaloneLifecycleHookImpl: StandaloneLifecycleHook {
+class StandaloneLifecycleHookImpl : StandaloneLifecycleHook {
     override fun onInit() {
         runBlocking {
             SurfApiStandaloneBootstrap.bootstrap()

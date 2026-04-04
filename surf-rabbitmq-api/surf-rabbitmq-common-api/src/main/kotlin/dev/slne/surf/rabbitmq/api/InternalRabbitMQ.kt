@@ -1,6 +1,6 @@
 package dev.slne.surf.rabbitmq.api
 
-import dev.slne.surf.surfapi.shared.api.annotation.InternalAPIMarker
+import dev.slne.surf.api.shared.api.annotation.InternalAPIMarker
 
 @RequiresOptIn
 @InternalAPIMarker
@@ -12,4 +12,4 @@ import dev.slne.surf.surfapi.shared.api.annotation.InternalAPIMarker
     AnnotationTarget.PROPERTY_SETTER,
     AnnotationTarget.CONSTRUCTOR
 )
-annotation class InternalRabbitMQ()
+annotation class InternalRabbitMQ

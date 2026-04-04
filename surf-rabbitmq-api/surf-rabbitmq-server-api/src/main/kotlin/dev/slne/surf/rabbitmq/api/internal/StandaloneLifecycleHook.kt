@@ -1,7 +1,7 @@
 package dev.slne.surf.rabbitmq.api.internal
 
+import dev.slne.surf.api.core.util.requiredService
 import dev.slne.surf.rabbitmq.api.InternalRabbitMQ
-import dev.slne.surf.surfapi.core.api.util.requiredService
 
 @InternalRabbitMQ
 interface StandaloneLifecycleHook {
@@ -9,7 +9,9 @@ interface StandaloneLifecycleHook {
     suspend fun beforeConnect()
     suspend fun afterDisconnect()
 
-    companion object {
-        val instance = requiredService<StandaloneLifecycleHook>()
+    companion object : StandaloneLifecycleHook by instance {
+        val INSTANCE get() = instance
     }
 }
+
+private val instance = requiredService<StandaloneLifecycleHook>()

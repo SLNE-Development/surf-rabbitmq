@@ -1,15 +1,16 @@
 package dev.slne.surf.rabbitmq.api.connection
 
+import dev.slne.surf.api.core.util.requiredService
 import dev.slne.surf.rabbitmq.api.InternalRabbitMQ
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
-import dev.slne.surf.surfapi.core.api.util.requiredService
 
 @InternalRabbitMQ
 interface RabbitMQConnectionFactory {
     fun createConnection(api: RabbitMQApi): RabbitMQConnection
 
-    companion object {
-        val instance = requiredService<RabbitMQConnectionFactory>()
-        fun get() = instance
+    companion object : RabbitMQConnectionFactory by instance {
+        val INSTANCE get() = instance
     }
 }
+
+private val instance = requiredService<RabbitMQConnectionFactory>()

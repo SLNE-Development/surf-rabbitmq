@@ -1,8 +1,8 @@
 package dev.slne.surf.rabbitmq.api.internal
 
+import dev.slne.surf.api.core.config.createSpongeYmlConfig
+import dev.slne.surf.api.core.config.surfConfigApi
 import dev.slne.surf.rabbitmq.api.InternalRabbitMQ
-import dev.slne.surf.surfapi.core.api.config.createSpongeYmlConfig
-import dev.slne.surf.surfapi.core.api.config.surfConfigApi
 import org.spongepowered.configurate.objectmapping.ConfigSerializable
 import java.nio.file.Path
 import kotlin.time.Duration.Companion.seconds

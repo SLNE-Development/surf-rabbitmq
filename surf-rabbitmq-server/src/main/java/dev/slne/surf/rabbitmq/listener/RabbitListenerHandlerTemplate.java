@@ -1,20 +1,20 @@
 package dev.slne.surf.rabbitmq.listener;
 
+import dev.slne.surf.api.core.invoker.HiddenInvokerUtil;
+import dev.slne.surf.api.core.invoker.InvokerClassData;
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket;
-import dev.slne.surf.surfapi.core.api.invoker.HiddenInvokerUtil;
-import dev.slne.surf.surfapi.core.api.invoker.InvokerClassData;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.Method;
 import kotlin.Unit;
 import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
-import java.lang.reflect.Method;
-
 @SuppressWarnings("UnstableApiUsage")
 final class RabbitListenerHandlerTemplate implements RabbitListenerHandler {
+
     private static final Method METHOD;
     private static final MethodHandle METHOD_HANDLE;
     private static final Class<?> REQUEST_CLASS;
@@ -23,7 +23,8 @@ final class RabbitListenerHandlerTemplate implements RabbitListenerHandler {
     static {
         try {
             final MethodHandles.Lookup lookup = MethodHandles.lookup();
-            final InvokerClassData classData = HiddenInvokerUtil.loadClassDataWithAutoSuspend(lookup, MethodType.methodType(void.class, RabbitRequestPacket.class));
+            final InvokerClassData classData = HiddenInvokerUtil.loadClassDataWithAutoSuspend(
+                lookup, MethodType.methodType(void.class, RabbitRequestPacket.class));
 
             METHOD = classData.method();
             METHOD_HANDLE = classData.methodHandle();
@@ -35,8 +36,11 @@ final class RabbitListenerHandlerTemplate implements RabbitListenerHandler {
     }
 
     @Override
-    public @Nullable Object handle(@NotNull RabbitRequestPacket<?> message, @NotNull Continuation<? super @NotNull Unit> $completion) {
-        if (!REQUEST_CLASS.isInstance(message)) return Unit.INSTANCE;
+    public @Nullable Object handle(@NotNull RabbitRequestPacket<?> message,
+        @NotNull Continuation<? super @NotNull Unit> $completion) {
+        if (!REQUEST_CLASS.isInstance(message)) {
+            return Unit.INSTANCE;
+        }
 
         if (IS_SUSPEND) {
             try {

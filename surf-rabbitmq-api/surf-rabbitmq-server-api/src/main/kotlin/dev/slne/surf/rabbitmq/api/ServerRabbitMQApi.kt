@@ -22,13 +22,13 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
     }
 
     override suspend fun connect() {
-        StandaloneLifecycleHook.instance.beforeConnect()
+        StandaloneLifecycleHook.beforeConnect()
         super.connect()
     }
 
     override suspend fun disconnect() {
         super.disconnect()
-        StandaloneLifecycleHook.instance.afterDisconnect()
+        StandaloneLifecycleHook.afterDisconnect()
     }
 
     companion object {
@@ -37,7 +37,7 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
             path: Path,
             serializer: SerializersModule = EmptySerializersModule()
         ): ServerRabbitMQApi {
-            StandaloneLifecycleHook.instance.onInit()
+            StandaloneLifecycleHook.onInit()
 
             val config = RabbitMQConfig.create(path)
             val cbor = createCbor(serializer)

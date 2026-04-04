@@ -1,5 +1,7 @@
 package dev.slne.surf.rabbitmq.api
 
+import dev.slne.surf.api.core.serializer.SurfSerializerModule
+import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiAlreadyFrozenException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiNotFrozenException
@@ -10,8 +12,6 @@ import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.OptionalPri
 import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.PrimitiveResponse
 import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.array.ArrayResponse
 import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.array.OptionalArrayResponse
-import dev.slne.surf.surfapi.core.api.serializer.SurfSerializerModule
-import dev.slne.surf.surfapi.core.api.util.logger
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor

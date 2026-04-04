@@ -17,6 +17,7 @@ interface RabbitMQConnection {
 
     companion object {
         @InternalRabbitMQ
-        fun create(api: RabbitMQApi): RabbitMQConnection = RabbitMQConnectionFactory.get().createConnection(api)
+        fun create(api: RabbitMQApi): RabbitMQConnection =
+            RabbitMQConnectionFactory.createConnection(api)
     }
 }
