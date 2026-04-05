@@ -164,7 +164,7 @@ class RabbitListenerHandlerManager(
             } catch (e: TimeoutCancellationException) {
                 log.atSevere()
                     .log(
-                        "Handler for ${request.javaClass.name} did not respond within ${requestTimeoutSeconds}s, discarding message"
+                        "Handler for ${request.javaClass.name} did not respond within ${requestTimeoutSeconds}, discarding message"
                     )
                 requestJob.cancel("Handler timed out")
                 connection.nackRequest(deliveryTag)
