@@ -188,7 +188,9 @@ class ServerRabbitMQConnectionImpl(
 
         fun append(chunkIndex: Int, payload: ByteArray): ByteArray? {
             if (chunkIndex !in chunks.indices) {
-                throw IllegalArgumentException("Chunk index out of bounds")
+                throw IllegalArgumentException(
+                    "Chunk index out of bounds: index=$chunkIndex, expected range=0 until ${chunks.size}"
+                )
             }
             if (chunks[chunkIndex] != null) {
                 throw IllegalStateException("Duplicate chunk index: $chunkIndex")

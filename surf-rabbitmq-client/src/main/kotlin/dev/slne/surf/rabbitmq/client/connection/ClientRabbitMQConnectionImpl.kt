@@ -228,10 +228,14 @@ class ClientRabbitMQConnectionImpl(
 
         fun append(chunkIndex: Int, totalChunks: Int, payload: ByteArray): ByteArray? {
             if (totalChunks != expectedTotalChunks) {
-                throw IllegalStateException("Chunk total mismatch")
+                throw IllegalStateException(
+                    "Chunk total mismatch: expected=$expectedTotalChunks, received=$totalChunks"
+                )
             }
             if (chunkIndex !in chunks.indices) {
-                throw IllegalStateException("Chunk index out of bounds")
+                throw IllegalStateException(
+                    "Chunk index out of bounds: index=$chunkIndex, expected range=0 until ${chunks.size}"
+                )
             }
             if (chunks[chunkIndex] != null) {
                 throw IllegalStateException("Duplicate chunk index: $chunkIndex")
