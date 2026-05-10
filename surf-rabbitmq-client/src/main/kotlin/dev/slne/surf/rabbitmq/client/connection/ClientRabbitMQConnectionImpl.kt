@@ -118,7 +118,7 @@ class ClientRabbitMQConnectionImpl(
 
                 val chunk = try {
                     RabbitPacketChunking.decodeChunk(body)
-                } catch (_: Throwable) {
+                } catch (_: Exception) {
                     pendingResponseChunks.invalidate(correlationId)
                     pendingRequests.invalidate(correlationId)
                     continue
@@ -134,7 +134,7 @@ class ClientRabbitMQConnectionImpl(
                         totalChunks = chunk.totalChunks,
                         payload = chunk.payload
                     )
-                } catch (_: Throwable) {
+                } catch (_: Exception) {
                     pendingResponseChunks.invalidate(correlationId)
                     pendingRequests.invalidate(correlationId)
                     continue

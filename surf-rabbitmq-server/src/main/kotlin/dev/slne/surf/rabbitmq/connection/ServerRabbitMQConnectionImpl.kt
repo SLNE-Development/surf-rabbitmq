@@ -58,7 +58,7 @@ class ServerRabbitMQConnectionImpl(
 
                 val chunk = try {
                     RabbitPacketChunking.decodeChunk(body)
-                } catch (_: Throwable) {
+                } catch (_: Exception) {
                     nackRequest(deliveryTag)
                     continue
                 }
@@ -159,7 +159,7 @@ class ServerRabbitMQConnectionImpl(
 
         val fullRequest = try {
             assembly.append(chunkIndex, payload)
-        } catch (_: Throwable) {
+        } catch (_: Exception) {
             assembly.timeoutJob.cancel()
             pendingRequestChunks.remove(correlationId)
             if (shouldAcknowledgeCurrentChunk) {
@@ -193,7 +193,7 @@ class ServerRabbitMQConnectionImpl(
 
         fun append(chunkIndex: Int, payload: ByteArray): ByteArray? {
             if (chunkIndex !in chunks.indices) {
-                throw IllegalArgumentException(
+                throw IllegalStateException(
                     "Chunk index out of bounds: index=$chunkIndex, expected index in 0..${chunks.lastIndex}"
                 )
             }
