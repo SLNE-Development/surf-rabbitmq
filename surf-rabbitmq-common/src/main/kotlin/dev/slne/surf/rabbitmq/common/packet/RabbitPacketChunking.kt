@@ -15,6 +15,9 @@ object RabbitPacketChunking {
     )
 
     fun chunk(payload: ByteArray, maxChunkSizeBytes: Int): List<ByteArray> {
+        require(maxChunkSizeBytes > CHUNK_HEADER_SIZE) {
+            "maxChunkSizeBytes must be greater than chunk header size ($CHUNK_HEADER_SIZE)"
+        }
         val payloadChunkSize = (maxChunkSizeBytes - CHUNK_HEADER_SIZE).coerceAtLeast(1)
         val totalChunks = ((payload.size + payloadChunkSize - 1) / payloadChunkSize).coerceAtLeast(1)
 
