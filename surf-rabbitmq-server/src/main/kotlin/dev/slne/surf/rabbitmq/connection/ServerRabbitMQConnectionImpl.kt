@@ -194,7 +194,7 @@ class ServerRabbitMQConnectionImpl(
         fun append(chunkIndex: Int, payload: ByteArray): ByteArray? {
             if (chunkIndex !in chunks.indices) {
                 throw IllegalArgumentException(
-                    "Chunk index out of bounds: index=$chunkIndex, expected range=[0, ${chunks.size})"
+                    "Chunk index out of bounds: index=$chunkIndex, expected index in 0..${chunks.lastIndex}"
                 )
             }
             if (chunks[chunkIndex] != null) {

@@ -36,6 +36,7 @@ class ClientRabbitMQConnectionImpl(
     config = config,
 ), ClientRabbitMQConnection {
     private companion object {
+        // Chunk assemblies may outlive a single request timeout due to delayed final chunks.
         private const val RESPONSE_CHUNK_TTL_MULTIPLIER = 2
     }
 
@@ -239,7 +240,7 @@ class ClientRabbitMQConnectionImpl(
             }
             if (chunkIndex !in chunks.indices) {
                 throw IllegalStateException(
-                    "Chunk index out of bounds: index=$chunkIndex, expected range=[0, ${chunks.size})"
+                    "Chunk index out of bounds: index=$chunkIndex, expected index in 0..${chunks.lastIndex}"
                 )
             }
             if (chunks[chunkIndex] != null) {
