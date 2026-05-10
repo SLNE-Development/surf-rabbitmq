@@ -244,7 +244,7 @@ class ClientRabbitMQConnectionImpl(
                 return null
             }
 
-            val fullSize = chunks.sumOf { it!!.size }
+            val fullSize = chunks.sumOf { it?.size ?: 0 }
             val fullPayload = ByteArray(fullSize)
             var offset = 0
             for (chunk in chunks) {

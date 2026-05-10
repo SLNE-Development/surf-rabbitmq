@@ -133,8 +133,10 @@ class ServerRabbitMQConnectionImpl(
         val assembly = pendingRequestChunks.getOrPut(correlationId) {
             val timeoutJob = api.scope.launch {
                 delay(requestTimeoutSeconds)
-                val stale = pendingRequestChunks.remove(correlationId) ?: return@launch
-                nackRequest(stale.deliveryTag)
+                val stale = pendingRequestChunks[correlationId] ?: return@launch
+                if (pendingRequestChunks.remove(correlationId, stale)) {
+                    nackRequest(stale.deliveryTag)
+                }
             }
 
             RequestChunkAssembly(

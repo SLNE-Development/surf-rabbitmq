@@ -17,12 +17,12 @@ object RabbitPacketChunking {
     )
 
     fun chunk(payload: ByteArray, maxChunkSizeBytes: Int): List<ByteArray> {
-        val chunkSize = maxChunkSizeBytes
-        val totalChunks = ((payload.size + chunkSize - 1) / chunkSize).coerceAtLeast(1)
+        val payloadChunkSize = (maxChunkSizeBytes - CHUNK_HEADER_SIZE).coerceAtLeast(1)
+        val totalChunks = ((payload.size + payloadChunkSize - 1) / payloadChunkSize).coerceAtLeast(1)
 
         return List(totalChunks) { chunkIndex ->
-            val start = chunkIndex * chunkSize
-            val end = minOf(payload.size, start + chunkSize)
+            val start = chunkIndex * payloadChunkSize
+            val end = minOf(payload.size, start + payloadChunkSize)
             val chunkPayload = payload.copyOfRange(start, end)
             encodeChunk(chunkIndex, totalChunks, chunkPayload)
         }
