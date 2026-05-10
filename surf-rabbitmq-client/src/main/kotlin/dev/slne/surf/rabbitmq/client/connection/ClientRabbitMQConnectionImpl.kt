@@ -234,7 +234,7 @@ class ClientRabbitMQConnectionImpl(
                 throw IllegalStateException("Chunk index out of bounds")
             }
             if (chunks[chunkIndex] != null) {
-                return null
+                throw IllegalStateException("Duplicate chunk index: $chunkIndex")
             }
 
             chunks[chunkIndex] = payload
@@ -244,7 +244,7 @@ class ClientRabbitMQConnectionImpl(
                 return null
             }
 
-            val fullSize = chunks.sumOf { it?.size ?: 0 }
+            val fullSize = chunks.sumOf { it!!.size }
             val fullPayload = ByteArray(fullSize)
             var offset = 0
             for (chunk in chunks) {

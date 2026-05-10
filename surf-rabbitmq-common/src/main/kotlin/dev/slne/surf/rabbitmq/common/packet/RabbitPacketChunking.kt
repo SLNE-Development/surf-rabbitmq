@@ -17,7 +17,7 @@ object RabbitPacketChunking {
     )
 
     fun chunk(payload: ByteArray, maxChunkSizeBytes: Int): List<ByteArray> {
-        val chunkSize = maxChunkSizeBytes.coerceAtLeast(1)
+        val chunkSize = maxChunkSizeBytes
         val totalChunks = ((payload.size + chunkSize - 1) / chunkSize).coerceAtLeast(1)
 
         return List(totalChunks) { chunkIndex ->

@@ -189,7 +189,7 @@ class ServerRabbitMQConnectionImpl(
                 throw IllegalArgumentException("Chunk index out of bounds")
             }
             if (chunks[chunkIndex] != null) {
-                return null
+                throw IllegalStateException("Duplicate chunk index: $chunkIndex")
             }
 
             chunks[chunkIndex] = payload
