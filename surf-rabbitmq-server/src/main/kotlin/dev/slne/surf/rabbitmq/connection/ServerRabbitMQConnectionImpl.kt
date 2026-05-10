@@ -7,8 +7,13 @@ import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ServerRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
+import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
 import dev.slne.surf.rabbitmq.listener.RabbitListenerHandlerManager
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.seconds
 
 class ServerRabbitMQConnectionImpl(
     private val api: RabbitMQApi,
@@ -17,8 +22,11 @@ class ServerRabbitMQConnectionImpl(
     private val listenerHandler = RabbitListenerHandlerManager(api, this)
     private val prefetchCount = config.serverPrefetchCount.coerceAtLeast(0).toUShort()
     private val persistResponses = config.persistResponses
+    private val maxPacketChunkSizeBytes = config.maxPacketChunkSizeBytes.coerceAtLeast(1)
+    private val requestTimeoutSeconds = config.requestTimeoutSeconds.seconds
 
     private lateinit var replyChannel: AMQPChannel
+    private val pendingRequestChunks = ConcurrentHashMap<String, RequestChunkAssembly>()
 
     override suspend fun connect() {
         super.connect()
@@ -48,8 +56,29 @@ class ServerRabbitMQConnectionImpl(
                     continue
                 }
 
+                val chunk = try {
+                    RabbitPacketChunking.decodeChunk(body)
+                } catch (_: Throwable) {
+                    nackRequest(deliveryTag)
+                    continue
+                }
+
+                val assembledRequest = assembleRequestChunk(
+                    correlationId = correlationId,
+                    replyTo = replyTo,
+                    deliveryTag = deliveryTag,
+                    chunkIndex = chunk.chunkIndex,
+                    totalChunks = chunk.totalChunks,
+                    payload = chunk.payload
+                ) ?: continue
+
                 api.scope.launch {
-                    listenerHandler.handleRequest(correlationId, replyTo, body, deliveryTag)
+                    listenerHandler.handleRequest(
+                        correlationId = correlationId,
+                        replyTo = replyTo,
+                        body = assembledRequest.body,
+                        deliveryTag = assembledRequest.deliveryTag
+                    )
                 }
             }
         }
@@ -61,13 +90,17 @@ class ServerRabbitMQConnectionImpl(
         deliveryTag: ULong,
         body: ByteArray
     ) {
-        replyChannel.basicPublish {
-            this.body = body
-            exchange = ""
-            routingKey = replyTo
-            properties = properties {
-                this.correlationId = correlationId
-                deliveryMode = if (persistResponses) 2u else 1u
+        val responseChunks = RabbitPacketChunking.chunk(body, maxPacketChunkSizeBytes)
+
+        for (responseChunk in responseChunks) {
+            replyChannel.basicPublish {
+                this.body = responseChunk
+                exchange = ""
+                routingKey = replyTo
+                properties = properties {
+                    this.correlationId = correlationId
+                    deliveryMode = if (persistResponses) 2u else 1u
+                }
             }
         }
 
@@ -84,4 +117,102 @@ class ServerRabbitMQConnectionImpl(
         }
         super.disconnect()
     }
+
+    private suspend fun assembleRequestChunk(
+        correlationId: String,
+        replyTo: String,
+        deliveryTag: ULong,
+        chunkIndex: Int,
+        totalChunks: Int,
+        payload: ByteArray
+    ): AssembledRequest? {
+        if (totalChunks <= 1) {
+            return AssembledRequest(payload, deliveryTag)
+        }
+
+        val assembly = pendingRequestChunks.getOrPut(correlationId) {
+            val timeoutJob = api.scope.launch {
+                delay(requestTimeoutSeconds)
+                val stale = pendingRequestChunks.remove(correlationId) ?: return@launch
+                nackRequest(stale.deliveryTag)
+            }
+
+            RequestChunkAssembly(
+                replyTo = replyTo,
+                totalChunks = totalChunks,
+                deliveryTag = deliveryTag,
+                timeoutJob = timeoutJob
+            )
+        }
+
+        if (assembly.replyTo != replyTo || assembly.totalChunks != totalChunks) {
+            assembly.timeoutJob.cancel()
+            pendingRequestChunks.remove(correlationId)
+            nackRequest(assembly.deliveryTag)
+            nackRequest(deliveryTag)
+            return null
+        }
+
+        if (assembly.deliveryTag != deliveryTag) {
+            channel.basicAck(deliveryTag)
+        }
+
+        val fullRequest = try {
+            assembly.append(chunkIndex, payload)
+        } catch (_: Throwable) {
+            assembly.timeoutJob.cancel()
+            pendingRequestChunks.remove(correlationId)
+            nackRequest(assembly.deliveryTag)
+            return null
+        }
+
+        if (fullRequest != null) {
+            assembly.timeoutJob.cancel()
+            pendingRequestChunks.remove(correlationId)
+            return AssembledRequest(fullRequest, assembly.deliveryTag)
+        }
+
+        return null
+    }
+
+    private class RequestChunkAssembly(
+        val replyTo: String,
+        val totalChunks: Int,
+        val deliveryTag: ULong,
+        val timeoutJob: Job
+    ) {
+        private val chunks = arrayOfNulls<ByteArray>(totalChunks)
+        private var receivedChunks = 0
+
+        fun append(chunkIndex: Int, payload: ByteArray): ByteArray? {
+            if (chunkIndex !in chunks.indices) {
+                throw IllegalArgumentException("Chunk index out of bounds")
+            }
+            if (chunks[chunkIndex] != null) {
+                return null
+            }
+
+            chunks[chunkIndex] = payload
+            receivedChunks++
+
+            if (receivedChunks != totalChunks) {
+                return null
+            }
+
+            val fullSize = chunks.sumOf { it?.size ?: 0 }
+            val fullPayload = ByteArray(fullSize)
+            var offset = 0
+            for (chunk in chunks) {
+                val value = chunk ?: throw IllegalStateException("Missing chunk")
+                value.copyInto(fullPayload, destinationOffset = offset)
+                offset += value.size
+            }
+            return fullPayload
+        }
+    }
+
+    private data class AssembledRequest(
+        val body: ByteArray,
+        val deliveryTag: ULong,
+    )
 }

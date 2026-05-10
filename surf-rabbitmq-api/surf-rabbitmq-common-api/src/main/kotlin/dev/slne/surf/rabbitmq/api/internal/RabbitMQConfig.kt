@@ -19,7 +19,8 @@ data class RabbitMQConfig(
     val requestTimeoutSeconds: Long = 60.seconds.inWholeSeconds,
     val serverPrefetchCount: Short = 128,
     val persistRequests: Boolean = true,
-    val persistResponses: Boolean = false
+    val persistResponses: Boolean = false,
+    val maxPacketChunkSizeBytes: Int = 128 * 1024
 ) {
     companion object {
         fun create(path: Path) = surfConfigApi.createSpongeYmlConfig<RabbitMQConfig>(

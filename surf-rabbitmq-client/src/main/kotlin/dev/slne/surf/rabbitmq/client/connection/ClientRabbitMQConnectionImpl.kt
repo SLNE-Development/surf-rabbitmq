@@ -16,6 +16,7 @@ import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
 import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
+import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
@@ -35,6 +36,7 @@ class ClientRabbitMQConnectionImpl(
     config = config,
 ), ClientRabbitMQConnection {
     private val requestTimeoutSeconds = config.requestTimeoutSeconds.seconds
+    private val maxPacketChunkSizeBytes = config.maxPacketChunkSizeBytes.coerceAtLeast(1)
     private val persistRequests = config.persistRequests
 
     private val pendingRequests = Caffeine.newBuilder()
@@ -53,6 +55,10 @@ class ClientRabbitMQConnectionImpl(
             }
         }
         .build<String, Pair<RabbitRequestPacket<*>, CompletableDeferred<ByteArray>?>>()
+
+    private val pendingResponseChunks = Caffeine.newBuilder()
+        .expireAfterWrite(requestTimeoutSeconds * 2)
+        .build<String, ResponseChunkAssembly>()
 
     private val requestSerializerCache =
         KotlinSerializerCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
@@ -96,15 +102,45 @@ class ClientRabbitMQConnectionImpl(
                 val body = message.message.body
                 val deliveryTag = message.message.deliveryTag
 
-                val (_, deferred) =
-                    correlationId?.let { pendingRequests.asMap().remove(it) } ?: continue
-
                 // The response must always be removed from the callback queue,
                 // even if the request has already timed out on the client side.
                 channel.basicAck(deliveryTag)
 
-                if (deferred != null && !deferred.isCompleted) {
-                    deferred.complete(body)
+                if (correlationId == null) {
+                    continue
+                }
+
+                val chunk = try {
+                    RabbitPacketChunking.decodeChunk(body)
+                } catch (_: Throwable) {
+                    pendingResponseChunks.invalidate(correlationId)
+                    pendingRequests.invalidate(correlationId)
+                    continue
+                }
+
+                val assembly = pendingResponseChunks.get(correlationId) {
+                    ResponseChunkAssembly(chunk.totalChunks)
+                } ?: continue
+
+                val fullResponse = try {
+                    assembly.append(
+                        chunkIndex = chunk.chunkIndex,
+                        totalChunks = chunk.totalChunks,
+                        payload = chunk.payload
+                    )
+                } catch (_: Throwable) {
+                    pendingResponseChunks.invalidate(correlationId)
+                    pendingRequests.invalidate(correlationId)
+                    continue
+                }
+
+                if (fullResponse != null) {
+                    pendingResponseChunks.invalidate(correlationId)
+
+                    val (_, deferred) = pendingRequests.asMap().remove(correlationId) ?: continue
+                    if (deferred != null && !deferred.isCompleted) {
+                        deferred.complete(fullResponse)
+                    }
                 }
             }
         }
@@ -133,25 +169,29 @@ class ClientRabbitMQConnectionImpl(
             ?: throw SurfRabbitSerializerNotFoundException(request.javaClass.name)
         responseSerializerCache.register(responseClass)
         val requestBytes = RabbitPacketSerializer.serializeRequest(api, serializer, request)
+        val requestChunks = RabbitPacketChunking.chunk(requestBytes, maxPacketChunkSizeBytes)
 
         pendingRequests.put(correlationId, request to deferred)
 
         try {
-            publishChannel.basicPublish {
-                this.body = requestBytes
-                exchange = ""
-                routingKey = queueName
-                properties = properties {
-                    deliveryMode = if (persistRequests) 2u else 1u
-                    this.correlationId = correlationId
-                    this.replyTo = callbackQueueName
+            for (requestChunk in requestChunks) {
+                publishChannel.basicPublish {
+                    this.body = requestChunk
+                    exchange = ""
+                    routingKey = queueName
+                    properties = properties {
+                        deliveryMode = if (persistRequests) 2u else 1u
+                        this.correlationId = correlationId
+                        this.replyTo = callbackQueueName
 
-                    // If the request is still in the queue and has not yet been sent to the
-                    // server, it should expire after the timeout.
-                    expiration = requestTimeoutSeconds.inWholeMilliseconds.toString()
+                        // If the request is still in the queue and has not yet been sent to the
+                        // server, it should expire after the timeout.
+                        expiration = requestTimeoutSeconds.inWholeMilliseconds.toString()
+                    }
                 }
             }
         } catch (t: Throwable) {
+            pendingResponseChunks.invalidate(correlationId)
             pendingRequests.invalidate(correlationId)
             throw t
         }
@@ -161,9 +201,11 @@ class ClientRabbitMQConnectionImpl(
                 deferred.await()
             }
         } catch (e: TimeoutCancellationException) {
+            pendingResponseChunks.invalidate(correlationId)
             pendingRequests.invalidate(correlationId)
             throw SurfRabbitRequestTimeoutException(request, requestTimeoutSeconds)
         } catch (t: Throwable) {
+            pendingResponseChunks.invalidate(correlationId)
             pendingRequests.invalidate(correlationId)
             throw t
         }
@@ -178,4 +220,39 @@ class ClientRabbitMQConnectionImpl(
 
     private fun nextCorrelationId(): String =
         "$correlationIdPrefix-${correlationIdSequence.incrementAndGet()}"
+
+    private class ResponseChunkAssembly(totalChunks: Int) {
+        private val expectedTotalChunks = totalChunks
+        private val chunks = arrayOfNulls<ByteArray>(totalChunks)
+        private var receivedChunks = 0
+
+        fun append(chunkIndex: Int, totalChunks: Int, payload: ByteArray): ByteArray? {
+            if (totalChunks != expectedTotalChunks) {
+                throw IllegalStateException("Chunk total mismatch")
+            }
+            if (chunkIndex !in chunks.indices) {
+                throw IllegalStateException("Chunk index out of bounds")
+            }
+            if (chunks[chunkIndex] != null) {
+                return null
+            }
+
+            chunks[chunkIndex] = payload
+            receivedChunks++
+
+            if (receivedChunks != expectedTotalChunks) {
+                return null
+            }
+
+            val fullSize = chunks.sumOf { it?.size ?: 0 }
+            val fullPayload = ByteArray(fullSize)
+            var offset = 0
+            for (chunk in chunks) {
+                val value = chunk ?: throw IllegalStateException("Missing chunk")
+                value.copyInto(fullPayload, destinationOffset = offset)
+                offset += value.size
+            }
+            return fullPayload
+        }
+    }
 }
