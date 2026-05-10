@@ -155,17 +155,22 @@ class ServerRabbitMQConnectionImpl(
             return null
         }
 
-        if (assembly.deliveryTag != deliveryTag) {
-            channel.basicAck(deliveryTag)
-        }
+        val shouldAcknowledgeCurrentChunk = assembly.deliveryTag != deliveryTag
 
         val fullRequest = try {
             assembly.append(chunkIndex, payload)
         } catch (_: Throwable) {
             assembly.timeoutJob.cancel()
             pendingRequestChunks.remove(correlationId)
+            if (shouldAcknowledgeCurrentChunk) {
+                nackRequest(deliveryTag)
+            }
             nackRequest(assembly.deliveryTag)
             return null
+        }
+
+        if (shouldAcknowledgeCurrentChunk) {
+            channel.basicAck(deliveryTag)
         }
 
         if (fullRequest != null) {
@@ -203,7 +208,7 @@ class ServerRabbitMQConnectionImpl(
                 return null
             }
 
-            val fullSize = chunks.sumOf { it?.size ?: 0 }
+            val fullSize = chunks.sumOf { it!!.size }
             val fullPayload = ByteArray(fullSize)
             var offset = 0
             for (chunk in chunks) {

@@ -35,6 +35,10 @@ class ClientRabbitMQConnectionImpl(
     api = api,
     config = config,
 ), ClientRabbitMQConnection {
+    private companion object {
+        private const val RESPONSE_CHUNK_TTL_MULTIPLIER = 2
+    }
+
     private val requestTimeoutSeconds = config.requestTimeoutSeconds.seconds
     private val maxPacketChunkSizeBytes = config.maxPacketChunkSizeBytes.coerceAtLeast(1)
     private val persistRequests = config.persistRequests
@@ -57,7 +61,8 @@ class ClientRabbitMQConnectionImpl(
         .build<String, Pair<RabbitRequestPacket<*>, CompletableDeferred<ByteArray>?>>()
 
     private val pendingResponseChunks = Caffeine.newBuilder()
-        .expireAfterWrite(requestTimeoutSeconds * 2)
+        // Keep chunk assemblies a bit longer than request timeout to handle delayed final chunks.
+        .expireAfterWrite(requestTimeoutSeconds * RESPONSE_CHUNK_TTL_MULTIPLIER)
         .build<String, ResponseChunkAssembly>()
 
     private val requestSerializerCache =
@@ -248,7 +253,7 @@ class ClientRabbitMQConnectionImpl(
                 return null
             }
 
-            val fullSize = chunks.sumOf { it?.size ?: 0 }
+            val fullSize = chunks.sumOf { it!!.size }
             val fullPayload = ByteArray(fullSize)
             var offset = 0
             for (chunk in chunks) {
