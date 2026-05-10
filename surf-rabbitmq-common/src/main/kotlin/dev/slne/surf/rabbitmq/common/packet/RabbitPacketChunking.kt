@@ -3,8 +3,6 @@ package dev.slne.surf.rabbitmq.common.packet
 import java.nio.ByteBuffer
 
 object RabbitPacketChunking {
-    const val DEFAULT_MAX_CHUNK_SIZE_BYTES: Int = 128 * 1024
-
     private const val CHUNK_MAGIC = 0x53525546 // "SURF"
     private const val CHUNK_VERSION: Byte = 1
     private const val CHUNK_HEADER_SIZE =

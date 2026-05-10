@@ -239,7 +239,7 @@ class ClientRabbitMQConnectionImpl(
             }
             if (chunkIndex !in chunks.indices) {
                 throw IllegalStateException(
-                    "Chunk index out of bounds: index=$chunkIndex, expected range=0 until ${chunks.size}"
+                    "Chunk index out of bounds: index=$chunkIndex, expected range=[0, ${chunks.size})"
                 )
             }
             if (chunks[chunkIndex] != null) {
@@ -253,7 +253,9 @@ class ClientRabbitMQConnectionImpl(
                 return null
             }
 
-            val fullSize = chunks.sumOf { it!!.size }
+            val fullSize = chunks.sumOf {
+                it?.size ?: throw IllegalStateException("Missing chunk")
+            }
             val fullPayload = ByteArray(fullSize)
             var offset = 0
             for (chunk in chunks) {
