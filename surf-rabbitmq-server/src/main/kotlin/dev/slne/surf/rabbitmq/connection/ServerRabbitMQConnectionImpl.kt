@@ -7,16 +7,25 @@ import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ServerRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
+import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunkAssembler
+import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
 import dev.slne.surf.rabbitmq.listener.RabbitListenerHandlerManager
+import it.unimi.dsi.fastutil.objects.ObjectList
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.seconds
 
 class ServerRabbitMQConnectionImpl(
     private val api: RabbitMQApi,
-    config: RabbitMQConfig
+    private val config: RabbitMQConfig
 ) : AbstractRabbitMQConnectionImpl(api, config), ServerRabbitMQConnection {
     private val listenerHandler = RabbitListenerHandlerManager(api, this)
-    private val prefetchCount = config.serverPrefetchCount.coerceAtLeast(0).toUShort()
+    private val prefetchCount = config.serverPrefetchCount.toUShort()
     private val persistResponses = config.persistResponses
+
+    private val requestChunkAssembler = RabbitPacketChunkAssembler(
+        expectedKind = RabbitPacketChunking.PacketChunkKind.REQUEST,
+        timeout = config.requestTimeoutSeconds.seconds
+    )
 
     private lateinit var replyChannel: AMQPChannel
 
@@ -48,8 +57,41 @@ class ServerRabbitMQConnectionImpl(
                     continue
                 }
 
-                api.scope.launch {
-                    listenerHandler.handleRequest(correlationId, replyTo, body, deliveryTag)
+                try {
+                    when (val result = requestChunkAssembler.accept(correlationId, body)) {
+                        RabbitPacketChunkAssembler.ChunkAcceptResult.NotChunk -> {
+                            api.scope.launch {
+                                listenerHandler.handleRequest(
+                                    correlationId = correlationId,
+                                    replyTo = replyTo,
+                                    body = body,
+                                    deliveryTag = deliveryTag
+                                )
+                            }
+                        }
+
+                        RabbitPacketChunkAssembler.ChunkAcceptResult.Stored -> {
+                            // Ack stored chunks immediately so a packet with more chunks than
+                            // the prefetch count cannot deadlock waiting for later chunks.
+                            channel.basicAck(deliveryTag)
+                        }
+
+                        is RabbitPacketChunkAssembler.ChunkAcceptResult.Complete -> {
+                            channel.basicAck(deliveryTag)
+
+                            api.scope.launch {
+                                listenerHandler.handleRequest(
+                                    correlationId = correlationId,
+                                    replyTo = replyTo,
+                                    body = result.body,
+                                    deliveryTag = null
+                                )
+                            }
+                        }
+                    }
+                } catch (t: Throwable) {
+                    requestChunkAssembler.discard(correlationId)
+                    nackRequest(deliveryTag)
                 }
             }
         }
@@ -58,24 +100,40 @@ class ServerRabbitMQConnectionImpl(
     suspend fun replyToRequest(
         correlationId: String,
         replyTo: String,
-        deliveryTag: ULong,
+        deliveryTag: ULong?,
         body: ByteArray
     ) {
-        replyChannel.basicPublish {
-            this.body = body
-            exchange = ""
-            routingKey = replyTo
-            properties = properties {
-                this.correlationId = correlationId
-                deliveryMode = if (persistResponses) 2u else 1u
+        val responseBodies =
+            if (
+                RabbitPacketChunking.supportsChunkedResponses(correlationId) &&
+                RabbitPacketChunking.shouldChunk(body, config)
+            ) {
+                RabbitPacketChunking.splitResponse(body)
+            } else {
+                ObjectList.of(body)
+            }
+
+        for (responseBody in responseBodies) {
+            replyChannel.basicPublish {
+                this.body = responseBody
+                exchange = ""
+                routingKey = replyTo
+                properties = properties {
+                    this.correlationId = correlationId
+                    deliveryMode = if (persistResponses) 2u else 1u
+                }
             }
         }
 
-        channel.basicAck(deliveryTag)
+        if (deliveryTag != null) {
+            channel.basicAck(deliveryTag)
+        }
     }
 
-    suspend fun nackRequest(deliveryTag: ULong) {
-        channel.basicNack(deliveryTag, requeue = false)
+    suspend fun nackRequest(deliveryTag: ULong?) {
+        if (deliveryTag != null) {
+            channel.basicNack(deliveryTag, requeue = false)
+        }
     }
 
     override suspend fun disconnect() {
