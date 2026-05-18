@@ -1,4 +1,5 @@
 @file:OptIn(ExperimentalSerializationApi::class)
+@file:Suppress("InternalApiUsage")
 
 package dev.slne.surf.rabbitmq.listener
 
@@ -23,7 +24,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
 import kotlin.time.Duration.Companion.seconds
 
-@Suppress("UnstableApiUsage", "InternalApiUsage")
+@Suppress("UnstableApiUsage")
 @OptIn(InternalInvokerApi::class)
 class RabbitListenerHandlerManager(
     private val api: RabbitMQApi,
@@ -104,7 +105,7 @@ class RabbitListenerHandlerManager(
         correlationId: String,
         replyTo: String,
         body: ByteArray,
-        deliveryTag: ULong?
+        deliveryTag: ULong
     ) {
         val request = try {
             RabbitPacketSerializer.deserializeRequest(api, body, requestSerializerCache)

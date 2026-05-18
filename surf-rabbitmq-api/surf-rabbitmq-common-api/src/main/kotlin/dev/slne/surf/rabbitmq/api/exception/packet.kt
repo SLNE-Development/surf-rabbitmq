@@ -13,3 +13,21 @@ class SurfRabbitProtocolChunkPacketSizeMismatchException(expected: Int, actual: 
 
 class SurfRabbitProtocolChunkKindMismatchException(expected: String, actual: String) :
     SurfRabbitProtocolException("Chunked packet kind mismatch: expected $expected, got $actual")
+
+class SurfRabbitProtocolInvalidChunkMetadataException(
+    field: String,
+    expected: String,
+    actual: Any?
+) : SurfRabbitProtocolException(
+    "Invalid chunk metadata for '$field': expected $expected, got $actual"
+)
+
+class SurfRabbitProtocolChunkMetadataMismatchException(
+    correlationId: String,
+    field: String,
+    expected: Any?,
+    actual: Any?
+) : SurfRabbitProtocolException(
+    "Mismatching chunk metadata for correlationId $correlationId: " +
+            "$field expected $expected, got $actual"
+)

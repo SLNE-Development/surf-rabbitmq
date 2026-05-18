@@ -1,5 +1,6 @@
 package dev.slne.surf.rabbitmq.common.packet
 
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolInvalidChunkMetadataException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolUnknownChunkKindException
 import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking.PACKET_CHUNKING_THRESHOLD_BYTES
@@ -71,11 +72,40 @@ object RabbitPacketChunking {
             val chunkIndex = buf.readInt()
             val originalSize = buf.readInt()
 
-            require(totalChunks > 0) { "totalChunks must be positive" }
-            require(chunkIndex in 0 until totalChunks) { "chunkIndex out of bounds" }
-            require(originalSize >= 0) { "originalSize must not be negative" }
+            if (totalChunks <= 0) {
+                throw SurfRabbitProtocolInvalidChunkMetadataException(
+                    field = "totalChunks",
+                    expected = "> 0",
+                    actual = totalChunks
+                )
+            }
 
-            val payload = ByteArray(buf.readableBytes())
+            if (chunkIndex !in 0 until totalChunks) {
+                throw SurfRabbitProtocolInvalidChunkMetadataException(
+                    field = "chunkIndex",
+                    expected = "0 until $totalChunks",
+                    actual = chunkIndex
+                )
+            }
+
+            if (originalSize < 0) {
+                throw SurfRabbitProtocolInvalidChunkMetadataException(
+                    field = "originalSize",
+                    expected = ">= 0",
+                    actual = originalSize
+                )
+            }
+
+            val payloadSize = buf.readableBytes()
+            if (payloadSize > PACKET_CHUNK_SIZE_BYTES) {
+                throw SurfRabbitProtocolInvalidChunkMetadataException(
+                    field = "payloadSize",
+                    expected = "<= $PACKET_CHUNK_SIZE_BYTES",
+                    actual = payloadSize
+                )
+            }
+
+            val payload = ByteArray(payloadSize)
             buf.readBytes(payload)
 
             return PacketChunk(

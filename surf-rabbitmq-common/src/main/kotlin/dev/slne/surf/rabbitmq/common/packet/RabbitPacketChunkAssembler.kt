@@ -1,6 +1,7 @@
 package dev.slne.surf.rabbitmq.common.packet
 
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolChunkKindMismatchException
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolChunkMetadataMismatchException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolChunkPacketLargerThanExpectedException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolChunkPacketSizeMismatchException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolMissingChunkException
@@ -34,11 +35,22 @@ class RabbitPacketChunkAssembler(
             )
         }
 
-        require(partial.totalChunks == chunk.totalChunks) {
-            "Mismatching totalChunks for correlationId $correlationId"
+        if (partial.totalChunks != chunk.totalChunks) {
+            throw SurfRabbitProtocolChunkMetadataMismatchException(
+                correlationId = correlationId,
+                field = "totalChunks",
+                expected = partial.totalChunks,
+                actual = chunk.totalChunks
+            )
         }
-        require(partial.originalSize == chunk.originalSize) {
-            "Mismatching originalSize for correlationId $correlationId"
+
+        if (partial.originalSize != chunk.originalSize) {
+            throw SurfRabbitProtocolChunkMetadataMismatchException(
+                correlationId = correlationId,
+                field = "originalSize",
+                expected = partial.originalSize,
+                actual = chunk.originalSize
+            )
         }
 
         partial.add(chunk)

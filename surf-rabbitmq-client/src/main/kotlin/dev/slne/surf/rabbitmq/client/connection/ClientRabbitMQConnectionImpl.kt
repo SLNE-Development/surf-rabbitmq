@@ -8,6 +8,7 @@ import dev.kourier.amqp.channel.AMQPChannel
 import dev.kourier.amqp.channel.basicPublish
 import dev.kourier.amqp.channel.queueDeclare
 import dev.kourier.amqp.properties
+import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ClientRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestTimeoutException
@@ -29,6 +30,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.ExperimentalSerializationApi
 import org.apache.commons.lang3.RandomStringUtils
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
 
 class ClientRabbitMQConnectionImpl(
@@ -38,6 +40,10 @@ class ClientRabbitMQConnectionImpl(
     api = api,
     config = config,
 ), ClientRabbitMQConnection {
+    companion object {
+        private val log = logger()
+    }
+
     private val requestTimeoutSeconds = config.requestTimeoutSeconds.seconds
     private val persistRequests = config.persistRequests
 
@@ -109,12 +115,35 @@ class ClientRabbitMQConnectionImpl(
                     continue
                 }
 
-                when (val result = responseChunkAssembler.accept(correlationId, body)) {
+                val result = try {
+                    responseChunkAssembler.accept(correlationId, body)
+                } catch (t: Throwable) {
+                    if (t is CancellationException) throw t
+
+                    responseChunkAssembler.discard(correlationId)
+
+                    val removedPending = pendingRequests.asMap().remove(correlationId) ?: pending
+                    val deferred = removedPending.second
+
+                    if (deferred != null && !deferred.isCompleted) {
+                        deferred.completeExceptionally(t)
+                    }
+
+                    channel.basicAck(deliveryTag)
+
+                    log.atWarning()
+                        .withCause(t)
+                        .log("Failed to assemble RabbitMQ response chunks for correlationId $correlationId")
+
+                    continue
+                }
+
+                when (result) {
                     RabbitPacketChunkAssembler.ChunkAcceptResult.NotChunk -> {
-                        pendingRequests.invalidate(correlationId)
+                        val removedPending = pendingRequests.asMap().remove(correlationId) ?: pending
                         channel.basicAck(deliveryTag)
 
-                        val deferred = pending.second
+                        val deferred = removedPending.second
                         if (deferred != null && !deferred.isCompleted) {
                             deferred.complete(body)
                         }
@@ -125,10 +154,10 @@ class ClientRabbitMQConnectionImpl(
                     }
 
                     is RabbitPacketChunkAssembler.ChunkAcceptResult.Complete -> {
-                        pendingRequests.invalidate(correlationId)
+                        val removedPending = pendingRequests.asMap().remove(correlationId) ?: pending
                         channel.basicAck(deliveryTag)
 
-                        val deferred = pending.second
+                        val deferred = removedPending.second
                         if (deferred != null && !deferred.isCompleted) {
                             deferred.complete(result.body)
                         }

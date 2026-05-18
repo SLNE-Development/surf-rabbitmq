@@ -3,6 +3,7 @@ package dev.slne.surf.rabbitmq.connection
 import dev.kourier.amqp.channel.AMQPChannel
 import dev.kourier.amqp.channel.basicPublish
 import dev.kourier.amqp.properties
+import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ServerRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
@@ -12,12 +13,17 @@ import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
 import dev.slne.surf.rabbitmq.listener.RabbitListenerHandlerManager
 import it.unimi.dsi.fastutil.objects.ObjectList
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
 
 class ServerRabbitMQConnectionImpl(
     private val api: RabbitMQApi,
     private val config: RabbitMQConfig
 ) : AbstractRabbitMQConnectionImpl(api, config), ServerRabbitMQConnection {
+    companion object {
+        private val log = logger()
+    }
+
     private val listenerHandler = RabbitListenerHandlerManager(api, this)
     private val prefetchCount = config.serverPrefetchCount.toUShort()
     private val persistResponses = config.persistResponses
@@ -77,20 +83,25 @@ class ServerRabbitMQConnectionImpl(
                         }
 
                         is RabbitPacketChunkAssembler.ChunkAcceptResult.Complete -> {
-                            channel.basicAck(deliveryTag)
-
                             api.scope.launch {
                                 listenerHandler.handleRequest(
                                     correlationId = correlationId,
                                     replyTo = replyTo,
                                     body = result.body,
-                                    deliveryTag = null
+                                    deliveryTag = deliveryTag
                                 )
                             }
                         }
                     }
                 } catch (t: Throwable) {
+                    if (t is CancellationException) throw t
+
                     requestChunkAssembler.discard(correlationId)
+
+                    log.atWarning()
+                        .withCause(t)
+                        .log("Failed to handle RabbitMQ request chunk for correlationId $correlationId, discarding request")
+
                     nackRequest(deliveryTag)
                 }
             }
