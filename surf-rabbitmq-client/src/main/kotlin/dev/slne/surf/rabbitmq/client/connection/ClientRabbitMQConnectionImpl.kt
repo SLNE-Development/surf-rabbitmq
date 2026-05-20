@@ -8,6 +8,7 @@ import dev.kourier.amqp.channel.AMQPChannel
 import dev.kourier.amqp.channel.basicPublish
 import dev.kourier.amqp.channel.queueDeclare
 import dev.kourier.amqp.properties
+import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ClientRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestTimeoutException
@@ -16,24 +17,33 @@ import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
 import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
+import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunkAssembler
+import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
+import it.unimi.dsi.fastutil.objects.ObjectList
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.ExperimentalSerializationApi
+import org.apache.commons.lang3.RandomStringUtils
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
 
 class ClientRabbitMQConnectionImpl(
     private val api: RabbitMQApi,
-    config: RabbitMQConfig
+    private val config: RabbitMQConfig
 ) : AbstractRabbitMQConnectionImpl(
     api = api,
     config = config,
 ), ClientRabbitMQConnection {
+    companion object {
+        private val log = logger()
+    }
+
     private val requestTimeoutSeconds = config.requestTimeoutSeconds.seconds
     private val persistRequests = config.persistRequests
 
@@ -54,6 +64,11 @@ class ClientRabbitMQConnectionImpl(
         }
         .build<String, Pair<RabbitRequestPacket<*>, CompletableDeferred<ByteArray>?>>()
 
+    private val responseChunkAssembler = RabbitPacketChunkAssembler(
+        expectedKind = RabbitPacketChunking.PacketChunkKind.RESPONSE,
+        timeout = requestTimeoutSeconds * 2
+    )
+
     private val requestSerializerCache =
         KotlinSerializerCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
     private val responseSerializerCache =
@@ -70,21 +85,13 @@ class ClientRabbitMQConnectionImpl(
         publishChannel = connection.openChannel()
 
         callbackQueueName = channel.queueDeclare {
-            name = queueName + "_callback_" + generateRandomQueueSuffix()
+            name = queueName + "_callback_" + RandomStringUtils.secureStrong().nextAlphanumeric(8)
             durable = false
             exclusive = true
             autoDelete = true
         }.queueName
 
         startConsumingResponses()
-    }
-
-    private fun generateRandomQueueSuffix(length: Int = 8): String {
-        val chars = ('a'..'z') + ('0'..'9')
-
-        return (1..length)
-            .map { chars.random() }
-            .joinToString("")
     }
 
     private suspend fun startConsumingResponses() {
@@ -96,15 +103,65 @@ class ClientRabbitMQConnectionImpl(
                 val body = message.message.body
                 val deliveryTag = message.message.deliveryTag
 
-                val (_, deferred) =
-                    correlationId?.let { pendingRequests.asMap().remove(it) } ?: continue
+                if (correlationId == null) {
+                    channel.basicAck(deliveryTag)
+                    continue
+                }
 
-                // The response must always be removed from the callback queue,
-                // even if the request has already timed out on the client side.
-                channel.basicAck(deliveryTag)
+                val pending = pendingRequests.getIfPresent(correlationId)
+                if (pending == null) {
+                    responseChunkAssembler.discard(correlationId)
+                    channel.basicAck(deliveryTag)
+                    continue
+                }
 
-                if (deferred != null && !deferred.isCompleted) {
-                    deferred.complete(body)
+                val result = try {
+                    responseChunkAssembler.accept(correlationId, body)
+                } catch (t: Throwable) {
+                    if (t is CancellationException) throw t
+
+                    responseChunkAssembler.discard(correlationId)
+
+                    val removedPending = pendingRequests.asMap().remove(correlationId) ?: pending
+                    val deferred = removedPending.second
+
+                    if (deferred != null && !deferred.isCompleted) {
+                        deferred.completeExceptionally(t)
+                    }
+
+                    channel.basicAck(deliveryTag)
+
+                    log.atWarning()
+                        .withCause(t)
+                        .log("Failed to assemble RabbitMQ response chunks for correlationId $correlationId")
+
+                    continue
+                }
+
+                when (result) {
+                    RabbitPacketChunkAssembler.ChunkAcceptResult.NotChunk -> {
+                        val removedPending = pendingRequests.asMap().remove(correlationId) ?: pending
+                        channel.basicAck(deliveryTag)
+
+                        val deferred = removedPending.second
+                        if (deferred != null && !deferred.isCompleted) {
+                            deferred.complete(body)
+                        }
+                    }
+
+                    RabbitPacketChunkAssembler.ChunkAcceptResult.Stored -> {
+                        channel.basicAck(deliveryTag)
+                    }
+
+                    is RabbitPacketChunkAssembler.ChunkAcceptResult.Complete -> {
+                        val removedPending = pendingRequests.asMap().remove(correlationId) ?: pending
+                        channel.basicAck(deliveryTag)
+
+                        val deferred = removedPending.second
+                        if (deferred != null && !deferred.isCompleted) {
+                            deferred.complete(result.body)
+                        }
+                    }
                 }
             }
         }
@@ -137,18 +194,27 @@ class ClientRabbitMQConnectionImpl(
         pendingRequests.put(correlationId, request to deferred)
 
         try {
-            publishChannel.basicPublish {
-                this.body = requestBytes
-                exchange = ""
-                routingKey = queueName
-                properties = properties {
-                    deliveryMode = if (persistRequests) 2u else 1u
-                    this.correlationId = correlationId
-                    this.replyTo = callbackQueueName
+            val requestBodies =
+                if (RabbitPacketChunking.shouldChunk(requestBytes, config.isOutgoingRequestChunkingEnabled())) {
+                    RabbitPacketChunking.splitRequest(requestBytes)
+                } else {
+                    ObjectList.of(requestBytes)
+                }
 
-                    // If the request is still in the queue and has not yet been sent to the
-                    // server, it should expire after the timeout.
-                    expiration = requestTimeoutSeconds.inWholeMilliseconds.toString()
+            for (requestBody in requestBodies) {
+                publishChannel.basicPublish {
+                    this.body = requestBody
+                    exchange = ""
+                    routingKey = queueName
+                    properties = properties {
+                        deliveryMode = if (persistRequests) 2u else 1u
+                        this.correlationId = correlationId
+                        this.replyTo = callbackQueueName
+
+                        // If the request is still in the queue and has not yet been sent to the
+                        // server, it should expire after the timeout.
+                        expiration = requestTimeoutSeconds.inWholeMilliseconds.toString()
+                    }
                 }
             }
         } catch (t: Throwable) {
@@ -177,5 +243,5 @@ class ClientRabbitMQConnectionImpl(
     }
 
     private fun nextCorrelationId(): String =
-        "$correlationIdPrefix-${correlationIdSequence.incrementAndGet()}"
+        RabbitPacketChunking.newCorrelationId("$correlationIdPrefix-${correlationIdSequence.incrementAndGet()}")
 }

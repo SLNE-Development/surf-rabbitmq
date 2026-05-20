@@ -1,4 +1,5 @@
 @file:OptIn(ExperimentalSerializationApi::class)
+@file:Suppress("InternalApiUsage")
 
 package dev.slne.surf.rabbitmq.listener
 
