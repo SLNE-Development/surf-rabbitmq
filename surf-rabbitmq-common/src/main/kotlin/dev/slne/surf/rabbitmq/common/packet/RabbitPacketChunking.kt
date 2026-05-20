@@ -40,6 +40,29 @@ object RabbitPacketChunking {
      */
     const val PACKET_CHUNKING_THRESHOLD_BYTES = 1024 * 1024
 
+    private const val CHUNK_HEADER_SIZE =
+        Int.SIZE_BYTES + // magic
+                1 + // version
+                1 + // kind
+                Int.SIZE_BYTES + // totalChunks
+                Int.SIZE_BYTES + // chunkIndex
+                Int.SIZE_BYTES // originalSize
+
+    /**
+     * Maximum size of a fully reassembled chunked packet in bytes.
+     *
+     * This is a safety limit for chunked packet reassembly. It protects the
+     * process from excessive memory allocations caused by corrupted messages,
+     * incompatible protocol versions, or accidentally oversized packets.
+     */
+    const val MAX_CHUNKED_PACKET_SIZE_BYTES = 64 * 1024 * 1024
+
+    /**
+     * Maximum number of chunks accepted for one chunked packet.
+     */
+    const val MAX_CHUNKS_PER_PACKET =
+        (MAX_CHUNKED_PACKET_SIZE_BYTES + PACKET_CHUNK_SIZE_BYTES - 1) / PACKET_CHUNK_SIZE_BYTES
+
     fun newCorrelationId(rawCorrelationId: String): String = CHUNK_CAPABILITY_PREFIX + rawCorrelationId
     fun supportsChunkedResponses(correlationId: String): Boolean = correlationId.startsWith(CHUNK_CAPABILITY_PREFIX)
 
@@ -51,7 +74,7 @@ object RabbitPacketChunking {
     fun splitResponse(data: ByteArray): ObjectArrayList<ByteArray> = split(data, PacketChunkKind.RESPONSE)
 
     fun decodeOrNull(data: ByteArray): PacketChunk? {
-        if (data.size < Int.SIZE_BYTES + 1 + 1 + Int.SIZE_BYTES + Int.SIZE_BYTES + Int.SIZE_BYTES) { // see encodeChunk for details
+        if (data.size < CHUNK_HEADER_SIZE) {
             return null
         }
 
@@ -72,10 +95,27 @@ object RabbitPacketChunking {
             val chunkIndex = buf.readInt()
             val originalSize = buf.readInt()
 
-            if (totalChunks <= 0) {
+            if (totalChunks !in 1..MAX_CHUNKS_PER_PACKET) {
                 throw SurfRabbitProtocolInvalidChunkMetadataException(
                     field = "totalChunks",
-                    expected = "> 0",
+                    expected = "1..$MAX_CHUNKS_PER_PACKET",
+                    actual = totalChunks
+                )
+            }
+
+            if (originalSize !in 1..MAX_CHUNKED_PACKET_SIZE_BYTES) {
+                throw SurfRabbitProtocolInvalidChunkMetadataException(
+                    field = "originalSize",
+                    expected = "1..$MAX_CHUNKED_PACKET_SIZE_BYTES",
+                    actual = originalSize
+                )
+            }
+
+            val expectedTotalChunks = (originalSize + PACKET_CHUNK_SIZE_BYTES - 1) / PACKET_CHUNK_SIZE_BYTES
+            if (totalChunks != expectedTotalChunks) {
+                throw SurfRabbitProtocolInvalidChunkMetadataException(
+                    field = "totalChunks",
+                    expected = "$expectedTotalChunks for originalSize=$originalSize",
                     actual = totalChunks
                 )
             }
@@ -88,19 +128,25 @@ object RabbitPacketChunking {
                 )
             }
 
-            if (originalSize < 0) {
+            val payloadSize = buf.readableBytes()
+            if (payloadSize !in 1..PACKET_CHUNK_SIZE_BYTES) {
                 throw SurfRabbitProtocolInvalidChunkMetadataException(
-                    field = "originalSize",
-                    expected = ">= 0",
-                    actual = originalSize
+                    field = "payloadSize",
+                    expected = "1..$PACKET_CHUNK_SIZE_BYTES",
+                    actual = payloadSize
                 )
             }
 
-            val payloadSize = buf.readableBytes()
-            if (payloadSize > PACKET_CHUNK_SIZE_BYTES) {
+            val expectedPayloadSize = if (chunkIndex == totalChunks - 1) {
+                originalSize - (PACKET_CHUNK_SIZE_BYTES * chunkIndex)
+            } else {
+                PACKET_CHUNK_SIZE_BYTES
+            }
+
+            if (payloadSize != expectedPayloadSize) {
                 throw SurfRabbitProtocolInvalidChunkMetadataException(
                     field = "payloadSize",
-                    expected = "<= $PACKET_CHUNK_SIZE_BYTES",
+                    expected = expectedPayloadSize.toString(),
                     actual = payloadSize
                 )
             }
@@ -124,6 +170,14 @@ object RabbitPacketChunking {
         data: ByteArray,
         kind: PacketChunkKind,
     ): ObjectArrayList<ByteArray> {
+        if (data.size > MAX_CHUNKED_PACKET_SIZE_BYTES) {
+            throw SurfRabbitProtocolInvalidChunkMetadataException(
+                field = "originalSize",
+                expected = "<= $MAX_CHUNKED_PACKET_SIZE_BYTES",
+                actual = data.size
+            )
+        }
+
         val totalChunks = (data.size + PACKET_CHUNK_SIZE_BYTES - 1) / PACKET_CHUNK_SIZE_BYTES
         val chunks = ObjectArrayList<ByteArray>(totalChunks)
 
