@@ -66,8 +66,8 @@ object RabbitPacketChunking {
     fun newCorrelationId(rawCorrelationId: String): String = CHUNK_CAPABILITY_PREFIX + rawCorrelationId
     fun supportsChunkedResponses(correlationId: String): Boolean = correlationId.startsWith(CHUNK_CAPABILITY_PREFIX)
 
-    fun shouldChunk(data: ByteArray, config: RabbitMQConfig): Boolean {
-        return config.isOutgoingPacketChunkingEnabled() && data.size > PACKET_CHUNKING_THRESHOLD_BYTES
+    fun shouldChunk(data: ByteArray, enabled: Boolean): Boolean {
+        return enabled && data.size > PACKET_CHUNKING_THRESHOLD_BYTES
     }
 
     fun splitRequest(data: ByteArray): ObjectArrayList<ByteArray> = split(data, PacketChunkKind.REQUEST)

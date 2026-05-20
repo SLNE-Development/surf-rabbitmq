@@ -194,11 +194,12 @@ class ClientRabbitMQConnectionImpl(
         pendingRequests.put(correlationId, request to deferred)
 
         try {
-            val requestBodies = if (RabbitPacketChunking.shouldChunk(requestBytes, config)) {
-                RabbitPacketChunking.splitRequest(requestBytes)
-            } else {
-                ObjectList.of(requestBytes)
-            }
+            val requestBodies =
+                if (RabbitPacketChunking.shouldChunk(requestBytes, config.isOutgoingRequestChunkingEnabled())) {
+                    RabbitPacketChunking.splitRequest(requestBytes)
+                } else {
+                    ObjectList.of(requestBytes)
+                }
 
             for (requestBody in requestBodies) {
                 publishChannel.basicPublish {

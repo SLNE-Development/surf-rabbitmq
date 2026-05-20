@@ -117,7 +117,10 @@ class ServerRabbitMQConnectionImpl(
         val responseBodies =
             if (
                 RabbitPacketChunking.supportsChunkedResponses(correlationId) &&
-                RabbitPacketChunking.shouldChunk(body, config)
+                RabbitPacketChunking.shouldChunk(
+                    body,
+                    config.isOutgoingResponseChunkingEnabled()
+                )
             ) {
                 RabbitPacketChunking.splitResponse(body)
             } else {

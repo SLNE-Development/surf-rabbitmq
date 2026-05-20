@@ -95,27 +95,34 @@ data class RabbitMQConfig(
     val persistResponses: Boolean = false,
 
     @field:Comment(
-        """
-        Enables publishing large outgoing packets as multiple RabbitMQ messages.
-        
-        Keep this disabled during mixed-version rollouts. New servers can read both
-        legacy and chunked packets, but old servers cannot understand chunked request
-        messages.
-        
-        The default setting can be overridden by setting the system property
-        `surf.rabbitmq.outgoingPacketChunkingEnabled` to `true` or `false`.
-    """
+        "Enables publishing large request packets as multiple RabbitMQ messages.\n\nKeep this " +
+                "disabled during mixed-version rollouts. Old servers cannot understand chunked request messages."
     )
-    val outgoingPacketChunkingEnabled: BooleanOrDefault = BooleanOrDefault.USE_DEFAULT,
+    val outgoingRequestChunkingEnabled: BooleanOrDefault = BooleanOrDefault.USE_DEFAULT,
+
+    @field:Comment("Enables publishing large response packets as multiple RabbitMQ messages.\n\n" +
+            "This can usually be enabled during mixed-version rollouts because responses are only chunked when" +
+            " the requesting client explicitly advertises support for chunked responses.")
+    val outgoingResponseChunkingEnabled: BooleanOrDefault = BooleanOrDefault.USE_DEFAULT,
 ) {
 
-    fun isOutgoingPacketChunkingEnabled(): Boolean {
-        return outgoingPacketChunkingEnabled or systemChunkingEnabled
+    fun isOutgoingRequestChunkingEnabled(): Boolean {
+        return outgoingRequestChunkingEnabled or systemOutgoingRequestChunkingEnabled
+    }
+
+    fun isOutgoingResponseChunkingEnabled(): Boolean {
+        return outgoingResponseChunkingEnabled or systemOutgoingResponseChunkingEnabled
     }
 
     companion object {
-        private val systemChunkingEnabled = BooleanUtils.toBoolean(
-            System.getProperty("surf.rabbitmq.outgoingPacketChunkingEnabled", "false"),
+        private val systemOutgoingResponseChunkingEnabled = BooleanUtils.toBoolean(
+            System.getProperty("surf.rabbitmq.outgoingResponseChunkingEnabled", "true"),
+            "true",
+            "false"
+        )
+
+        private val systemOutgoingRequestChunkingEnabled = BooleanUtils.toBoolean(
+            System.getProperty("surf.rabbitmq.outgoingResponseChunkingEnabled", "false"),
             "true",
             "false"
         )
