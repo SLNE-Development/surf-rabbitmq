@@ -2,7 +2,6 @@ package dev.slne.surf.rabbitmq.common.packet
 
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolInvalidChunkMetadataException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolUnknownChunkKindException
-import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking.PACKET_CHUNKING_THRESHOLD_BYTES
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking.PACKET_CHUNK_SIZE_BYTES
 import io.netty.buffer.Unpooled
