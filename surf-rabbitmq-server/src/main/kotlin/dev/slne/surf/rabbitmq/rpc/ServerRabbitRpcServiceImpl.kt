@@ -48,14 +48,15 @@ class ServerRabbitRpcServiceImpl(private val api: ServerRabbitMQApi) : CommonRab
         serviceInstance: Service
     ) {
         val descriptor = serviceDescriptorOf(serviceKClass)
-        rpcServices.get(descriptor.fqName) {
-            RpcServiceExecutor(
-                serviceInstance,
-                descriptor,
-                internalScope,
-                api.cbor
-            )
-        }
+        val executor = RpcServiceExecutor(
+            serviceInstance,
+            descriptor,
+            internalScope,
+            api.cbor
+        )
+
+        val previous = rpcServices.asMap().putIfAbsent(descriptor.fqName, executor)
+        require(previous == null) { "Service with fq '${descriptor.fqName}' already registered" }
     }
 
     override fun <Service : Any> unregisterService(serviceKClass: KClass<Service>) {

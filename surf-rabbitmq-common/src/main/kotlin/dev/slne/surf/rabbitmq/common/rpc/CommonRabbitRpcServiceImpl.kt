@@ -28,6 +28,7 @@ abstract class CommonRabbitRpcServiceImpl(private val api: RabbitMQApi) : Rabbit
             val packageName = type.packageName
             val simpleName = type.simpleName
             val descriptorFqName = "$packageName.${simpleName}Descriptor"
+
             return try {
                 val descriptorClass = Class.forName(descriptorFqName, false, type.classLoader)
                 val descriptorKClass = descriptorClass.kotlin
