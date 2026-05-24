@@ -15,9 +15,11 @@ import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketPropertiesInjector
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
+import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallRequestPacket
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
 import dev.slne.surf.rabbitmq.connection.ServerRabbitMQConnectionImpl
+import dev.slne.surf.rabbitmq.rpc.ServerRabbitRpcServiceImpl
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -121,6 +123,11 @@ class RabbitListenerHandlerManager(
                 .withCause(e)
                 .log("Failed to deserialize request envelope, discarding message")
             connection.nackRequest(deliveryTag)
+            return
+        }
+
+        if (request is RpcCallRequestPacket) {
+            (api.rpcService as ServerRabbitRpcServiceImpl).handleRequest(request)
             return
         }
 

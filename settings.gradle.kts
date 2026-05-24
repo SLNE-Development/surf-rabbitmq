@@ -21,3 +21,4 @@ include("surf-rabbitmq-common")
 
 include("surf-rabbitmq-paper")
 include("surf-rabbitmq-velocity")
+include("surf-rabbitmq-ksp")

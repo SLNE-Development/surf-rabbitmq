@@ -12,6 +12,8 @@ import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.OptionalPri
 import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.PrimitiveResponse
 import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.array.ArrayResponse
 import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.array.OptionalArrayResponse
+import dev.slne.surf.rabbitmq.api.rpc.RabbitRpcServiceFactory
+import dev.slne.surf.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
@@ -19,6 +21,7 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.contextual
 import kotlinx.serialization.modules.overwriteWith
 import org.jetbrains.annotations.MustBeInvokedByOverriders
+import kotlin.reflect.KClass
 
 @OptIn(ExperimentalSerializationApi::class)
 abstract class RabbitMQApi @InternalRabbitMQ constructor(
@@ -35,6 +38,10 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
         })
 
     open val connection = RabbitMQConnection.create(this)
+
+    @InternalRabbitMQ
+    open val rpcService = RabbitRpcServiceFactory.instance.createRpcService(this)
+
     private var frozen = false
 
     @MustBeInvokedByOverriders
@@ -62,6 +69,14 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
     }
 
     fun isFrozen(): Boolean = frozen
+
+    inline fun <reified Service : Any> serviceDescriptorOf(): RabbitRpcServiceDescriptor<Service> {
+        return rpcService.serviceDescriptorOf(Service::class)
+    }
+
+    fun <Service : Any> serviceDescriptorOf(kClass: KClass<Service>): RabbitRpcServiceDescriptor<Service> {
+        return rpcService.serviceDescriptorOf(kClass)
+    }
 
     companion object {
         private val log = logger()
