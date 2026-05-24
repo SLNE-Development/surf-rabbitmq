@@ -4,13 +4,37 @@ import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
-import com.squareup.kotlinpoet.CodeBlock
+import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ksp.toClassName
 import com.squareup.kotlinpoet.ksp.toTypeName
-import com.squareup.kotlinpoet.withIndent
+import dev.slne.surf.rabbitmq.processor.ClassNames
 import dev.slne.surf.rabbitmq.processor.MemberNames
 import dev.slne.surf.rabbitmq.processor.Names
 import dev.slne.surf.rabbitmq.processor.Types
+
+fun FileSpec.Builder.optInInternalRabbitApi() = apply {
+    addAnnotation(
+        AnnotationSpec.builder(ClassNames.kotlinOptIn)
+            .addMember("%T::class", ClassNames.internalRabbitMqApi)
+            .build()
+    )
+}
+
+fun TypeSpec.Builder.addInternalDeprecation() = apply {
+    addAnnotation(
+        AnnotationSpec.builder(Deprecated::class)
+            .addMember(
+                "message = %S, level = %T.HIDDEN",
+                "This synthesized declaration should not be used directly",
+                DeprecationLevel::class
+            )
+            .build()
+    )
+}
+
+fun FileSpec.Builder.suppressInternalDeprecation() = apply {
+    addAnnotation(AnnotationSpec.builder(Suppress::class).addMember("%S", "DEPRECATION_ERROR").build())
+}
 
 fun List<KSAnnotation>.toAnnotationListCode(): CodeBlock {
     if (isEmpty()) {
@@ -108,6 +132,7 @@ private fun KSClassDeclaration.createSerializerInstanceCode(): CodeBlock {
 
             CodeBlock.of("%T()", toClassName())
         }
+
         else -> error("Cannot create serializer instance for class kind ${classKind.name}")
     }
 }
