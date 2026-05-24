@@ -3,6 +3,7 @@ package dev.slne.surf.rabbitmq.processor.rpc.codegen
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
+import com.squareup.kotlinpoet.ksp.addOriginatingKSFile
 import com.squareup.kotlinpoet.ksp.writeTo
 import dev.slne.surf.rabbitmq.processor.ClassNames
 import dev.slne.surf.rabbitmq.processor.rpc.model.RpcServiceModel
@@ -13,6 +14,7 @@ class RpcDescriptorCodegen(private val codeGenerator: CodeGenerator) {
 
     fun generate(service: RpcServiceModel) {
         val descriptorType = TypeSpec.objectBuilder(service.descriptorClassName)
+            .addOriginatingKSFile(service.containingFile)
             .addInternalDeprecation()
             .addModifiers(KModifier.INTERNAL)
             .addSuperinterface(ClassNames.rpcServiceDescriptor.parameterizedBy(service.serviceClassName))
@@ -52,7 +54,7 @@ class RpcDescriptorCodegen(private val codeGenerator: CodeGenerator) {
             .indent("    ")
             .addType(descriptorType)
             .build()
-            .writeTo(codeGenerator, aggregating = true)
+            .writeTo(codeGenerator, aggregating = false)
     }
 
     private fun createGetCallableFunction(service: RpcServiceModel): FunSpec {

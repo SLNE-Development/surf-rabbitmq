@@ -28,6 +28,14 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
             return null
         }
 
+        val ksFile = declaration.containingFile ?: run {
+            logger.error(
+                "Cannot generate descriptor for interface $simpleName: no containing file",
+                declaration,
+            )
+            return null
+        }
+
         val packageName = fqName.substringBeforeLast('.', "")
         val serviceClassName = declaration.toClassName()
         val descriptorClassName = serviceClassName.peerClass("${simpleName}Descriptor")
@@ -79,6 +87,7 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
 
         return RpcServiceModel(
             declaration = declaration,
+            containingFile = ksFile,
             simpleName = simpleName,
             fqName = fqName,
             packageName = packageName,

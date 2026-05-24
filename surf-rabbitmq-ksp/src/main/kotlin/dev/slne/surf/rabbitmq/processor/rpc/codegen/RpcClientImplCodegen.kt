@@ -3,6 +3,7 @@ package dev.slne.surf.rabbitmq.processor.rpc.codegen
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.KSPLogger
 import com.squareup.kotlinpoet.*
+import com.squareup.kotlinpoet.ksp.addOriginatingKSFile
 import com.squareup.kotlinpoet.ksp.toTypeName
 import com.squareup.kotlinpoet.ksp.writeTo
 import dev.slne.surf.rabbitmq.processor.ClassNames
@@ -26,6 +27,7 @@ class RpcClientImplCodegen(
     fun generate(service: RpcServiceModel) {
         val clientType = TypeSpec.classBuilder(service.clientImplClassName)
             .addInternalDeprecation()
+            .addOriginatingKSFile(service.containingFile)
             .addModifiers(KModifier.INTERNAL)
             .addSuperinterface(service.serviceClassName)
             .primaryConstructor(createConstructor(service))
@@ -47,7 +49,7 @@ class RpcClientImplCodegen(
             .indent("    ")
             .addType(clientType)
             .build()
-            .writeTo(codeGenerator, aggregating = true)
+            .writeTo(codeGenerator, aggregating = false)
     }
 
     private fun createConstructor(service: RpcServiceModel): FunSpec {
