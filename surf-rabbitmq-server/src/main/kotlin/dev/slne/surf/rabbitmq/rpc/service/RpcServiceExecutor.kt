@@ -31,11 +31,15 @@ class RpcServiceExecutor<T : Any>(
         try {
             processMessage(request)
         } catch (e: Throwable) {
-            request.respond(RpcCallResponsePacket(RpcCallResponsePacket.RpcCallResponse.Error(e.toSerializableError())))
+            if (!request.hasResponded()) {
+                request.respond(RpcCallResponsePacket(RpcCallResponsePacket.RpcCallResponse.Error(e.toSerializableError())))
+            }
 
             if (e is CancellationException) {
                 currentCoroutineContext().ensureActive()
             }
+
+            logger.error("Error processing RPC call ${request.rpcCallId}", e)
         }
     }
 

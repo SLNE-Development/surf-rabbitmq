@@ -24,4 +24,6 @@ abstract class RabbitRequestPacket<ResponsePacket : RabbitResponsePacket> : Rabb
             throw SurfRabbitRequestAlreadyRespondedException()
         }
     }
+
+    fun hasResponded(): Boolean = responseDeferred.isCompleted
 }
