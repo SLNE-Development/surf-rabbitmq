@@ -10,6 +10,4 @@ interface RabbitRpcService {
     suspend fun <T> call(call: RabbitRpcCall): T
 
     fun <Service : Any> serviceDescriptorOf(kClass: KClass<Service>): RabbitRpcServiceDescriptor<Service>
-
-    fun <Service : Any> serviceProvider(kClass: KClass<Service>): ReadOnlyProperty<KClass<Service>, Service>
 }

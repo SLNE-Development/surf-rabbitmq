@@ -30,19 +30,6 @@ class ClientRpcServiceImpl(private val api: ClientRabbitMQApi) : CommonRabbitRpc
         return descriptor.createInstance(id, api)
     }
 
-    override fun <Service : Any> serviceProvider(
-        kClass: KClass<Service>
-    ): ReadOnlyProperty<KClass<Service>, Service> = object : ReadOnlyProperty<KClass<Service>, Service> {
-        private val service by lazy { createService(kClass) }
-
-        override fun getValue(
-            thisRef: KClass<Service>,
-            property: KProperty<*>
-        ): Service {
-            return service
-        }
-    }
-
     override suspend fun <T> call(call: RabbitRpcCall): T {
         val callable = call.descriptor.getCallable(call.callableName)
             ?: error("Unexpected callable '${call.callableName}' for ${call.descriptor.fqName} service")

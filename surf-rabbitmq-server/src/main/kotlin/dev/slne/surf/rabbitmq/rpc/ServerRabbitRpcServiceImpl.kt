@@ -32,18 +32,6 @@ class ServerRabbitRpcServiceImpl(private val api: ServerRabbitMQApi) : CommonRab
         throw NotImplementedError("Can not execute RPC call on server side.")
     }
 
-    override fun <Service : Any> serviceProvider(
-        kClass: KClass<Service>
-    ): ReadOnlyProperty<KClass<Service>, Service> = object : ReadOnlyProperty<KClass<Service>, Service> {
-        private val descriptor = serviceDescriptorOf(kClass)
-
-        @Suppress("UNCHECKED_CAST")
-        override fun getValue(thisRef: KClass<Service>, property: KProperty<*>): Service {
-            return rpcServices.getIfPresent(descriptor.fqName)?.service as? Service
-                ?: error("Service ${descriptor.fqName} is not registered.")
-        }
-    }
-
     @RabbitHandler
     suspend fun handleRequest(request: RpcCallRequestPacket) {
         val service = rpcServices.getIfPresent(request.rpcServiceFqName)

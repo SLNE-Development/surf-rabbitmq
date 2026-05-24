@@ -21,9 +21,7 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.contextual
 import kotlinx.serialization.modules.overwriteWith
 import org.jetbrains.annotations.MustBeInvokedByOverriders
-import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KClass
-import kotlin.reflect.KProperty
 
 @OptIn(ExperimentalSerializationApi::class)
 abstract class RabbitMQApi @InternalRabbitMQ constructor(
@@ -78,14 +76,6 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
 
     fun <Service : Any> serviceDescriptorOf(kClass: KClass<Service>): RabbitRpcServiceDescriptor<Service> {
         return rpcService.serviceDescriptorOf(kClass)
-    }
-
-    fun <Service : Any> serviceProvider(kClass: KClass<Service>): ReadOnlyProperty<KClass<Service>, Service> {
-        return rpcService.serviceProvider(kClass)
-    }
-
-    inline fun <reified Service : Any> serviceProvider(): ReadOnlyProperty<KClass<Service>, Service> {
-        return serviceProvider(Service::class)
     }
 
     companion object {
