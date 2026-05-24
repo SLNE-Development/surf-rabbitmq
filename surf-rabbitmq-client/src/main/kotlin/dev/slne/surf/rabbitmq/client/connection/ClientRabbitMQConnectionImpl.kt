@@ -23,10 +23,7 @@ import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
 import it.unimi.dsi.fastutil.objects.ObjectList
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import org.apache.commons.lang3.RandomStringUtils
 import java.util.concurrent.atomic.AtomicLong
@@ -171,12 +168,12 @@ class ClientRabbitMQConnectionImpl(
     override suspend fun <R : RabbitResponsePacket> sendRequest(
         request: RabbitRequestPacket<R>,
         responseClass: Class<R>
-    ): R {
+    ): R = withContext(api.scope.coroutineContext.minusKey(Job)) {
         val responseBytes = awaitResponse(request, responseClass)
         val response =
             RabbitPacketSerializer.deserializeResponse(api, responseBytes, responseSerializerCache)
 
-        return response as R
+        response as R
     }
 
     private suspend fun <R : RabbitResponsePacket> awaitResponse(

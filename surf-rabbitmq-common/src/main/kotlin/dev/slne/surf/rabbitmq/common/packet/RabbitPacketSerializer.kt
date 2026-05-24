@@ -34,7 +34,6 @@ object RabbitPacketSerializer {
         override fun computeValue(type: Class<*>): ByteArray = type.name.encodeToByteArray()
     }
 
-
     @Suppress("UNCHECKED_CAST")
     fun serializeResponse(
         api: RabbitMQApi,

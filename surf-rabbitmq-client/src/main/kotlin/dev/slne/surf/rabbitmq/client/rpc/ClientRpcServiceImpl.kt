@@ -2,19 +2,20 @@ package dev.slne.surf.rabbitmq.client.rpc
 
 import dev.slne.surf.rabbitmq.api.ClientRabbitMQApi
 import dev.slne.surf.rabbitmq.api.rpc.ClientRabbitRpcService
+import dev.slne.surf.rabbitmq.api.rpc.RabbitRpcCall
 import dev.slne.surf.rabbitmq.api.rpc.callable.RabbitRpcCallable
 import dev.slne.surf.rabbitmq.common.rpc.CommonRabbitRpcServiceImpl
-import dev.slne.surf.rabbitmq.api.rpc.RabbitRpcCall
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallRequestPacket
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallResponsePacket
 import dev.slne.surf.rabbitmq.common.rpc.serialization.CallableParametersSerializer
 import dev.slne.surf.rabbitmq.common.rpc.serialization.buildContextual
-import kotlinx.coroutines.isActive
 import kotlinx.serialization.BinaryFormat
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KClass
+import kotlin.reflect.KProperty
 
 @OptIn(ExperimentalSerializationApi::class)
 class ClientRpcServiceImpl(private val api: ClientRabbitMQApi) : CommonRabbitRpcServiceImpl(api),
@@ -29,7 +30,18 @@ class ClientRpcServiceImpl(private val api: ClientRabbitMQApi) : CommonRabbitRpc
         return descriptor.createInstance(id, api)
     }
 
-    private fun isClientActive() = api.scope.isActive
+    override fun <Service : Any> serviceProvider(
+        kClass: KClass<Service>
+    ): ReadOnlyProperty<KClass<Service>, Service> = object : ReadOnlyProperty<KClass<Service>, Service> {
+        private val service by lazy { createService(kClass) }
+
+        override fun getValue(
+            thisRef: KClass<Service>,
+            property: KProperty<*>
+        ): Service {
+            return service
+        }
+    }
 
     override suspend fun <T> call(call: RabbitRpcCall): T {
         val callable = call.descriptor.getCallable(call.callableName)

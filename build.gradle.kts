@@ -17,6 +17,8 @@ allprojects {
 }
 
 subprojects {
+    if (name.contains("surf-rabbitmq-test")) return@subprojects
+
     afterEvaluate {
         extensions.findByType<KotlinJvmExtension>()?.apply {
             compilerOptions {

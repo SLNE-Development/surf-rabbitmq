@@ -3,17 +3,22 @@ package dev.slne.surf.rabbitmq.rpc
 import com.github.benmanes.caffeine.cache.Caffeine
 import dev.slne.surf.api.core.util.toSerializableError
 import dev.slne.surf.rabbitmq.api.ServerRabbitMQApi
+import dev.slne.surf.rabbitmq.api.handler.RabbitHandler
+import dev.slne.surf.rabbitmq.api.rpc.RabbitRpcCall
 import dev.slne.surf.rabbitmq.api.rpc.ServerRabbitRpcService
 import dev.slne.surf.rabbitmq.common.rpc.CommonRabbitRpcServiceImpl
-import dev.slne.surf.rabbitmq.api.rpc.RabbitRpcCall
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallRequestPacket
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallResponsePacket
 import dev.slne.surf.rabbitmq.rpc.service.RpcServiceExecutor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.job
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KClass
+import kotlin.reflect.KProperty
 
+@OptIn(ExperimentalSerializationApi::class)
 class ServerRabbitRpcServiceImpl(private val api: ServerRabbitMQApi) : CommonRabbitRpcServiceImpl(api),
     ServerRabbitRpcService {
     private val rpcServices = Caffeine.newBuilder()
@@ -27,6 +32,19 @@ class ServerRabbitRpcServiceImpl(private val api: ServerRabbitMQApi) : CommonRab
         throw NotImplementedError("Can not execute RPC call on server side.")
     }
 
+    override fun <Service : Any> serviceProvider(
+        kClass: KClass<Service>
+    ): ReadOnlyProperty<KClass<Service>, Service> = object : ReadOnlyProperty<KClass<Service>, Service> {
+        private val descriptor = serviceDescriptorOf(kClass)
+
+        @Suppress("UNCHECKED_CAST")
+        override fun getValue(thisRef: KClass<Service>, property: KProperty<*>): Service {
+            return rpcServices.getIfPresent(descriptor.fqName)?.service as? Service
+                ?: error("Service ${descriptor.fqName} is not registered.")
+        }
+    }
+
+    @RabbitHandler
     suspend fun handleRequest(request: RpcCallRequestPacket) {
         val service = rpcServices.getIfPresent(request.rpcServiceFqName)
         if (service != null) {

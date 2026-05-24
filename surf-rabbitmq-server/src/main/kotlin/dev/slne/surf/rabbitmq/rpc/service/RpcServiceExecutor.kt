@@ -16,7 +16,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.reflect.typeOf
 
 class RpcServiceExecutor<T : Any>(
-    private val service: T,
+    val service: T,
     private val descriptor: RabbitRpcServiceDescriptor<T>,
     private val serverScope: CoroutineScope,
     private val serialFormat: BinaryFormat
@@ -39,7 +39,7 @@ class RpcServiceExecutor<T : Any>(
                 currentCoroutineContext().ensureActive()
             }
 
-            logger.error("Error processing RPC call ${request.rpcCallId}", e)
+            logger.error("Error processing RPC call '${request.rpcCallId}' in service '${service.javaClass.name}'", e)
         }
     }
 
@@ -47,7 +47,7 @@ class RpcServiceExecutor<T : Any>(
         val callId = request.rpcCallId
         val callableName = request.rpcCallableName
         val callable = descriptor.getCallable(callableName)
-            ?: error("Service ${descriptor.fqName} has no method '$callableName'")
+            ?: error("Service '${service.javaClass.name}' has no method '$callableName'! Are the service and client versions in sync?")
 
         val parametersSerializer = CallableParametersSerializer(callable, serialFormat.serializersModule)
         val data = serialFormat.decodeFromByteArray(parametersSerializer, request.data)
@@ -72,7 +72,7 @@ class RpcServiceExecutor<T : Any>(
             serverScope.ensureActive()
         } catch (e: Throwable) {
             failure = e
-            logger.error("Error processing RPC call $callId", e)
+            logger.error("Error processing RPC call $callId in service '${service.javaClass.name}'" , e)
         } finally {
             if (failure != null) {
                 request.respond(RpcCallResponsePacket(RpcCallResponsePacket.RpcCallResponse.Error(failure.toSerializableError())))

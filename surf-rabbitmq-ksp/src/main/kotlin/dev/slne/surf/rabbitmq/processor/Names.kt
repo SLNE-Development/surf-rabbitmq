@@ -6,7 +6,7 @@ import com.squareup.kotlinpoet.MemberName
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 
 object Names {
-    const val RPC_SERVICE_ANNOTATION_FQ = "dev.slne.surf.rabbitmq.common.rpc.RpcService"
+    const val RPC_SERVICE_ANNOTATION_FQ = "dev.slne.surf.rabbitmq.api.rpc.RpcService"
     const val RPC_SERVICE_ANNOTATION = "RpcService"
 
     const val RPC_SERVICE_DESCRIPTOR_FQ = "dev.slne.surf.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor"

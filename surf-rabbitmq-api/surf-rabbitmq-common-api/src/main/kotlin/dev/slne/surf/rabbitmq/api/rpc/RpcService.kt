@@ -1,4 +1,4 @@
-package dev.slne.surf.rabbitmq.common.rpc
+package dev.slne.surf.rabbitmq.api.rpc
 
 @Retention(AnnotationRetention.BINARY)
 @Target(AnnotationTarget.CLASS)

@@ -22,3 +22,12 @@ include("surf-rabbitmq-common")
 include("surf-rabbitmq-paper")
 include("surf-rabbitmq-velocity")
 include("surf-rabbitmq-ksp")
+
+val isCi = providers.environmentVariable("CI").isPresent
+
+if (!isCi) {
+    include("surf-rabbitmq-test")
+    include("surf-rabbitmq-test:surf-rabbitmq-test-common")
+    include("surf-rabbitmq-test:surf-rabbitmq-test-paper")
+    include("surf-rabbitmq-test:surf-rabbitmq-test-server")
+}
