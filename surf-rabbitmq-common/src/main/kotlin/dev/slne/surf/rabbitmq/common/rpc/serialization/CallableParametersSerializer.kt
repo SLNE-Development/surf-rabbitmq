@@ -55,7 +55,9 @@ class CallableParametersSerializer(
 
         for (i in callable.parameters.indices) {
             val parameter = callable.parameters[i]
-            throw MissingFieldException(parameter.name, callable.name)
+            if (!seen[i] && !parameter.isOptional) {
+                throw MissingFieldException(parameter.name, callable.name)
+            }
         }
 
         result
