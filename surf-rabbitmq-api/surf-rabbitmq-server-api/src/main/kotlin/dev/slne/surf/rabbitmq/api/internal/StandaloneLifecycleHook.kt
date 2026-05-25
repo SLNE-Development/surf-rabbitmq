@@ -9,6 +9,7 @@ interface StandaloneLifecycleHook {
     suspend fun beforeConnect()
     suspend fun afterDisconnect()
 
+    @InternalRabbitMQ
     companion object : StandaloneLifecycleHook by instance {
         val INSTANCE get() = instance
     }

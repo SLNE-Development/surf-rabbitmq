@@ -48,6 +48,10 @@ class RabbitListenerHandlerManager(
         )
     }
 
+    init {
+        registerRequestHandler(api.rpcService)
+    }
+
     fun registerRequestHandler(instance: Any) {
         if (api.isFrozen()) throw SurfRabbitApiAlreadyFrozenException()
 

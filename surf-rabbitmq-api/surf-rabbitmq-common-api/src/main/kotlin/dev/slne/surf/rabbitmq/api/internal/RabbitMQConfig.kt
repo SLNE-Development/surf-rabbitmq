@@ -114,6 +114,7 @@ data class RabbitMQConfig(
         return outgoingResponseChunkingEnabled or systemOutgoingResponseChunkingEnabled
     }
 
+    @InternalRabbitMQ
     companion object {
         private val systemOutgoingResponseChunkingEnabled = BooleanUtils.toBoolean(
             System.getProperty("surf.rabbitmq.outgoingResponseChunkingEnabled", "true"),

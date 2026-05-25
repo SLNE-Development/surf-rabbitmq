@@ -1,5 +1,8 @@
+@file:OptIn(ExperimentalAbiValidation::class)
+
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmExtension
+import org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation
 
 buildscript {
     repositories {
@@ -17,6 +20,8 @@ allprojects {
 }
 
 subprojects {
+    if (name.contains("surf-rabbitmq-test")) return@subprojects
+
     afterEvaluate {
         extensions.findByType<KotlinJvmExtension>()?.apply {
             compilerOptions {

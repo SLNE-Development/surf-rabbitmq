@@ -1,0 +1,24 @@
+public final class dev/slne/surf/rabbitmq/api/ServerRabbitMQApi : dev/slne/surf/rabbitmq/api/RabbitMQApi {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/ServerRabbitMQApi$Companion;
+	public fun connect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public synthetic fun getConnection ()Ldev/slne/surf/rabbitmq/api/connection/RabbitMQConnection;
+	public fun getConnection ()Ldev/slne/surf/rabbitmq/api/connection/ServerRabbitMQConnection;
+	public synthetic fun getRpcService ()Ldev/slne/surf/rabbitmq/api/rpc/RabbitRpcService;
+	public final fun registerRequestHandler (Ljava/lang/Object;)V
+	public final fun registerRpcService (Lkotlin/reflect/KClass;Ljava/lang/Object;)V
+	public final fun unregisterRpcService (Lkotlin/reflect/KClass;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/ServerRabbitMQApi$Companion {
+	public final fun create (Ljava/lang/String;Ljava/nio/file/Path;Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/rabbitmq/api/ServerRabbitMQApi;
+	public static synthetic fun create$default (Ldev/slne/surf/rabbitmq/api/ServerRabbitMQApi$Companion;Ljava/lang/String;Ljava/nio/file/Path;Lkotlinx/serialization/modules/SerializersModule;ILjava/lang/Object;)Ldev/slne/surf/rabbitmq/api/ServerRabbitMQApi;
+}
+
+public abstract interface class dev/slne/surf/rabbitmq/api/connection/ServerRabbitMQConnection : dev/slne/surf/rabbitmq/api/connection/RabbitMQConnection {
+	public abstract fun registerRequestHandler (Ljava/lang/Object;)V
+}
+
+public abstract interface annotation class dev/slne/surf/rabbitmq/api/handler/RabbitHandler : java/lang/annotation/Annotation {
+}
+
