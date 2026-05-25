@@ -34,7 +34,7 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
         registerRpcService(Service::class, serviceInstance)
     }
 
-    fun unregisterRpcService(serviceKClass: KClass<*>) {
+    fun <Service : Any> unregisterRpcService(serviceKClass: KClass<Service>) {
         rpcService.unregisterService(serviceKClass)
     }
 
