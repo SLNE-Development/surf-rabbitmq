@@ -16,7 +16,10 @@ fun SerializersModule.buildContextual(type: RabbitRpcType): KSerializer<Any?> {
         .filterIsInstance<Serializable>()
         .lastOrNull()
         ?.let { serializable ->
-            (type as? RabbitRpcTypeKrpc)?.serializers[serializable.with]
+            @Suppress("UNCHECKED_CAST")
+            (type as? RabbitRpcTypeKrpc)
+                ?.serializers
+                ?.get(serializable.with) as? KSerializer<Any?>
         }
         ?: buildContextual(type.kType)
 }

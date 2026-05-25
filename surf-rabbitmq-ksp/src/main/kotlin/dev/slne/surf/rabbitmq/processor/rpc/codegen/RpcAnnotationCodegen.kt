@@ -111,11 +111,9 @@ private fun KSAnnotation.toSerializerMapEntryCode(): CodeBlock? {
     val serializerClassName = serializerDeclaration.toClassName()
 
     return CodeBlock.of(
-        "%T::class as %T to %L as %T",
+        "%T::class to %L",
         serializerClassName,
-        Types.serializerKClassType,
         serializerDeclaration.createSerializerInstanceCode(),
-        Types.kSerializerAnyNullable,
     )
 }
 

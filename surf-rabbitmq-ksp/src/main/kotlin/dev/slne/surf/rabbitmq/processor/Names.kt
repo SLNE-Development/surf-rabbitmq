@@ -49,16 +49,6 @@ object MemberNames {
 
 object Types {
     /**
-     * KSerializer<Any?>
-     */
-    val kSerializerAnyNullable = ClassNames.kotlinxKSerializer.parameterizedBy(ANY.copy(nullable = true))
-
-    /**
-     * KClass<KSerializer<Any?>>
-     */
-    val serializerKClassType = ClassNames.kotlinKClass.parameterizedBy(kSerializerAnyNullable)
-
-    /**
      * Array<Any?>
      */
     val anyNullableArray = ClassNames.kotlinArray.parameterizedBy(ANY.copy(nullable = true))

@@ -14,7 +14,7 @@ class RabbitRpcTypeKrpc(
      * Contains serializer instances from [kotlinx.serialization.Serializable.with] parameters from [annotations],
      * mapped by their [KClass].
      */
-    val serializers: Map<KClass<KSerializer<Any?>>, KSerializer<Any?>>,
+    val serializers: Map<KClass<out KSerializer<*>>, KSerializer<*>>,
 ) : RabbitRpcType {
     override fun toString(): String {
         return kType.toString()
