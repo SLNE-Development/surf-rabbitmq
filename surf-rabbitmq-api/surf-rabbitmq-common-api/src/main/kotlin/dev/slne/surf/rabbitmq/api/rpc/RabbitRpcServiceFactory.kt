@@ -9,6 +9,7 @@ interface RabbitRpcServiceFactory {
 
     fun createRpcService(api: RabbitMQApi): RabbitRpcService
 
+    @InternalRabbitMQ
     companion object {
         val instance = requiredService<RabbitRpcServiceFactory>()
     }

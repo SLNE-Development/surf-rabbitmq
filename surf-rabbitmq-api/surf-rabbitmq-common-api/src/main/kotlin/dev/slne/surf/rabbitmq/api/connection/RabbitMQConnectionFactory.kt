@@ -8,6 +8,7 @@ import dev.slne.surf.rabbitmq.api.RabbitMQApi
 interface RabbitMQConnectionFactory {
     fun createConnection(api: RabbitMQApi): RabbitMQConnection
 
+    @InternalRabbitMQ
     companion object : RabbitMQConnectionFactory by instance {
         val INSTANCE get() = instance
     }

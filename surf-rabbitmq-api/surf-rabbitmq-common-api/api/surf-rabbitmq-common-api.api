@@ -1,0 +1,986 @@
+public abstract interface annotation class dev/slne/surf/rabbitmq/api/InternalRabbitMQ : java/lang/annotation/Annotation {
+}
+
+public abstract class dev/slne/surf/rabbitmq/api/RabbitMQApi {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/RabbitMQApi$Companion;
+	public fun connect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun freeze ()V
+	public final fun freezeAndConnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun getCbor ()Lkotlinx/serialization/cbor/Cbor;
+	public fun getConnection ()Ldev/slne/surf/rabbitmq/api/connection/RabbitMQConnection;
+	public final fun isFrozen ()Z
+	public final fun serviceDescriptorOf (Lkotlin/reflect/KClass;)Ldev/slne/surf/rabbitmq/api/rpc/descriptor/RabbitRpcServiceDescriptor;
+}
+
+public final class dev/slne/surf/rabbitmq/api/RabbitMQApi$Companion {
+}
+
+public abstract interface class dev/slne/surf/rabbitmq/api/connection/RabbitMQConnection {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/connection/RabbitMQConnection$Companion;
+	public abstract fun getChannel ()Ldev/kourier/amqp/channel/AMQPChannel;
+	public abstract fun getConnection ()Ldev/kourier/amqp/connection/AMQPConnection;
+}
+
+public final class dev/slne/surf/rabbitmq/api/connection/RabbitMQConnection$Companion {
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitApiAlreadyFrozenException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitHandlerRegistrationException {
+	public fun <init> ()V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitApiNotFrozenException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitException {
+	public fun <init> ()V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionClosedException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionException {
+	public fun <init> (Ljava/lang/String;)V
+}
+
+public class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionFailedException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionException {
+	public fun <init> (Ljava/lang/String;ILjava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;ILjava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitDuplicateHandlerException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitHandlerRegistrationException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitEnvelopeDeserializationException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitSerializationException {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitEnvelopeSerializationException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitSerializationException {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public abstract class dev/slne/surf/rabbitmq/api/exception/SurfRabbitException : java/lang/RuntimeException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitHandlerNotAccessibleException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitHandlerRegistrationException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public class dev/slne/surf/rabbitmq/api/exception/SurfRabbitHandlerRegistrationException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitInvalidHandlerParameterCountException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitHandlerRegistrationException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;I)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitInvalidHandlerParameterTypeException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitHandlerRegistrationException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolChunkKindMismatchException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolChunkMetadataMismatchException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolChunkPacketLargerThanExpectedException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolException {
+	public fun <init> (IIII)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolChunkPacketSizeMismatchException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolException {
+	public fun <init> (II)V
+}
+
+public class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolInvalidChunkMetadataException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolMissingChunkException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolException {
+	public fun <init> ()V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolUnknownChunkKindException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolException {
+	public fun <init> (B)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolVersionMismatchException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitSerializationException {
+	public fun <init> (II)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitRequestAlreadyRespondedException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitRequestException {
+	public fun <init> ()V
+}
+
+public class dev/slne/surf/rabbitmq/api/exception/SurfRabbitRequestException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitRequestTimeoutException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitRequestException {
+	public synthetic fun <init> (Ldev/slne/surf/rabbitmq/api/packet/RabbitRequestPacket;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public class dev/slne/surf/rabbitmq/api/exception/SurfRabbitSerializationException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitSerializerNotFoundException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitSerializationException {
+	public fun <init> (Ljava/lang/String;)V
+}
+
+public abstract class dev/slne/surf/rabbitmq/api/packet/RabbitPacket {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/RabbitPacket$Companion;
+	public fun <init> ()V
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public final fun getTimestamp ()Ljava/time/OffsetDateTime;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/RabbitPacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/RabbitPacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public abstract class dev/slne/surf/rabbitmq/api/packet/RabbitRequestPacket : dev/slne/surf/rabbitmq/api/packet/RabbitPacket, kotlinx/coroutines/CoroutineScope {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/RabbitRequestPacket$Companion;
+	public fun <init> ()V
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public final fun getCoroutineContext ()Lkotlin/coroutines/CoroutineContext;
+	public final fun hasResponded ()Z
+	public final fun respond (Ldev/slne/surf/rabbitmq/api/packet/RabbitResponsePacket;)V
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/RabbitRequestPacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;Lkotlinx/serialization/KSerializer;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/RabbitRequestPacket$Companion {
+	public final fun serializer (Lkotlinx/serialization/KSerializer;)Lkotlinx/serialization/KSerializer;
+}
+
+public abstract class dev/slne/surf/rabbitmq/api/packet/RabbitResponsePacket : dev/slne/surf/rabbitmq/api/packet/RabbitPacket {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/RabbitResponsePacket$Companion;
+	public fun <init> ()V
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/RabbitResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/RabbitResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/StringResponsePacket : dev/slne/surf/rabbitmq/api/packet/RabbitResponsePacket {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/StringResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Ljava/lang/String;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getValue ()Ljava/lang/String;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/StringResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/StringResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/StringResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/StringResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/StringResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/StringResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/optional/OptionalStringResponsePacket : dev/slne/surf/rabbitmq/api/packet/RabbitResponsePacket {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/optional/OptionalStringResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Ljava/lang/String;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getValue ()Ljava/lang/String;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/optional/OptionalStringResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/optional/OptionalStringResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/optional/OptionalStringResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/optional/OptionalStringResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/optional/OptionalStringResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/optional/OptionalStringResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public abstract class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse : dev/slne/surf/rabbitmq/api/packet/RabbitResponsePacket {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$Companion;
+	public fun <init> ()V
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$Companion {
+	public final fun getSERIALIZER_MODULE ()Lkotlinx/serialization/modules/SerializersModule;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalBooleanResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalBooleanResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/lang/Boolean;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Ljava/lang/Boolean;)V
+	public final fun getValue ()Ljava/lang/Boolean;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalBooleanResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalBooleanResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalBooleanResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalBooleanResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalBooleanResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalBooleanResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalByteResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalByteResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/lang/Byte;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Ljava/lang/Byte;)V
+	public final fun getValue ()Ljava/lang/Byte;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalByteResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalByteResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalByteResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalByteResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalByteResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalByteResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalCharResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalCharResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/lang/Character;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Ljava/lang/Character;)V
+	public final fun getValue ()Ljava/lang/Character;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalCharResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalCharResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalCharResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalCharResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalCharResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalCharResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalDoubleResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalDoubleResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/lang/Double;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Ljava/lang/Double;)V
+	public final fun getValue ()Ljava/lang/Double;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalDoubleResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalDoubleResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalDoubleResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalDoubleResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalDoubleResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalDoubleResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalFloatResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalFloatResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/lang/Float;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Ljava/lang/Float;)V
+	public final fun getValue ()Ljava/lang/Float;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalFloatResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalFloatResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalFloatResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalFloatResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalFloatResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalFloatResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalLongResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalLongResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/lang/Long;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Ljava/lang/Long;)V
+	public final fun getValue ()Ljava/lang/Long;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalLongResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalLongResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalLongResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalLongResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalLongResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalLongResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalShortResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalShortResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/lang/Short;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Ljava/lang/Short;)V
+	public final fun getValue ()Ljava/lang/Short;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalShortResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalShortResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalShortResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalShortResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalShortResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/OptionalPrimitiveResponse$OptionalShortResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public abstract class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse : dev/slne/surf/rabbitmq/api/packet/RabbitResponsePacket {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$Companion;
+	public fun <init> ()V
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$BooleanResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$BooleanResponsePacket$Companion;
+	public synthetic fun <init> (IZLkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Z)V
+	public final fun getValue ()Z
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$BooleanResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$BooleanResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$BooleanResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$BooleanResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$BooleanResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$BooleanResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ByteResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ByteResponsePacket$Companion;
+	public fun <init> (B)V
+	public synthetic fun <init> (IBLkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public final fun getValue ()B
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ByteResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ByteResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ByteResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ByteResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ByteResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ByteResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$CharResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$CharResponsePacket$Companion;
+	public fun <init> (C)V
+	public synthetic fun <init> (ICLkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public final fun getValue ()C
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$CharResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$CharResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$CharResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$CharResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$CharResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$CharResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$Companion {
+	public final fun getSERIALIZER_MODULE ()Lkotlinx/serialization/modules/SerializersModule;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$DoubleResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$DoubleResponsePacket$Companion;
+	public fun <init> (D)V
+	public synthetic fun <init> (IDLkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public final fun getValue ()D
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$DoubleResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$DoubleResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$DoubleResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$DoubleResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$DoubleResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$DoubleResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$FloatResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$FloatResponsePacket$Companion;
+	public fun <init> (F)V
+	public synthetic fun <init> (IFLkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public final fun getValue ()F
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$FloatResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$FloatResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$FloatResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$FloatResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$FloatResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$FloatResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$LongResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$LongResponsePacket$Companion;
+	public synthetic fun <init> (IJLkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (J)V
+	public final fun getValue ()J
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$LongResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$LongResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$LongResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$LongResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$LongResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$LongResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ShortResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ShortResponsePacket$Companion;
+	public synthetic fun <init> (ISLkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (S)V
+	public final fun getValue ()S
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ShortResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ShortResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ShortResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ShortResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ShortResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/PrimitiveResponse$ShortResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public abstract class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse : dev/slne/surf/rabbitmq/api/packet/RabbitResponsePacket, java/lang/Iterable, kotlin/jvm/internal/markers/KMappedMarker {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Lkotlin/jvm/functions/Function0;[Ljava/lang/Object;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;[Ljava/lang/Object;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getValue ()[Ljava/lang/Object;
+	public fun iterator ()Ljava/util/Iterator;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;Lkotlinx/serialization/KSerializer;)V
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$BooleanArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$BooleanArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Boolean;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Boolean;)V
+	public fun getValue ()[Ljava/lang/Boolean;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$BooleanArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$BooleanArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$BooleanArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$BooleanArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$BooleanArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$BooleanArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ByteArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ByteArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Byte;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Byte;)V
+	public fun getValue ()[Ljava/lang/Byte;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ByteArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ByteArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ByteArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ByteArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ByteArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ByteArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$CharArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$CharArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Character;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Character;)V
+	public fun getValue ()[Ljava/lang/Character;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$CharArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$CharArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$CharArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$CharArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$CharArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$CharArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$Companion {
+	public final fun getSERIALIZER_MODULE ()Lkotlinx/serialization/modules/SerializersModule;
+	public final fun serializer (Lkotlinx/serialization/KSerializer;)Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$DoubleArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$DoubleArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Double;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Double;)V
+	public fun getValue ()[Ljava/lang/Double;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$DoubleArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$DoubleArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$DoubleArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$DoubleArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$DoubleArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$DoubleArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$FloatArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$FloatArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Float;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Float;)V
+	public fun getValue ()[Ljava/lang/Float;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$FloatArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$FloatArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$FloatArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$FloatArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$FloatArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$FloatArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$IntArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$IntArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Integer;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Integer;)V
+	public fun getValue ()[Ljava/lang/Integer;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$IntArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$IntArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$IntArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$IntArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$IntArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$IntArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$LongArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$LongArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Long;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Long;)V
+	public fun getValue ()[Ljava/lang/Long;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$LongArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$LongArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$LongArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$LongArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$LongArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$LongArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ShortArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ShortArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Short;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Short;)V
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public fun getValue ()[Ljava/lang/Short;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ShortArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ShortArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ShortArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ShortArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ShortArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/ArrayResponse$ShortArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public abstract class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse : dev/slne/surf/rabbitmq/api/packet/RabbitResponsePacket, java/lang/Iterable, kotlin/jvm/internal/markers/KMappedMarker {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> (Lkotlin/jvm/functions/Function0;[Ljava/lang/Object;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;[Ljava/lang/Object;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getValue ()[Ljava/lang/Object;
+	public fun iterator ()Ljava/util/Iterator;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;Lkotlinx/serialization/KSerializer;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$Companion {
+	public final fun getSERIALIZER_MODULE ()Lkotlinx/serialization/modules/SerializersModule;
+	public final fun serializer (Lkotlinx/serialization/KSerializer;)Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalBooleanArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalBooleanArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Boolean;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Boolean;)V
+	public fun getValue ()[Ljava/lang/Boolean;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalBooleanArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalBooleanArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalBooleanArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalBooleanArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalBooleanArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalBooleanArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalByteArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalByteArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Byte;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Byte;)V
+	public fun getValue ()[Ljava/lang/Byte;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalByteArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalByteArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalByteArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalByteArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalByteArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalByteArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalCharArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalCharArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Character;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Character;)V
+	public fun getValue ()[Ljava/lang/Character;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalCharArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalCharArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalCharArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalCharArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalCharArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalCharArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalDoubleArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalDoubleArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Double;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Double;)V
+	public fun getValue ()[Ljava/lang/Double;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalDoubleArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalDoubleArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalDoubleArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalDoubleArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalDoubleArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalDoubleArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalFloatArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalFloatArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Float;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Float;)V
+	public fun getValue ()[Ljava/lang/Float;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalFloatArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalFloatArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalFloatArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalFloatArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalFloatArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalFloatArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalIntArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalIntArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Integer;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Integer;)V
+	public fun getValue ()[Ljava/lang/Integer;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalIntArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalIntArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalIntArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalIntArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalIntArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalIntArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalLongArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalLongArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Long;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Long;)V
+	public fun getValue ()[Ljava/lang/Long;
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalLongArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalLongArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalLongArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalLongArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalLongArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalLongArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalShortArrayResponsePacket : dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalShortArrayResponsePacket$Companion;
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlin/jvm/functions/Function0;[Ljava/lang/Short;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public fun <init> ([Ljava/lang/Short;)V
+	public synthetic fun getValue ()[Ljava/lang/Object;
+	public fun getValue ()[Ljava/lang/Short;
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalShortArrayResponsePacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final synthetic class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalShortArrayResponsePacket$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalShortArrayResponsePacket$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalShortArrayResponsePacket;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalShortArrayResponsePacket;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive/array/OptionalArrayResponse$OptionalShortArrayResponsePacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public abstract interface annotation class dev/slne/surf/rabbitmq/api/rpc/RpcService : java/lang/annotation/Annotation {
+}
+
