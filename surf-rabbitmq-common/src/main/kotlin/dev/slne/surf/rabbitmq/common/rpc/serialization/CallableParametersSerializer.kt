@@ -26,7 +26,6 @@ class CallableParametersSerializer(
         }
     }
 
-
     override fun serialize(encoder: Encoder, value: Array<Any?>) = encoder.encodeStructure(descriptor) {
         for (i in callable.parameters.indices) {
             encodeSerializableElement(descriptor, i, callableSerializers[i], value[i])

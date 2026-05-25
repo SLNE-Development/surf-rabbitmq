@@ -7,21 +7,24 @@ import dev.slne.surf.rabbitmq.api.rpc.callable.RabbitRpcCallable
 import dev.slne.surf.rabbitmq.common.rpc.CommonRabbitRpcServiceImpl
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallRequestPacket
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallResponsePacket
-import dev.slne.surf.rabbitmq.common.rpc.serialization.CallableParametersSerializer
-import dev.slne.surf.rabbitmq.common.rpc.serialization.buildContextual
+import dev.slne.surf.rabbitmq.common.rpc.serialization.RpcSerializerCache
 import kotlinx.serialization.BinaryFormat
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import java.util.concurrent.atomic.AtomicLong
-import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KClass
-import kotlin.reflect.KProperty
 
 @OptIn(ExperimentalSerializationApi::class)
 class ClientRpcServiceImpl(private val api: ClientRabbitMQApi) : CommonRabbitRpcServiceImpl(api),
     ClientRabbitRpcService {
+    companion object {
+        private val EMPTY_BYTE_ARRAY = ByteArray(0)
+    }
+
     private val serviceIdCounter = AtomicLong(0)
     private val callCounter = AtomicLong(0)
+
+    private val rpcSerializerCache = RpcSerializerCache()
 
     override fun <Service : Any> createService(serviceKClass: KClass<Service>): Service {
         val descriptor = serviceDescriptorOf(serviceKClass)
@@ -47,8 +50,7 @@ class ClientRpcServiceImpl(private val api: ClientRabbitMQApi) : CommonRabbitRpc
 
         require(result is RpcCallResponsePacket.RpcCallResponse.Success) { "Unexpected response type: ${result::class}" }
 
-        val serializerResult = serialFormat.serializersModule
-            .buildContextual(callable.returnType)
+        val serializerResult = rpcSerializerCache.getReturnTypeSerializer(callable, serialFormat.serializersModule)
 
         @Suppress("UNCHECKED_CAST")
         return decodeRequest(serialFormat, serializerResult, result) as T
@@ -60,8 +62,13 @@ class ClientRpcServiceImpl(private val api: ClientRabbitMQApi) : CommonRabbitRpc
         callable: RabbitRpcCallable<*>,
         serialFormat: BinaryFormat
     ): RpcCallRequestPacket {
-        val parametersSerializer = CallableParametersSerializer(callable, serialFormat.serializersModule)
-        val data = serialFormat.encodeToByteArray(parametersSerializer, call.arguments)
+        val data = if (callable.parameters.isNotEmpty()) {
+            val parametersSerializer =
+                rpcSerializerCache.getParameterSerializer(callable, serialFormat.serializersModule)
+            serialFormat.encodeToByteArray(parametersSerializer, call.arguments)
+        } else {
+            EMPTY_BYTE_ARRAY
+        }
 
         return RpcCallRequestPacket(
             rpcCallId = callId,

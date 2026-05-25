@@ -4,8 +4,7 @@ import dev.slne.surf.api.core.util.toSerializableError
 import dev.slne.surf.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallRequestPacket
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallResponsePacket
-import dev.slne.surf.rabbitmq.common.rpc.serialization.CallableParametersSerializer
-import dev.slne.surf.rabbitmq.common.rpc.serialization.buildContextual
+import dev.slne.surf.rabbitmq.common.rpc.serialization.RpcSerializerCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -23,9 +22,11 @@ class RpcServiceExecutor<T : Any>(
 ) {
     companion object {
         private val unitKType = typeOf<Unit>()
+        private val EMPTY_ANY_ARRAY = emptyArray<Any?>()
     }
 
     private val logger = ComponentLogger.logger(service.javaClass)
+    private val rpcSerializerCache = RpcSerializerCache()
 
     suspend fun accept(request: RpcCallRequestPacket) {
         try {
@@ -49,8 +50,13 @@ class RpcServiceExecutor<T : Any>(
         val callable = descriptor.getCallable(callableName)
             ?: error("Service '${service.javaClass.name}' has no method '$callableName'! Are the service and client versions in sync?")
 
-        val parametersSerializer = CallableParametersSerializer(callable, serialFormat.serializersModule)
-        val data = serialFormat.decodeFromByteArray(parametersSerializer, request.data)
+        val data = if (callable.parameters.isNotEmpty()) {
+            val parametersSerializer =
+                rpcSerializerCache.getParameterSerializer(callable, serialFormat.serializersModule)
+            serialFormat.decodeFromByteArray(parametersSerializer, request.data)
+        } else {
+            EMPTY_ANY_ARRAY
+        }
 
         var failure: Throwable? = null
 
@@ -63,8 +69,7 @@ class RpcServiceExecutor<T : Any>(
                 }
             }
 
-            val returnSerializer = serialFormat.serializersModule
-                .buildContextual(callable.returnType)
+            val returnSerializer = rpcSerializerCache.getReturnTypeSerializer(callable, serialFormat.serializersModule)
 
             sendResponse(serialFormat, returnSerializer, value, request)
         } catch (e: CancellationException) {
@@ -72,7 +77,7 @@ class RpcServiceExecutor<T : Any>(
             serverScope.ensureActive()
         } catch (e: Throwable) {
             failure = e
-            logger.error("Error processing RPC call $callId in service '${service.javaClass.name}'" , e)
+            logger.error("Error processing RPC call $callId in service '${service.javaClass.name}'", e)
         } finally {
             if (failure != null) {
                 request.respond(RpcCallResponsePacket(RpcCallResponsePacket.RpcCallResponse.Error(failure.toSerializableError())))
