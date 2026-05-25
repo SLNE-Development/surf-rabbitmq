@@ -23,17 +23,24 @@ class RpcServiceProcessor(environment: SymbolProcessorEnvironment) : SymbolProce
         val deferred = mutableListOf<KSAnnotated>()
 
         resolver.getSymbolsWithAnnotation(Names.RPC_SERVICE_ANNOTATION_FQ)
-            .filterIsInstance<KSClassDeclaration>()
-            .forEach { declaration ->
-                if (!declaration.validate()) {
-                    deferred += declaration
-                    return@forEach
+            .forEach(fun(declaration) {
+                if (declaration !is KSClassDeclaration) {
+                    logger.error(
+                        "${Names.RPC_SERVICE_ANNOTATION} is only applicable to interfaces, but was found on $declaration",
+                        declaration
+                    )
+                    return
                 }
 
-                val model = modelFactory.create(declaration) ?: return@forEach
+                if (!declaration.validate()) {
+                    deferred += declaration
+                    return
+                }
+
+                val model = modelFactory.create(declaration) ?: return
                 descriptorCodegen.generate(model)
                 clientImplCodegen.generate(model)
-            }
+            })
 
         return deferred
     }

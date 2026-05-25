@@ -19,6 +19,14 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
             return null
         }
 
+        if (declaration.typeParameters.isNotEmpty()) {
+            logger.error(
+                "Type parameters are not allowed on interfaces annotated with @${Names.RPC_SERVICE_ANNOTATION}",
+                declaration,
+            )
+            return null
+        }
+
         val simpleName = declaration.simpleName.asString()
         val fqName = declaration.qualifiedName?.asString() ?: run {
             logger.error(
@@ -45,6 +53,13 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
         val seenFunctionNames = mutableSetOf<String>()
         val functions = mutableListOf<RpcFunctionModel>()
 
+        for (property in declaration.getAllProperties()) {
+            logger.error(
+                "Cannot generate descriptor for property ${property.simpleName.asString()}: properties are not allowed",
+                property,
+            )
+        }
+
         for (function in declaration.getAllFunctions()) {
             if (function.isObjectMethod()) continue
 
@@ -60,6 +75,14 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
             if (!function.modifiers.contains(Modifier.SUSPEND)) {
                 logger.error(
                     "Cannot generate descriptor for function $functionName: must be suspend",
+                    function,
+                )
+                continue
+            }
+
+            if (function.typeParameters.isNotEmpty()) {
+                logger.error(
+                    "Cannot generate descriptor for function $functionName: type parameters are not allowed",
                     function,
                 )
                 continue
