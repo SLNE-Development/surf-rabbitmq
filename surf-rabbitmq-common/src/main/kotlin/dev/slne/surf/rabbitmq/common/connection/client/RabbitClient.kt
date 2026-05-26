@@ -133,7 +133,7 @@ class RabbitClient private constructor(
         }
 
         fun closeEventLoopGroup() {
-            sharedEventLoopGroup.shutdownGracefully()
+            sharedEventLoopGroup.shutdownGracefully().syncUninterruptibly()
         }
     }
 
