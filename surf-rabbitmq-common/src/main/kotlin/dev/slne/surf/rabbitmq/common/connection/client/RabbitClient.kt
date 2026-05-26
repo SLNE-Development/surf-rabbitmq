@@ -23,8 +23,10 @@ import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.channel.uring.IoUring
 import io.netty.channel.uring.IoUringIoHandler
 import io.netty.channel.uring.IoUringSocketChannel
-import org.jetbrains.annotations.Blocking
+import kotlinx.coroutines.delay
 import java.lang.AutoCloseable
+import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.seconds
 
@@ -41,36 +43,45 @@ class RabbitClient private constructor(
             val name: String
         )
 
+        private data class ActiveClientInfo(
+            val connectionName: String,
+            val createdAtMillis: Long,
+            val creationThread: String,
+            val creationStackTrace: List<String>
+        )
+
         private val log = logger()
-        private val transport: NettyTransport
+
+        private val transport: NettyTransport = when {
+            IoUring.isAvailable() -> NettyTransport(
+                ioHandlerFactory = IoUringIoHandler.newFactory(),
+                channelClass = IoUringSocketChannel::class.java,
+                name = "IoUring"
+            )
+
+            Epoll.isAvailable() -> NettyTransport(
+                ioHandlerFactory = EpollIoHandler.newFactory(),
+                channelClass = EpollSocketChannel::class.java,
+                name = "Epoll"
+            )
+
+            KQueue.isAvailable() -> NettyTransport(
+                ioHandlerFactory = KQueueIoHandler.newFactory(),
+                channelClass = KQueueSocketChannel::class.java,
+                name = "KQueue"
+            )
+
+            else -> NettyTransport(
+                ioHandlerFactory = NioIoHandler.newFactory(),
+                channelClass = NioSocketChannel::class.java,
+                name = "NIO"
+            )
+        }
+
         private val sharedEventLoopGroup: MultiThreadIoEventLoopGroup
+        private val activeClients = ConcurrentHashMap<RabbitClient, ActiveClientInfo>()
 
         init {
-            transport = when {
-                IoUring.isAvailable() -> NettyTransport(
-                    ioHandlerFactory = IoUringIoHandler.newFactory(),
-                    channelClass = IoUringSocketChannel::class.java,
-                    name = "IoUring"
-                )
-
-                Epoll.isAvailable() -> NettyTransport(
-                    ioHandlerFactory = EpollIoHandler.newFactory(),
-                    channelClass = EpollSocketChannel::class.java,
-                    name = "Epoll"
-                )
-
-                KQueue.isAvailable() -> NettyTransport(
-                    ioHandlerFactory = KQueueIoHandler.newFactory(),
-                    channelClass = KQueueSocketChannel::class.java,
-                    name = "KQueue"
-                )
-
-                else -> NettyTransport(
-                    ioHandlerFactory = NioIoHandler.newFactory(),
-                    channelClass = NioSocketChannel::class.java,
-                    name = "NIO"
-                )
-            }
 
             log.atInfo()
                 .log("Using ${transport.name} for RabbitMQ client")
@@ -127,14 +138,61 @@ class RabbitClient private constructor(
                 options = publisherOptions
             )
 
-            return RabbitClient(
+            val client = RabbitClient(
                 connectionProvider = connectionProvider,
                 publisherPool = publisherPool
             )
+
+            activeClients[client] = ActiveClientInfo(
+                connectionName = connectionName,
+                createdAtMillis = System.currentTimeMillis(),
+                creationThread = Thread.currentThread().name,
+                creationStackTrace = Throwable().stackTrace
+                    .drop(1)
+                    .take(12)
+                    .map { it.toString() }
+            )
+
+            return client
         }
 
-        @Blocking
-        fun closeEventLoopGroup() {
+
+        suspend fun closeEventLoopGroup() {
+            val stillActive = activeClients.values.toList()
+
+            if (stillActive.isNotEmpty()) {
+                log.atWarning()
+                    .log(
+                        "RabbitMQ Netty EventLoopGroup is being shut down while %s RabbitClient(s) are still active. " +
+                                "These plugins probably did not call RabbitMQApi.disconnect(): %s",
+                        stillActive.size,
+                        stillActive.joinToString { it.connectionName }
+                    )
+
+                log.atWarning()
+                    .log(
+                        "Any RabbitMQ connection recovery errors that appear after this message are expected follow-up " +
+                                "errors caused by shutting down the shared Netty EventLoopGroup while RabbitMQ clients are " +
+                                "still active. Fix the plugins listed above by calling RabbitMQApi.disconnect() during shutdown."
+                    )
+
+                delay(10.seconds)
+
+                stillActive.forEach { info ->
+                    log.atWarning()
+                        .log(
+                            """
+                                Leaked RabbitClient:
+                                connectionName: ${info.connectionName}
+                                createdAt: ${Instant.ofEpochMilli(info.createdAtMillis)}
+                                creationThread: ${info.creationThread}
+                                creationStackTrace:
+                                ${info.creationStackTrace.joinToString(separator = "\n") { "    at $it" }}
+                                """.trimIndent()
+                        )
+                }
+            }
+
             sharedEventLoopGroup.shutdownGracefully().syncUninterruptibly()
         }
     }
@@ -166,18 +224,22 @@ class RabbitClient private constructor(
     }
 
     override fun close() {
-        consumers.forEach { consumer ->
-            runCatching {
-                consumer.close()
+        try {
+            consumers.forEach { consumer ->
+                runCatching {
+                    consumer.close()
+                }
             }
-        }
 
-        runCatching {
-            publisherPool.close()
-        }
+            runCatching {
+                publisherPool.close()
+            }
 
-        runCatching {
-            connectionProvider.close()
+            runCatching {
+                connectionProvider.close()
+            }
+        } finally {
+            activeClients.remove(this)
         }
     }
 }
