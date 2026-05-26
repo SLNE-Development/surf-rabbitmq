@@ -23,6 +23,7 @@ import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.channel.uring.IoUring
 import io.netty.channel.uring.IoUringIoHandler
 import io.netty.channel.uring.IoUringSocketChannel
+import org.jetbrains.annotations.Blocking
 import java.lang.AutoCloseable
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.seconds
@@ -132,6 +133,7 @@ class RabbitClient private constructor(
             )
         }
 
+        @Blocking
         fun closeEventLoopGroup() {
             sharedEventLoopGroup.shutdownGracefully().syncUninterruptibly()
         }
