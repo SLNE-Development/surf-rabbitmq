@@ -19,6 +19,8 @@ class ClientRabbitMQApi @InternalRabbitMQ constructor(
     pluginName: String,
     cbor: Cbor
 ) : RabbitMQApi(config, pluginName, cbor) {
+
+    @InternalRabbitMQ
     override val connection get() = super.connection as ClientRabbitMQConnection
 
     @InternalRabbitMQ
@@ -73,7 +75,7 @@ class ClientRabbitMQApi @InternalRabbitMQ constructor(
      * @throws IllegalStateException if no generated descriptor for [Service] can be found.
      */
     inline fun <reified Service : Any> createRpcService(): Service {
-        return rpcService.createService(Service::class)
+        return createRpcService(Service::class)
     }
 
     /**

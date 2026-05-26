@@ -16,15 +16,6 @@ public abstract class dev/slne/surf/rabbitmq/api/RabbitMQApi {
 public final class dev/slne/surf/rabbitmq/api/RabbitMQApi$Companion {
 }
 
-public abstract interface class dev/slne/surf/rabbitmq/api/connection/RabbitMQConnection {
-	public static final field Companion Ldev/slne/surf/rabbitmq/api/connection/RabbitMQConnection$Companion;
-	public abstract fun getChannel ()Ldev/kourier/amqp/channel/AMQPChannel;
-	public abstract fun getConnection ()Ldev/kourier/amqp/connection/AMQPConnection;
-}
-
-public final class dev/slne/surf/rabbitmq/api/connection/RabbitMQConnection$Companion {
-}
-
 public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitApiAlreadyFrozenException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitHandlerRegistrationException {
 	public fun <init> ()V
 }
@@ -120,6 +111,11 @@ public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolUnknow
 
 public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolVersionMismatchException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitSerializationException {
 	public fun <init> (II)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitPublishException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionException {
+	public fun <init> (ILjava/lang/Throwable;)V
+	public synthetic fun <init> (ILjava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 }
 
 public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitRequestAlreadyRespondedException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitRequestException {

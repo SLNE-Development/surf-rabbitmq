@@ -13,6 +13,7 @@ import dev.slne.surf.rabbitmq.api.exception.*
 import dev.slne.surf.rabbitmq.api.handler.RabbitHandler
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
+import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitAck
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketPropertiesInjector
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
@@ -109,7 +110,7 @@ class RabbitListenerHandlerManager(
         correlationId: String,
         replyTo: String,
         body: ByteArray,
-        deliveryTag: ULong
+        ack: RabbitAck
     ) {
         val request = try {
             RabbitPacketSerializer.deserializeRequest(api, body, requestSerializerCache)
@@ -117,14 +118,14 @@ class RabbitListenerHandlerManager(
             log.atWarning()
                 .withCause(e)
                 .log("Protocol version mismatch, discarding request")
-            connection.nackRequest(deliveryTag)
+            ack.nack(requeue = false)
             return
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
             log.atSevere()
                 .withCause(e)
                 .log("Failed to deserialize request envelope, discarding message")
-            connection.nackRequest(deliveryTag)
+            ack.nack(requeue = false)
             return
         }
 
@@ -132,7 +133,7 @@ class RabbitListenerHandlerManager(
         if (handler == null) {
             log.atWarning()
                 .log("No handler found for request of type ${request.javaClass.name}, discarding message")
-            connection.nackRequest(deliveryTag)
+            ack.nack(requeue = false)
             return
         }
 
@@ -153,7 +154,7 @@ class RabbitListenerHandlerManager(
                     request.responseDeferred.cancel("Error in handler", cause)
 
                     api.scope.launch {
-                        connection.nackRequest(deliveryTag)
+                        ack.nack(requeue = false)
                     }
                 }
             }
@@ -165,27 +166,27 @@ class RabbitListenerHandlerManager(
                 }
                 val responseBytes =
                     RabbitPacketSerializer.serializeResponse(api, serializerCache, response)
-                connection.replyToRequest(correlationId, replyTo, deliveryTag, responseBytes)
+                connection.replyToRequest(correlationId, replyTo, ack, responseBytes)
             } catch (e: TimeoutCancellationException) {
                 log.atSevere()
                     .log(
                         "Handler for ${request.javaClass.name} did not respond within ${requestTimeoutSeconds}, discarding message"
                     )
                 requestJob.cancel("Handler timed out")
-                connection.nackRequest(deliveryTag)
+                ack.nack(requeue = false)
             } catch (e: Throwable) {
                 if (e is CancellationException) throw e
                 log.atSevere()
                     .withCause(e)
                     .log("Error handling request of type ${request.javaClass.name}, discarding message")
-                connection.nackRequest(deliveryTag)
+                ack.nack(requeue = false)
             }
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
             log.atSevere()
                 .withCause(e)
                 .log("Error handling request of type ${request.javaClass.name}, discarding message")
-            connection.nackRequest(deliveryTag)
+            ack.nack(requeue = false)
         } finally {
             requestJob.cancel("Request handler finished")
             request.responseDeferred.cancel()

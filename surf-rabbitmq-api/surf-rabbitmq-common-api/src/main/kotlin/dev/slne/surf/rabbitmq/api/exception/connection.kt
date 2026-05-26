@@ -8,3 +8,6 @@ class SurfRabbitConnectionFailedException(host: String, port: Int, cause: Throwa
 
 class SurfRabbitConnectionClosedException(operation: String) :
     SurfRabbitConnectionException("Cannot perform '$operation' on a closed connection")
+
+class SurfRabbitPublishException(attempts: Int, cause: Throwable? = null)
+    : SurfRabbitConnectionException("Could not publish RabbitMQ message after $attempts attempt(s)", cause)

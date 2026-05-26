@@ -7,6 +7,7 @@ import dev.slne.surf.api.core.config.constraints.Trimmed
 import dev.slne.surf.api.core.config.createSpongeYmlConfig
 import dev.slne.surf.api.core.config.surfConfigApi
 import dev.slne.surf.api.core.config.type.BooleanOrDefault
+import dev.slne.surf.api.core.config.type.number.IntOr
 import dev.slne.surf.rabbitmq.api.InternalRabbitMQ
 import org.apache.commons.lang3.BooleanUtils
 import org.spongepowered.configurate.objectmapping.ConfigSerializable
@@ -46,7 +47,7 @@ data class RabbitMQConfig(
     """
     )
     @PositiveNumber
-    val timeout: Long = 30.seconds.inWholeSeconds,
+    val timeout: Int = 30.seconds.inWholeSeconds.toInt(),
 
     @field:Comment(
         """
@@ -62,6 +63,21 @@ data class RabbitMQConfig(
 
     @field:Comment(
         """
+    Number of dedicated publisher workers used for sending messages.
+    
+    Each publisher owns its own RabbitMQ channel and serializes publish operations
+    on that channel. Increasing this value can improve throughput for many
+    concurrent requests, but also opens more channels on the RabbitMQ connection.
+    
+    A small value is usually enough because a few fast publishers can already
+    saturate the broker or network.
+    """
+    )
+    @PositiveNumber
+    val publisherPoolSize: IntOr.Default = IntOr.Default.USE_DEFAULT,
+
+    @field:Comment(
+        """
         Maximum number of request messages the server may receive without
         acknowledging them.
         
@@ -70,7 +86,7 @@ data class RabbitMQConfig(
     )
     @MinNumber(0.0)
     @MaxNumber(Short.MAX_VALUE.toDouble())
-    val serverPrefetchCount: Short = 128,
+    val serverPrefetchCount: Int = 128,
 
     @field:Comment(
         """
@@ -100,11 +116,15 @@ data class RabbitMQConfig(
     )
     val outgoingRequestChunkingEnabled: BooleanOrDefault = BooleanOrDefault.USE_DEFAULT,
 
-    @field:Comment("Enables publishing large response packets as multiple RabbitMQ messages.\n\n" +
-            "This can usually be enabled during mixed-version rollouts because responses are only chunked when" +
-            " the requesting client explicitly advertises support for chunked responses.")
+    @field:Comment(
+        "Enables publishing large response packets as multiple RabbitMQ messages.\n\n" +
+                "This can usually be enabled during mixed-version rollouts because responses are only chunked when" +
+                " the requesting client explicitly advertises support for chunked responses."
+    )
     val outgoingResponseChunkingEnabled: BooleanOrDefault = BooleanOrDefault.USE_DEFAULT,
 ) {
+
+    fun publisherPoolSize(): Int = publisherPoolSize or 2
 
     fun isOutgoingRequestChunkingEnabled(): Boolean {
         return outgoingRequestChunkingEnabled or systemOutgoingRequestChunkingEnabled

@@ -17,6 +17,7 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
     pluginName: String,
     cbor: Cbor
 ) : RabbitMQApi(config, pluginName, cbor) {
+    @InternalRabbitMQ
     override val connection get() = super.connection as ServerRabbitMQConnection
 
     @InternalRabbitMQ

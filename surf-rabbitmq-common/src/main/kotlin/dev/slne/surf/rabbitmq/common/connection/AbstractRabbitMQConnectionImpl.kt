@@ -1,47 +1,35 @@
 package dev.slne.surf.rabbitmq.common.connection
 
-import dev.kourier.amqp.channel.AMQPChannel
-import dev.kourier.amqp.channel.queueDeclare
-import dev.kourier.amqp.connection.AMQPConnection
-import dev.kourier.amqp.connection.amqpConfig
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
 import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
-import kotlin.time.Duration.Companion.seconds
+import dev.slne.surf.rabbitmq.common.connection.client.RabbitClient
+import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitConsumer
 
 abstract class AbstractRabbitMQConnectionImpl(
     private val api: RabbitMQApi,
     private val config: RabbitMQConfig,
 ) : RabbitMQConnection {
-    override lateinit var connection: AMQPConnection
-    override lateinit var channel: AMQPChannel
+    val client = RabbitClient.create(config, api.pluginName)
 
     protected lateinit var queueName: String
+        private set
 
-    protected val rabbitConfig = amqpConfig {
-        server {
-            host = config.host
-            port = config.port
-            user = config.username
-            password = config.password
-            vhost = config.vhost
-            timeout = config.timeout.seconds
-            connectionName = api.pluginName
-        }
-    }
+    protected lateinit var mainConsumer: RabbitConsumer
+        private set
 
     override suspend fun connect() {
-        connection = SurfRobustAMQPConnection.create(api.scope, rabbitConfig)
-        channel = connection.openChannel()
+        mainConsumer = client.newConsumer("main")
 
-        queueName = channel.queueDeclare {
-            name = api.pluginName
-            durable = true
-        }.queueName
+        queueName = mainConsumer.declareQueue(
+            queue = api.pluginName,
+            durable = true,
+            exclusive = false,
+            autoDelete = false
+        ).queue
     }
 
     override suspend fun disconnect() {
-        channel.close()
-        connection.close()
+        client.close()
     }
 }
