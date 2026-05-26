@@ -3,11 +3,8 @@
 package dev.slne.surf.rabbitmq.client.connection
 
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.rabbitmq.client.AMQP
 import com.sksamuel.aedile.core.expireAfterWrite
-import dev.kourier.amqp.channel.AMQPChannel
-import dev.kourier.amqp.channel.basicPublish
-import dev.kourier.amqp.channel.queueDeclare
-import dev.kourier.amqp.properties
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ClientRabbitMQConnection
@@ -75,89 +72,85 @@ class ClientRabbitMQConnectionImpl(
     private val correlationIdPrefix = "${api.pluginName}-${System.nanoTime()}"
 
     private lateinit var callbackQueueName: String
-    private lateinit var publishChannel: AMQPChannel
 
     override suspend fun connect() {
         super.connect()
-        publishChannel = connection.openChannel()
 
-        callbackQueueName = channel.queueDeclare {
-            name = queueName + "_callback_" + RandomStringUtils.secureStrong().nextAlphanumeric(8)
-            durable = false
-            exclusive = true
+        callbackQueueName = mainConsumer.declareQueue(
+            queue = queueName + "_callback_" + RandomStringUtils.secureStrong().nextAlphanumeric(8),
+            durable = false,
+            exclusive = true,
             autoDelete = true
-        }.queueName
+        ).queue
 
         startConsumingResponses()
     }
 
     private suspend fun startConsumingResponses() {
-        val consume = channel.basicConsume(callbackQueueName)
+        mainConsumer.consume(
+            queue = callbackQueueName,
+            autoAck = false,
+        ) { _, message, ack ->
+            val correlationId = message.properties.correlationId
+            val body = message.body
 
-        api.scope.launch {
-            for (message in consume) {
-                val correlationId = message.message.properties.correlationId
-                val body = message.message.body
-                val deliveryTag = message.message.deliveryTag
+            if (correlationId == null) {
+                ack.ack()
+                return@consume
+            }
 
-                if (correlationId == null) {
-                    channel.basicAck(deliveryTag)
-                    continue
+            val pending = pendingRequests.getIfPresent(correlationId)
+            if (pending == null) {
+                responseChunkAssembler.discard(correlationId)
+                ack.ack()
+                return@consume
+            }
+
+            val result = try {
+                responseChunkAssembler.accept(correlationId, body)
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
+
+                responseChunkAssembler.discard(correlationId)
+
+                val removedPending = pendingRequests.asMap().remove(correlationId) ?: pending
+                val deferred = removedPending.second
+
+                if (deferred != null && !deferred.isCompleted) {
+                    deferred.completeExceptionally(t)
                 }
 
-                val pending = pendingRequests.getIfPresent(correlationId)
-                if (pending == null) {
-                    responseChunkAssembler.discard(correlationId)
-                    channel.basicAck(deliveryTag)
-                    continue
-                }
+                ack.ack()
 
-                val result = try {
-                    responseChunkAssembler.accept(correlationId, body)
-                } catch (t: Throwable) {
-                    if (t is CancellationException) throw t
+                log.atWarning()
+                    .withCause(t)
+                    .log("Failed to assemble RabbitMQ response chunks for correlationId $correlationId")
 
-                    responseChunkAssembler.discard(correlationId)
+                return@consume
+            }
 
+            when (result) {
+                RabbitPacketChunkAssembler.ChunkAcceptResult.NotChunk -> {
                     val removedPending = pendingRequests.asMap().remove(correlationId) ?: pending
+                    ack.ack()
+
                     val deferred = removedPending.second
-
                     if (deferred != null && !deferred.isCompleted) {
-                        deferred.completeExceptionally(t)
+                        deferred.complete(body)
                     }
-
-                    channel.basicAck(deliveryTag)
-
-                    log.atWarning()
-                        .withCause(t)
-                        .log("Failed to assemble RabbitMQ response chunks for correlationId $correlationId")
-
-                    continue
                 }
 
-                when (result) {
-                    RabbitPacketChunkAssembler.ChunkAcceptResult.NotChunk -> {
-                        val removedPending = pendingRequests.asMap().remove(correlationId) ?: pending
-                        channel.basicAck(deliveryTag)
+                RabbitPacketChunkAssembler.ChunkAcceptResult.Stored -> {
+                    ack.ack()
+                }
 
-                        val deferred = removedPending.second
-                        if (deferred != null && !deferred.isCompleted) {
-                            deferred.complete(body)
-                        }
-                    }
+                is RabbitPacketChunkAssembler.ChunkAcceptResult.Complete -> {
+                    val removedPending = pendingRequests.asMap().remove(correlationId) ?: pending
+                    ack.ack()
 
-                    RabbitPacketChunkAssembler.ChunkAcceptResult.Stored -> {
-                        channel.basicAck(deliveryTag)
-                    }
-
-                    is RabbitPacketChunkAssembler.ChunkAcceptResult.Complete -> {
-                        val removedPending = pendingRequests.asMap().remove(correlationId) ?: pending
-                        channel.basicAck(deliveryTag)
-
-                        val deferred = removedPending.second
-                        if (deferred != null && !deferred.isCompleted) {
-                            deferred.complete(result.body)
-                        }
+                    val deferred = removedPending.second
+                    if (deferred != null && !deferred.isCompleted) {
+                        deferred.complete(result.body)
                     }
                 }
             }
@@ -199,20 +192,20 @@ class ClientRabbitMQConnectionImpl(
                 }
 
             for (requestBody in requestBodies) {
-                publishChannel.basicPublish {
-                    this.body = requestBody
-                    exchange = ""
-                    routingKey = queueName
-                    properties = properties {
-                        deliveryMode = if (persistRequests) 2u else 1u
-                        this.correlationId = correlationId
-                        this.replyTo = callbackQueueName
+                client.publish(
+                    exchange = "",
+                    routingKey = queueName,
+                    body = requestBody,
+                    properties = AMQP.BasicProperties.Builder()
+                        .deliveryMode(if (persistRequests) 2 else 1)
+                        .correlationId(correlationId)
+                        .replyTo(callbackQueueName)
 
                         // If the request is still in the queue and has not yet been sent to the
                         // server, it should expire after the timeout.
-                        expiration = requestTimeoutSeconds.inWholeMilliseconds.toString()
-                    }
-                }
+                        .expiration(requestTimeoutSeconds.inWholeMilliseconds.toString())
+                        .build()
+                )
             }
         } catch (t: Throwable) {
             pendingRequests.invalidate(correlationId)
@@ -223,20 +216,13 @@ class ClientRabbitMQConnectionImpl(
             withTimeout(requestTimeoutSeconds) {
                 deferred.await()
             }
-        } catch (e: TimeoutCancellationException) {
+        } catch (_: TimeoutCancellationException) {
             pendingRequests.invalidate(correlationId)
             throw SurfRabbitRequestTimeoutException(request, requestTimeoutSeconds)
         } catch (t: Throwable) {
             pendingRequests.invalidate(correlationId)
             throw t
         }
-    }
-
-    override suspend fun disconnect() {
-        if (this::publishChannel.isInitialized) {
-            publishChannel.close()
-        }
-        super.disconnect()
     }
 
     private fun nextCorrelationId(): String =
