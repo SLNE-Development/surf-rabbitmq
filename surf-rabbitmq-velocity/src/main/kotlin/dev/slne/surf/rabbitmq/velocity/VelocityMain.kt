@@ -16,7 +16,7 @@ class VelocityMain @Inject constructor(val proxy: ProxyServer) {
         plugin = this
 
         runBlocking {
-            RabbitMQInstance.get().onEnable()
+            RabbitMQInstance.get().onLoad()
         }
     }
 
