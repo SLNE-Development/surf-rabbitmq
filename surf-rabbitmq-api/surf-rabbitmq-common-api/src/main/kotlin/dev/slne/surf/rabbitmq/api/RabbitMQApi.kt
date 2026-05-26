@@ -94,7 +94,7 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
      * @throws IllegalStateException if no generated descriptor for [Service] can be found.
      */
     inline fun <reified Service : Any> serviceDescriptorOf(): RabbitRpcServiceDescriptor<Service> {
-        return rpcService.serviceDescriptorOf(Service::class)
+        return serviceDescriptorOf(Service::class)
     }
 
     /**
