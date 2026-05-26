@@ -1,7 +1,6 @@
 public final class dev/slne/surf/rabbitmq/api/ClientRabbitMQApi : dev/slne/surf/rabbitmq/api/RabbitMQApi {
 	public static final field Companion Ldev/slne/surf/rabbitmq/api/ClientRabbitMQApi$Companion;
 	public final fun createRpcService (Lkotlin/reflect/KClass;)Ljava/lang/Object;
-	public fun getConnection ()Ldev/slne/surf/rabbitmq/api/connection/ClientRabbitMQConnection;
 	public synthetic fun getConnection ()Ldev/slne/surf/rabbitmq/api/connection/RabbitMQConnection;
 	public synthetic fun getRpcService ()Ldev/slne/surf/rabbitmq/api/rpc/RabbitRpcService;
 	public final fun sendRequest (Ldev/slne/surf/rabbitmq/api/packet/RabbitRequestPacket;Ljava/lang/Class;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;

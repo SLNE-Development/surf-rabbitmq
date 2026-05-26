@@ -3,7 +3,6 @@ public final class dev/slne/surf/rabbitmq/api/ServerRabbitMQApi : dev/slne/surf/
 	public fun connect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public synthetic fun getConnection ()Ldev/slne/surf/rabbitmq/api/connection/RabbitMQConnection;
-	public fun getConnection ()Ldev/slne/surf/rabbitmq/api/connection/ServerRabbitMQConnection;
 	public synthetic fun getRpcService ()Ldev/slne/surf/rabbitmq/api/rpc/RabbitRpcService;
 	public final fun registerRequestHandler (Ljava/lang/Object;)V
 	public final fun registerRpcService (Lkotlin/reflect/KClass;Ljava/lang/Object;)V
