@@ -9,14 +9,20 @@ import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionProvider
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitConsumer
 import dev.slne.surf.rabbitmq.common.connection.publisher.RabbitPublisherOptions
 import dev.slne.surf.rabbitmq.common.connection.publisher.RabbitPublisherPool
+import io.netty.channel.Channel
+import io.netty.channel.IoHandlerFactory
 import io.netty.channel.MultiThreadIoEventLoopGroup
 import io.netty.channel.epoll.Epoll
 import io.netty.channel.epoll.EpollIoHandler
+import io.netty.channel.epoll.EpollSocketChannel
 import io.netty.channel.kqueue.KQueue
 import io.netty.channel.kqueue.KQueueIoHandler
+import io.netty.channel.kqueue.KQueueSocketChannel
 import io.netty.channel.nio.NioIoHandler
+import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.channel.uring.IoUring
 import io.netty.channel.uring.IoUringIoHandler
+import io.netty.channel.uring.IoUringSocketChannel
 import java.lang.AutoCloseable
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.seconds
@@ -28,19 +34,45 @@ class RabbitClient private constructor(
     private val consumers = ConcurrentLinkedQueue<RabbitConsumer>()
 
     companion object {
+        private data class NettyTransport(
+            val ioHandlerFactory: IoHandlerFactory,
+            val channelClass: Class<out Channel>,
+            val name: String
+        )
+
         private val log = logger()
+        private val transport: NettyTransport
         private val sharedEventLoopGroup: MultiThreadIoEventLoopGroup
 
         init {
-            val (ioHandlerFactory, networkingString) = when {
-                IoUring.isAvailable() -> IoUringIoHandler.newFactory() to "IoUring"
-                Epoll.isAvailable() -> EpollIoHandler.newFactory() to "Epoll"
-                KQueue.isAvailable() -> KQueueIoHandler.newFactory() to "KQueue"
-                else -> NioIoHandler.newFactory() to "NIO"
+            transport = when {
+                IoUring.isAvailable() -> NettyTransport(
+                    ioHandlerFactory = IoUringIoHandler.newFactory(),
+                    channelClass = IoUringSocketChannel::class.java,
+                    name = "IoUring"
+                )
+
+                Epoll.isAvailable() -> NettyTransport(
+                    ioHandlerFactory = EpollIoHandler.newFactory(),
+                    channelClass = EpollSocketChannel::class.java,
+                    name = "Epoll"
+                )
+
+                KQueue.isAvailable() -> NettyTransport(
+                    ioHandlerFactory = KQueueIoHandler.newFactory(),
+                    channelClass = KQueueSocketChannel::class.java,
+                    name = "KQueue"
+                )
+
+                else -> NettyTransport(
+                    ioHandlerFactory = NioIoHandler.newFactory(),
+                    channelClass = NioSocketChannel::class.java,
+                    name = "NIO"
+                )
             }
 
             log.atInfo()
-                .log("Using $networkingString for RabbitMQ client")
+                .log("Using ${transport.name} for RabbitMQ client")
 
             val nettyThreadFactory = Thread.ofPlatform()
                 .name("rabbitmq-netty-thread-", 0)
@@ -55,7 +87,7 @@ class RabbitClient private constructor(
                 }
                 .factory()
 
-            sharedEventLoopGroup = MultiThreadIoEventLoopGroup(8, nettyThreadFactory, ioHandlerFactory)
+            sharedEventLoopGroup = MultiThreadIoEventLoopGroup(8, nettyThreadFactory, transport.ioHandlerFactory)
         }
 
         fun create(
@@ -78,6 +110,9 @@ class RabbitClient private constructor(
                 connectionTimeout = config.timeout.seconds.inWholeMilliseconds.toInt()
 
                 netty().eventLoopGroup(sharedEventLoopGroup)
+                netty().bootstrapCustomizer { bootstrap ->
+                    bootstrap.channel(transport.channelClass)
+                }
             }
 
             val connectionProvider = RabbitConnectionProvider(

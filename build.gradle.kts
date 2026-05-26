@@ -41,11 +41,14 @@ subprojects {
             exclude("io/ktor/**")
 
             val base = "dev.slne.surf.rabbitmq.libs."
-            val mangledPrefix: String = base
+            relocate("com.rabbitmq", base + "com.rabbitmq")
+
+            val nettyBase = "dev.slne.surf.rabbitmq.shaded." // fails to load if contains "lib"
+            val mangledPrefix: String = nettyBase
                 .replace("_", "_1")
                 .replace(".", "_")
 
-            relocate("io.netty", base + "io.netty")
+            relocate("io.netty", nettyBase + "io.netty")
 
             doLast {
                 val jar = archiveFile.get().asFile
