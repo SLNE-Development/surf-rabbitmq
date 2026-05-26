@@ -12,7 +12,3 @@ public final class dev/slne/surf/rabbitmq/api/ClientRabbitMQApi$Companion {
 	public static synthetic fun create$default (Ldev/slne/surf/rabbitmq/api/ClientRabbitMQApi$Companion;Ljava/lang/String;Ljava/nio/file/Path;Lkotlinx/serialization/modules/SerializersModule;ILjava/lang/Object;)Ldev/slne/surf/rabbitmq/api/ClientRabbitMQApi;
 }
 
-public abstract interface class dev/slne/surf/rabbitmq/api/connection/ClientRabbitMQConnection : dev/slne/surf/rabbitmq/api/connection/RabbitMQConnection {
-	public abstract fun sendRequest (Ldev/slne/surf/rabbitmq/api/packet/RabbitRequestPacket;Ljava/lang/Class;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-}
-
