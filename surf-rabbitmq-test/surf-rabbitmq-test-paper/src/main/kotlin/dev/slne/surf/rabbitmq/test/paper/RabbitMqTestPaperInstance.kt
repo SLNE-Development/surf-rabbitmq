@@ -13,6 +13,11 @@ class RabbitMqTestPaperInstance : RabbitMqTestCommonInstance() {
         api.freezeAndConnect()
     }
 
+    override suspend fun onDisable() {
+        super.onDisable()
+        api.disconnect()
+    }
+
     companion object {
         fun get() = RabbitMqTestCommonInstance.instance as RabbitMqTestPaperInstance
     }

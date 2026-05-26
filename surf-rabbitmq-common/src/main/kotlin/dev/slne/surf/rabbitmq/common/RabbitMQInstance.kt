@@ -3,6 +3,8 @@ package dev.slne.surf.rabbitmq.common
 import com.google.auto.service.AutoService
 import dev.slne.surf.api.core.util.requiredService
 import dev.slne.surf.rabbitmq.common.connection.client.RabbitClient
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import net.kyori.adventure.util.Services
 import org.jetbrains.annotations.MustBeInvokedByOverriders
 
@@ -20,7 +22,9 @@ abstract class RabbitMQInstance {
 
     @MustBeInvokedByOverriders
     open suspend fun onDisable() {
-        RabbitClient.closeEventLoopGroup()
+        withContext(NonCancellable) {
+            RabbitClient.closeEventLoopGroup()
+        }
     }
 
     companion object {
