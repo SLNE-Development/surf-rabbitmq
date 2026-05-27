@@ -1,14 +1,12 @@
 package dev.slne.surf.rabbitmq.common
 
-import com.google.auto.service.AutoService
-import dev.slne.surf.api.core.util.requiredService
+import dev.slne.surf.rabbitmq.api.internal.RabbitMQInstance
 import dev.slne.surf.rabbitmq.common.connection.client.RabbitClient
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
-import net.kyori.adventure.util.Services
 import org.jetbrains.annotations.MustBeInvokedByOverriders
 
-abstract class RabbitMQInstance {
+abstract class RabbitMQCommonInstance : RabbitMQInstance {
 
     @MustBeInvokedByOverriders
     open suspend fun onLoad() {
@@ -28,10 +26,6 @@ abstract class RabbitMQInstance {
     }
 
     companion object {
-        val instance = requiredService<RabbitMQInstance>()
-        fun get(): RabbitMQInstance = instance
-
-        @AutoService(RabbitMQInstance::class)
-        class Default : RabbitMQInstance(), Services.Fallback
+        fun get(): RabbitMQCommonInstance = RabbitMQInstance.instance as RabbitMQCommonInstance
     }
 }

@@ -4,7 +4,7 @@ import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.ConnectionFactory
 import com.rabbitmq.client.RecoveryDelayHandler
 import dev.slne.surf.api.core.util.logger
-import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionProvider
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitConsumer
 import dev.slne.surf.rabbitmq.common.connection.publisher.RabbitPublisherOptions
@@ -103,23 +103,23 @@ class RabbitClient private constructor(
         }
 
         fun create(
-            config: RabbitMQConfig,
+            config: CommonRabbitMQConfig,
             connectionName: String,
             publisherOptions: RabbitPublisherOptions = RabbitPublisherOptions()
         ): RabbitClient {
             val connectionFactory = ConnectionFactory().apply {
-                host = config.host
-                port = config.port
-                username = config.username
-                password = config.password
-                virtualHost = config.vhost
+                host = config.getHost()
+                port = config.getPort()
+                username = config.getUsername()
+                password = config.getPassword()
+                virtualHost = config.getVhost()
 
                 isAutomaticRecoveryEnabled = true
                 isTopologyRecoveryEnabled = true
                 recoveryDelayHandler = RecoveryDelayHandler.ExponentialBackoffDelayHandler()
 
                 requestedHeartbeat = 60
-                connectionTimeout = config.timeout.seconds.inWholeMilliseconds.toInt()
+                connectionTimeout = config.getTimeout().seconds.inWholeMilliseconds.toInt()
 
                 netty().eventLoopGroup(sharedEventLoopGroup)
                 netty().bootstrapCustomizer { bootstrap ->
@@ -134,7 +134,7 @@ class RabbitClient private constructor(
 
             val publisherPool = RabbitPublisherPool(
                 connectionProvider = connectionProvider,
-                size = config.publisherPoolSize(),
+                size = config.getPublisherPoolSize(),
                 options = publisherOptions
             )
 

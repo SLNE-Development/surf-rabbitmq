@@ -2,13 +2,13 @@ package dev.slne.surf.rabbitmq.common.connection
 
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
-import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.common.connection.client.RabbitClient
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitConsumer
 
 abstract class AbstractRabbitMQConnectionImpl(
     private val api: RabbitMQApi,
-    private val config: RabbitMQConfig,
+    private val config: CommonRabbitMQConfig,
 ) : RabbitMQConnection {
     val client = RabbitClient.create(config, api.pluginName)
 

@@ -159,7 +159,7 @@ class RabbitListenerHandlerManager(
                 }
             }
 
-            val requestTimeoutSeconds = api.config.requestTimeoutSeconds.seconds
+            val requestTimeoutSeconds = api.config.getRequestTimeoutSeconds().seconds
             try {
                 val response = withTimeout(requestTimeoutSeconds) {
                     request.responseDeferred.await()

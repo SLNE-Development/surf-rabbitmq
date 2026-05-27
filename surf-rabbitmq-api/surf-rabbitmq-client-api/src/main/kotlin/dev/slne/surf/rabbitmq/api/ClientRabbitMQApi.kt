@@ -2,7 +2,9 @@ package dev.slne.surf.rabbitmq.api
 
 import dev.slne.surf.rabbitmq.api.connection.ClientRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestTimeoutException
-import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.RabbitMQInstance
+import dev.slne.surf.rabbitmq.api.internal.config.GlobalRabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.config.PluginRabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
 import dev.slne.surf.rabbitmq.api.rpc.ClientRabbitRpcService
@@ -15,7 +17,7 @@ import kotlin.reflect.KClass
 
 @OptIn(ExperimentalSerializationApi::class)
 class ClientRabbitMQApi @InternalRabbitMQ constructor(
-    config: RabbitMQConfig,
+    config: PluginRabbitMQConfig,
     pluginName: String,
     cbor: Cbor
 ) : RabbitMQApi(config, pluginName, cbor) {
@@ -109,7 +111,9 @@ class ClientRabbitMQApi @InternalRabbitMQ constructor(
             path: Path,
             serializer: SerializersModule = EmptySerializersModule()
         ): ClientRabbitMQApi {
-            val config = RabbitMQConfig.create(path)
+            GlobalRabbitMQConfig.getOrLoad(RabbitMQInstance.instance.dataPath, "config.yml")
+
+            val config = PluginRabbitMQConfig.create(path)
             val cbor = createCbor(serializer)
 
             return ClientRabbitMQApi(config, pluginName, cbor)

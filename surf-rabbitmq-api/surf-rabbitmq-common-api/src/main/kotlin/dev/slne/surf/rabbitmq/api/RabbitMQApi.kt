@@ -5,7 +5,7 @@ import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiAlreadyFrozenException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiNotFrozenException
-import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.standard.response.StringResponsePacket
 import dev.slne.surf.rabbitmq.api.packet.standard.response.optional.OptionalStringResponsePacket
 import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.OptionalPrimitiveResponse
@@ -25,7 +25,7 @@ import kotlin.reflect.KClass
 
 @OptIn(ExperimentalSerializationApi::class)
 abstract class RabbitMQApi @InternalRabbitMQ constructor(
-    @InternalRabbitMQ val config: RabbitMQConfig,
+    @InternalRabbitMQ val config: CommonRabbitMQConfig,
     @InternalRabbitMQ val pluginName: String,
     val cbor: Cbor
 ) {
