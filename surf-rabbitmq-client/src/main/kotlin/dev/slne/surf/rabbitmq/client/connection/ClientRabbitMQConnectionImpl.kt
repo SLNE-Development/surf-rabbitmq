@@ -10,7 +10,7 @@ import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ClientRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestTimeoutException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundException
-import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
 import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
@@ -29,7 +29,7 @@ import kotlin.time.Duration.Companion.seconds
 
 class ClientRabbitMQConnectionImpl(
     private val api: RabbitMQApi,
-    private val config: RabbitMQConfig
+    private val config: CommonRabbitMQConfig
 ) : AbstractRabbitMQConnectionImpl(
     api = api,
     config = config,
@@ -38,8 +38,8 @@ class ClientRabbitMQConnectionImpl(
         private val log = logger()
     }
 
-    private val requestTimeoutSeconds = config.requestTimeoutSeconds.seconds
-    private val persistRequests = config.persistRequests
+    private val requestTimeoutSeconds = config.getRequestTimeoutSeconds().seconds
+    private val persistRequests = config.isPersistRequests()
 
     private val pendingRequests = Caffeine.newBuilder()
         .expireAfterWrite(requestTimeoutSeconds * 2)

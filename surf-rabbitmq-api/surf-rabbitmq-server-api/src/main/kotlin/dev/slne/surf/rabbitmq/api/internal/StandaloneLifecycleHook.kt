@@ -2,10 +2,11 @@ package dev.slne.surf.rabbitmq.api.internal
 
 import dev.slne.surf.api.core.util.requiredService
 import dev.slne.surf.rabbitmq.api.InternalRabbitMQ
+import java.nio.file.Path
 
 @InternalRabbitMQ
 interface StandaloneLifecycleHook {
-    fun onInit()
+    fun onInit(dataPath: Path)
     suspend fun beforeConnect()
     suspend fun afterDisconnect()
 

@@ -4,7 +4,7 @@ import com.rabbitmq.client.AMQP
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ServerRabbitMQConnection
-import dev.slne.surf.rabbitmq.api.internal.RabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitAck
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunkAssembler
@@ -16,19 +16,19 @@ import kotlin.time.Duration.Companion.seconds
 
 class ServerRabbitMQConnectionImpl(
     private val api: RabbitMQApi,
-    private val config: RabbitMQConfig
+    private val config: CommonRabbitMQConfig
 ) : AbstractRabbitMQConnectionImpl(api, config), ServerRabbitMQConnection {
     companion object {
         private val log = logger()
     }
 
     private val listenerHandler = RabbitListenerHandlerManager(api, this)
-    private val prefetchCount = config.serverPrefetchCount
-    private val persistResponses = config.persistResponses
+    private val prefetchCount = config.getServerPrefetchCount()
+    private val persistResponses = config.isPersistResponses()
 
     private val requestChunkAssembler = RabbitPacketChunkAssembler(
         expectedKind = RabbitPacketChunking.PacketChunkKind.REQUEST,
-        timeout = config.requestTimeoutSeconds.seconds
+        timeout = config.getRequestTimeoutSeconds().seconds
     )
 
 
