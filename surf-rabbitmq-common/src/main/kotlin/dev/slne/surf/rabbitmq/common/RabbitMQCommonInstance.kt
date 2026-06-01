@@ -21,7 +21,7 @@ abstract class RabbitMQCommonInstance : RabbitMQInstance {
     @MustBeInvokedByOverriders
     open suspend fun onDisable() {
         withContext(NonCancellable) {
-            RabbitClient.closeEventLoopGroup()
+            RabbitClient.closeSharedResources()
         }
     }
 
