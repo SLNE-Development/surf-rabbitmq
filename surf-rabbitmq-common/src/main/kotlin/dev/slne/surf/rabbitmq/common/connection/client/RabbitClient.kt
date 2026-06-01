@@ -23,11 +23,11 @@ import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.channel.uring.IoUring
 import io.netty.channel.uring.IoUringIoHandler
 import io.netty.channel.uring.IoUringSocketChannel
-import kotlinx.coroutines.delay
+import org.jetbrains.annotations.Blocking
 import java.lang.AutoCloseable
+import java.time.Duration
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.*
 import kotlin.time.Duration.Companion.seconds
 
 class RabbitClient private constructor(
@@ -79,6 +79,7 @@ class RabbitClient private constructor(
         }
 
         private val sharedEventLoopGroup: MultiThreadIoEventLoopGroup
+        private val sharedConsumerExecutor: ExecutorService
         private val activeClients = ConcurrentHashMap<RabbitClient, ActiveClientInfo>()
 
         init {
@@ -100,6 +101,22 @@ class RabbitClient private constructor(
                 .factory()
 
             sharedEventLoopGroup = MultiThreadIoEventLoopGroup(8, nettyThreadFactory, transport.ioHandlerFactory)
+            sharedConsumerExecutor = Executors.newFixedThreadPool(
+                16,
+                Thread.ofPlatform()
+                    .name("rabbitmq-consumer-thread-", 0)
+                    .uncaughtExceptionHandler { thread, throwable ->
+                        log.atSevere()
+                            .withCause(throwable)
+                            .log(
+                                "Uncaught exception in RabbitMQ consumer thread (%s): %s",
+                                thread.name,
+                                throwable
+                            )
+                    }
+                    .daemon()
+                    .factory()
+            )
         }
 
         fun create(
@@ -121,6 +138,7 @@ class RabbitClient private constructor(
                 requestedHeartbeat = 60
                 connectionTimeout = config.getTimeout().seconds.inWholeMilliseconds.toInt()
 
+                setSharedExecutor(sharedConsumerExecutor)
                 netty().eventLoopGroup(sharedEventLoopGroup)
                 netty().bootstrapCustomizer { bootstrap ->
                     bootstrap.channel(transport.channelClass)
@@ -156,14 +174,14 @@ class RabbitClient private constructor(
             return client
         }
 
-
-        suspend fun closeEventLoopGroup() {
+        @Blocking
+        fun closeSharedResources() {
             val stillActive = activeClients.values.toList()
 
             if (stillActive.isNotEmpty()) {
                 log.atWarning()
                     .log(
-                        "RabbitMQ Netty EventLoopGroup is being shut down while %s RabbitClient(s) are still active. " +
+                        "RabbitMQ shared resources are being shut down while %s RabbitClient(s) are still active. " +
                                 "These plugins probably did not call RabbitMQApi.disconnect(): %s",
                         stillActive.size,
                         stillActive.joinToString { it.connectionName }
@@ -172,11 +190,11 @@ class RabbitClient private constructor(
                 log.atWarning()
                     .log(
                         "Any RabbitMQ connection recovery errors that appear after this message are expected follow-up " +
-                                "errors caused by shutting down the shared Netty EventLoopGroup while RabbitMQ clients are " +
+                                "errors caused by shutting down shared RabbitMQ resources while RabbitMQ clients are " +
                                 "still active. Fix the plugins listed above by calling RabbitMQApi.disconnect() during shutdown."
                     )
 
-                delay(10.seconds)
+                Thread.sleep(Duration.ofSeconds(10))
 
                 stillActive.forEach { info ->
                     log.atWarning()
@@ -193,6 +211,10 @@ class RabbitClient private constructor(
                 }
             }
 
+            sharedConsumerExecutor.shutdown()
+            if (!sharedConsumerExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                sharedConsumerExecutor.shutdownNow()
+            }
             sharedEventLoopGroup.shutdownGracefully().syncUninterruptibly()
         }
     }
