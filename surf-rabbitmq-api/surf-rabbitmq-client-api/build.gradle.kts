@@ -19,7 +19,6 @@ publishing {
 
 kotlin {
     abiValidation {
-        enabled = true
         filters {
             exclude {
                 annotatedWith.add("dev.slne.surf.rabbitmq.api.InternalRabbitMQ")

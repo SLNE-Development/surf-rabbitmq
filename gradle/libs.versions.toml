@@ -1,5 +1,5 @@
 [versions]
-amqp-client = "5.31.0" # Update netty version if needed
+amqp-client = "5.32.0" # Update netty version if needed
 netty = "4.2.15.Final" # Keep in sync with https://github.com/rabbitmq/rabbitmq-java-client/blob/main/pom.xml
 
 [libraries]
