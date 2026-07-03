@@ -45,7 +45,8 @@ class ClientRpcServiceImpl(private val api: ClientRabbitMQApi) : CommonRabbitRpc
         val result = api.sendRequest(request).response
 
         if (result is RpcCallResponsePacket.RpcCallResponse.Error) {
-            throw result.cause.buildFakeThrowable()
+            // Servers older than 1.6.0 only send the legacy SerializableError.
+            throw result.serializedException?.deserialize() ?: result.cause.buildFakeThrowable()
         }
 
         require(result is RpcCallResponsePacket.RpcCallResponse.Success) { "Unexpected response type: ${result::class}" }

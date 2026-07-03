@@ -144,6 +144,7 @@ public abstract class dev/slne/surf/rabbitmq/api/packet/RabbitPacket {
 	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/RabbitPacket$Companion;
 	public fun <init> ()V
 	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public final fun getSenderVersion ()Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;
 	public final fun getTimestamp ()Ljava/time/OffsetDateTime;
 	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/packet/RabbitPacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
 }
@@ -978,5 +979,39 @@ public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive
 }
 
 public abstract interface annotation class dev/slne/surf/rabbitmq/api/rpc/RpcService : java/lang/annotation/Annotation {
+}
+
+public final class dev/slne/surf/rabbitmq/api/version/RabbitMqVersion : java/lang/Comparable {
+	public static final field AMQP_HEADER Ljava/lang/String;
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion$Companion;
+	public fun <init> (III)V
+	public synthetic fun <init> (IIIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun compareTo (Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;)I
+	public synthetic fun compareTo (Ljava/lang/Object;)I
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun copy (III)Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;
+	public static synthetic fun copy$default (Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;IIIILjava/lang/Object;)Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMajor ()I
+	public final fun getMinor ()I
+	public final fun getPatch ()I
+	public fun hashCode ()I
+	public final fun isAtLeast (III)Z
+	public final fun isAtLeast (Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;)Z
+	public static synthetic fun isAtLeast$default (Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;IIIILjava/lang/Object;)Z
+	public final fun isAtMost (Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;)Z
+	public final fun isNewerThan (Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;)Z
+	public final fun isOlderThan (Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;)Z
+	public final fun isUnknown ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/slne/surf/rabbitmq/api/version/RabbitMqVersion$Companion {
+	public final fun fromHeaders (Ljava/util/Map;)Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;
+	public final fun getCURRENT ()Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;
+	public final fun getUNKNOWN ()Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;
+	public final fun parseOrNull (Ljava/lang/String;)Ldev/slne/surf/rabbitmq/api/version/RabbitMqVersion;
 }
 

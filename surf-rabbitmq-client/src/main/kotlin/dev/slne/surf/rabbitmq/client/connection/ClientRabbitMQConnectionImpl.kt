@@ -13,6 +13,7 @@ import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundExceptio
 import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
+import dev.slne.surf.rabbitmq.api.version.RabbitMqVersion
 import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunkAssembler
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
@@ -41,9 +42,11 @@ class ClientRabbitMQConnectionImpl(
     private val requestTimeoutSeconds = config.getRequestTimeoutSeconds().seconds
     private val persistRequests = config.isPersistRequests()
 
+    private class ReceivedResponse(val body: ByteArray, val senderVersion: RabbitMqVersion)
+
     private val pendingRequests = Caffeine.newBuilder()
         .expireAfterWrite(requestTimeoutSeconds * 2)
-        .evictionListener<String, Pair<RabbitRequestPacket<*>, CompletableDeferred<ByteArray>?>> { _, pair, _ ->
+        .evictionListener<String, Pair<RabbitRequestPacket<*>, CompletableDeferred<ReceivedResponse>?>> { _, pair, _ ->
             val request = pair?.first
             val deferred = pair?.second
 
@@ -56,7 +59,7 @@ class ClientRabbitMQConnectionImpl(
                 )
             }
         }
-        .build<String, Pair<RabbitRequestPacket<*>, CompletableDeferred<ByteArray>?>>()
+        .build<String, Pair<RabbitRequestPacket<*>, CompletableDeferred<ReceivedResponse>?>>()
 
     private val responseChunkAssembler = RabbitPacketChunkAssembler(
         expectedKind = RabbitPacketChunking.PacketChunkKind.RESPONSE,
@@ -93,6 +96,7 @@ class ClientRabbitMQConnectionImpl(
         ) { _, message, ack ->
             val correlationId = message.properties.correlationId
             val body = message.body
+            val senderVersion = RabbitMqVersion.fromHeaders(message.properties.headers)
 
             if (correlationId == null) {
                 ack.ack()
@@ -136,7 +140,7 @@ class ClientRabbitMQConnectionImpl(
 
                     val deferred = removedPending.second
                     if (deferred != null && !deferred.isCompleted) {
-                        deferred.complete(body)
+                        deferred.complete(ReceivedResponse(body, senderVersion))
                     }
                 }
 
@@ -150,7 +154,7 @@ class ClientRabbitMQConnectionImpl(
 
                     val deferred = removedPending.second
                     if (deferred != null && !deferred.isCompleted) {
-                        deferred.complete(result.body)
+                        deferred.complete(ReceivedResponse(result.body, senderVersion))
                     }
                 }
             }
@@ -162,9 +166,10 @@ class ClientRabbitMQConnectionImpl(
         request: RabbitRequestPacket<R>,
         responseClass: Class<R>
     ): R = withContext(api.scope.coroutineContext.minusKey(Job)) {
-        val responseBytes = awaitResponse(request, responseClass)
+        val received = awaitResponse(request, responseClass)
         val response =
-            RabbitPacketSerializer.deserializeResponse(api, responseBytes, responseSerializerCache)
+            RabbitPacketSerializer.deserializeResponse(api, received.body, responseSerializerCache)
+        response.senderVersion = received.senderVersion
 
         response as R
     }
@@ -172,9 +177,9 @@ class ClientRabbitMQConnectionImpl(
     private suspend fun <R : RabbitResponsePacket> awaitResponse(
         request: RabbitRequestPacket<R>,
         responseClass: Class<R>
-    ): ByteArray {
+    ): ReceivedResponse {
         val correlationId = nextCorrelationId()
-        val deferred = CompletableDeferred<ByteArray>()
+        val deferred = CompletableDeferred<ReceivedResponse>()
 
         val serializer = requestSerializerCache.get(request.javaClass)
             ?: throw SurfRabbitSerializerNotFoundException(request.javaClass.name)
@@ -200,6 +205,7 @@ class ClientRabbitMQConnectionImpl(
                         .deliveryMode(if (persistRequests) 2 else 1)
                         .correlationId(correlationId)
                         .replyTo(callbackQueueName)
+                        .headers(mapOf(RabbitMqVersion.AMQP_HEADER to RabbitMqVersion.CURRENT.toString()))
 
                         // If the request is still in the queue and has not yet been sent to the
                         // server, it should expire after the timeout.
