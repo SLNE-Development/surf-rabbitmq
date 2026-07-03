@@ -1,14 +1,12 @@
 package dev.slne.surf.rabbitmq.rpc
 
 import com.github.benmanes.caffeine.cache.Caffeine
-import dev.slne.surf.api.core.util.toSerializableError
 import dev.slne.surf.rabbitmq.api.ServerRabbitMQApi
 import dev.slne.surf.rabbitmq.api.handler.RabbitHandler
 import dev.slne.surf.rabbitmq.api.rpc.RabbitRpcCall
 import dev.slne.surf.rabbitmq.api.rpc.ServerRabbitRpcService
 import dev.slne.surf.rabbitmq.common.rpc.CommonRabbitRpcServiceImpl
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallRequestPacket
-import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallResponsePacket
 import dev.slne.surf.rabbitmq.rpc.service.RpcServiceExecutor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -38,7 +36,12 @@ class ServerRabbitRpcServiceImpl(private val api: ServerRabbitMQApi) : CommonRab
             return
         }
 
-        request.respond(RpcCallResponsePacket(RpcCallResponsePacket.RpcCallResponse.Error(NoSuchMethodError("No Service with fq '${request.rpcServiceFqName}' found").toSerializableError())))
+        request.respond(
+            rpcErrorResponse(
+                NoSuchMethodError("No Service with fq '${request.rpcServiceFqName}' found"),
+                request.senderVersion
+            )
+        )
     }
 
     override fun <Service : Any> registerService(

@@ -18,12 +18,7 @@ import kotlinx.serialization.KSerializer
 /**
  * Serializes and deserializes RabbitMQ request/response packets using a compact binary wire format.
  *
- * **Request wire format:**
- * ```
- * [4 bytes: protocolVersion] [2 bytes: classNameLength] [N bytes: className (UTF-8)] [remaining: CBOR payload]
- * ```
- *
- * **Response wire format:**
+ * **Request and response wire format:**
  * ```
  * [2 bytes: classNameLength] [N bytes: className (UTF-8)] [remaining: CBOR payload]
  * ```

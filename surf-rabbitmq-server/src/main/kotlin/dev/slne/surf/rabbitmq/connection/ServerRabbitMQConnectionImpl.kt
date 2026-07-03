@@ -5,6 +5,7 @@ import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.RabbitMQApi
 import dev.slne.surf.rabbitmq.api.connection.ServerRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
+import dev.slne.surf.rabbitmq.api.version.RabbitMqVersion
 import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitAck
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunkAssembler
@@ -52,6 +53,7 @@ class ServerRabbitMQConnectionImpl(
             val body = message.body
             val correlationId = property.correlationId
             val replyTo = property.replyTo
+            val senderVersion = RabbitMqVersion.fromHeaders(property.headers)
 
             if (correlationId == null || replyTo == null) {
                 ack.nack(requeue = false)
@@ -66,6 +68,7 @@ class ServerRabbitMQConnectionImpl(
                             replyTo = replyTo,
                             body = body,
                             ack = ack,
+                            senderVersion = senderVersion,
                         )
                     }
 
@@ -81,6 +84,7 @@ class ServerRabbitMQConnectionImpl(
                             replyTo = replyTo,
                             body = result.body,
                             ack = ack,
+                            senderVersion = senderVersion,
                         )
                     }
                 }
@@ -125,6 +129,7 @@ class ServerRabbitMQConnectionImpl(
                 properties = AMQP.BasicProperties.Builder()
                     .correlationId(correlationId)
                     .deliveryMode(if (persistResponses) 2 else 1)
+                    .headers(mapOf(RabbitMqVersion.AMQP_HEADER to RabbitMqVersion.CURRENT.toString()))
                     .build()
             )
         }

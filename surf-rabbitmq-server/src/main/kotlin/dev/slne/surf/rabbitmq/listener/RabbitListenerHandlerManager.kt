@@ -13,6 +13,7 @@ import dev.slne.surf.rabbitmq.api.exception.*
 import dev.slne.surf.rabbitmq.api.handler.RabbitHandler
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
+import dev.slne.surf.rabbitmq.api.version.RabbitMqVersion
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitAck
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketPropertiesInjector
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
@@ -110,7 +111,8 @@ class RabbitListenerHandlerManager(
         correlationId: String,
         replyTo: String,
         body: ByteArray,
-        ack: RabbitAck
+        ack: RabbitAck,
+        senderVersion: RabbitMqVersion = RabbitMqVersion.UNKNOWN
     ) {
         val request = try {
             RabbitPacketSerializer.deserializeRequest(api, body, requestSerializerCache)
@@ -140,7 +142,7 @@ class RabbitListenerHandlerManager(
         val requestJob = Job(api.scope.coroutineContext.job)
         try {
             val handlerScope = api.scope + requestJob
-            RabbitPacketPropertiesInjector.inject(request, handlerScope)
+            RabbitPacketPropertiesInjector.inject(request, handlerScope, senderVersion)
 
             val handlerJob = handlerScope.launch {
                 handler.handle(request)

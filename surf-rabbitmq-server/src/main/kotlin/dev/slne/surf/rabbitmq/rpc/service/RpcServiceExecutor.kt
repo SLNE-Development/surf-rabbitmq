@@ -1,10 +1,10 @@
 package dev.slne.surf.rabbitmq.rpc.service
 
-import dev.slne.surf.api.core.util.toSerializableError
 import dev.slne.surf.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallRequestPacket
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallResponsePacket
 import dev.slne.surf.rabbitmq.common.rpc.serialization.RpcSerializerCache
+import dev.slne.surf.rabbitmq.rpc.rpcErrorResponse
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -33,7 +33,7 @@ class RpcServiceExecutor<T : Any>(
             processMessage(request)
         } catch (e: Throwable) {
             if (!request.hasResponded()) {
-                request.respond(RpcCallResponsePacket(RpcCallResponsePacket.RpcCallResponse.Error(e.toSerializableError())))
+                request.respond(rpcErrorResponse(e, request.senderVersion))
             }
 
             if (e is CancellationException) {
@@ -80,7 +80,7 @@ class RpcServiceExecutor<T : Any>(
             logger.error("Error processing RPC call $callId in service '${service.javaClass.name}'", e)
         } finally {
             if (failure != null) {
-                request.respond(RpcCallResponsePacket(RpcCallResponsePacket.RpcCallResponse.Error(failure.toSerializableError())))
+                request.respond(rpcErrorResponse(failure, request.senderVersion))
             }
         }
     }
