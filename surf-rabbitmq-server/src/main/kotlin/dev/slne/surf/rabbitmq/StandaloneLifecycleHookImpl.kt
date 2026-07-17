@@ -12,19 +12,39 @@ class StandaloneLifecycleHookImpl : StandaloneLifecycleHook {
     override fun onInit(dataPath: Path) {
         runBlocking {
             SurfApiStandaloneBootstrap.bootstrap()
-
-            StandaloneRabbitMqInstance.get().dataPath = dataPath
-            RabbitMQCommonInstance.get().onLoad()
+            try {
+                StandaloneRabbitMqInstance.get().dataPath = dataPath
+                RabbitMQCommonInstance.get().onLoad()
+            } catch (failure: Throwable) {
+                try {
+                    SurfApiStandaloneBootstrap.shutdown()
+                } catch (cleanupFailure: Throwable) {
+                    failure.addSuppressed(cleanupFailure)
+                }
+                throw failure
+            }
         }
     }
 
     override suspend fun beforeConnect() {
         SurfApiStandaloneBootstrap.enable()
-        RabbitMQCommonInstance.get().onEnable()
+        try {
+            RabbitMQCommonInstance.get().onEnable()
+        } catch (failure: Throwable) {
+            try {
+                SurfApiStandaloneBootstrap.shutdown()
+            } catch (cleanupFailure: Throwable) {
+                failure.addSuppressed(cleanupFailure)
+            }
+            throw failure
+        }
     }
 
     override suspend fun afterDisconnect() {
-        RabbitMQCommonInstance.get().onDisable()
-        SurfApiStandaloneBootstrap.shutdown()
+        try {
+            RabbitMQCommonInstance.get().onDisable()
+        } finally {
+            SurfApiStandaloneBootstrap.shutdown()
+        }
     }
 }

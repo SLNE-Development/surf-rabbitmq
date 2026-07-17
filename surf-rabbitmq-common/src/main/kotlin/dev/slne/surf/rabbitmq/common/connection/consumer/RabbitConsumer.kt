@@ -1,30 +1,52 @@
 package dev.slne.surf.rabbitmq.common.connection.consumer
 
 import com.rabbitmq.client.*
+import dev.slne.surf.api.core.util.logger
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitConnectionClosedException
 import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionProvider
+import dev.slne.surf.rabbitmq.common.util.rethrowIfFatal
 import kotlinx.coroutines.*
 import java.lang.AutoCloseable
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 class RabbitConsumer(
     private val connectionProvider: RabbitConnectionProvider,
     private val name: String,
     processingDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : AutoCloseable {
+    companion object {
+        private val log = logger()
+    }
+
+    private val channelThread = AtomicReference<Thread>()
 
     private val channelDispatcher = Executors
         .newSingleThreadExecutor { runnable ->
             Thread(runnable, "rabbit-consumer-channel-${connectionProvider.connectionName}-$name").apply {
                 isDaemon = true
+                uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { thread, throwable ->
+                    log.atSevere()
+                        .withCause(throwable)
+                        .log("Uncaught exception in RabbitMQ consumer channel thread ${thread.name}")
+                }
+                channelThread.set(this)
             }
         }
         .asCoroutineDispatcher()
 
     private val processingScope = CoroutineScope(
-        SupervisorJob() + processingDispatcher
+        SupervisorJob() + processingDispatcher + CoroutineName("RabbitConsumer-${connectionProvider.connectionName}-$name") +
+                CoroutineExceptionHandler { _, throwable ->
+                    log.atSevere()
+                        .withCause(throwable)
+                        .log("Unhandled exception while processing a RabbitMQ delivery")
+                }
     )
 
     private var channel: Channel? = null
+    private val closed = AtomicBoolean()
 
     /**
      * @see Channel.queueDeclare
@@ -94,12 +116,29 @@ class RabbitConsumer(
             processingScope.launch {
                 try {
                     handler(consumerTag, message, ack)
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     if (e is CancellationException) {
-                        throw e
+                        currentCoroutineContext().ensureActive()
+                    }
+                    e.rethrowIfFatal()
+
+                    try {
+                        ack.nackIfUnsettled(requeue = requeueOnHandlerError)
+                    } catch (acknowledgementError: Throwable) {
+                        acknowledgementError.rethrowIfFatal()
+                        e.addSuppressed(acknowledgementError)
+                        log.atSevere()
+                            .withCause(e)
+                            .log("RabbitMQ delivery handler and negative acknowledgement both failed")
+                        return@launch
                     }
 
-                    ack.nackIfUnsettled(requeue = requeueOnHandlerError)
+                    log.atWarning()
+                        .withCause(e)
+                        .log(
+                            "RabbitMQ delivery handler failed; message was negatively acknowledged " +
+                                    "(requeue=$requeueOnHandlerError)"
+                        )
                 }
             }
         }
@@ -108,10 +147,11 @@ class RabbitConsumer(
             queue,
             autoAck,
             callback,
-            { _ ->
-                // Consumer was cancelled by broker or client.
+        ) { consumerTag ->
+            if (!closed.get()) {
+                log.atWarning().log("RabbitMQ consumer '$consumerTag' was cancelled by the broker")
             }
-        )
+        }
     }
 
     suspend fun cancel(consumerTag: String) {
@@ -121,6 +161,8 @@ class RabbitConsumer(
     }
 
     private fun getChannel(): Channel {
+        if (closed.get()) throw SurfRabbitConnectionClosedException("use consumer '$name'")
+
         val channel = this.channel
         if (channel != null && channel.isOpen) {
             return channel
@@ -132,20 +174,23 @@ class RabbitConsumer(
     }
 
     private fun resetChannel() {
-        runCatching {
-            channel?.close()
-        }
-
+        val currentChannel = channel
         channel = null
+        currentChannel?.close()
     }
 
     @Suppress("ConvertTryFinallyToUseCall")
     override fun close() {
+        if (!closed.compareAndSet(false, true)) return
         processingScope.cancel()
 
         try {
-            runBlocking(channelDispatcher) {
+            if (Thread.currentThread() === channelThread.get()) {
                 resetChannel()
+            } else {
+                runBlocking(channelDispatcher) {
+                    resetChannel()
+                }
             }
         } finally {
             channelDispatcher.close()

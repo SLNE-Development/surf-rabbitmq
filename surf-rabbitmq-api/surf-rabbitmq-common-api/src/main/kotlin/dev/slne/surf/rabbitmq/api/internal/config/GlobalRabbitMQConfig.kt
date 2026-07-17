@@ -81,6 +81,7 @@ data class GlobalRabbitMQConfig(
     """
     )
     @PositiveNumber
+    @MaxNumber(64.0)
     @JvmField
     val publisherPoolSize: IntOr.Default = IntOr.Default.USE_DEFAULT,
 

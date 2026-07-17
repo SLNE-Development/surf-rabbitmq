@@ -2,9 +2,9 @@ package dev.slne.surf.rabbitmq.common.packet
 
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolInvalidChunkMetadataException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolUnknownChunkKindException
-import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking.PACKET_CHUNKING_THRESHOLD_BYTES
-import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking.PACKET_CHUNK_SIZE_BYTES
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitProtocolVersionMismatchException
 import io.netty.buffer.Unpooled
+import io.netty.util.internal.PlatformDependent
 import it.unimi.dsi.fastutil.objects.ObjectArrayList
 
 object RabbitPacketChunking {
@@ -62,37 +62,53 @@ object RabbitPacketChunking {
     const val MAX_CHUNKS_PER_PACKET =
         (MAX_CHUNKED_PACKET_SIZE_BYTES + PACKET_CHUNK_SIZE_BYTES - 1) / PACKET_CHUNK_SIZE_BYTES
 
-    fun newCorrelationId(rawCorrelationId: String): String = CHUNK_CAPABILITY_PREFIX + rawCorrelationId
-    fun supportsChunkedResponses(correlationId: String): Boolean = correlationId.startsWith(CHUNK_CAPABILITY_PREFIX)
+    fun newCorrelationId(rawCorrelationId: String): String =
+        CHUNK_CAPABILITY_PREFIX + rawCorrelationId
+
+    fun supportsChunkedResponses(correlationId: String): Boolean =
+        correlationId.startsWith(CHUNK_CAPABILITY_PREFIX)
 
     fun shouldChunk(data: ByteArray, enabled: Boolean): Boolean {
         return enabled && data.size > PACKET_CHUNKING_THRESHOLD_BYTES
     }
 
-    fun splitRequest(data: ByteArray): ObjectArrayList<ByteArray> = split(data, PacketChunkKind.REQUEST)
-    fun splitResponse(data: ByteArray): ObjectArrayList<ByteArray> = split(data, PacketChunkKind.RESPONSE)
+    fun splitRequest(data: ByteArray): ObjectArrayList<ByteArray> =
+        split(data, PacketChunkKind.REQUEST)
+
+    fun splitResponse(data: ByteArray): ObjectArrayList<ByteArray> =
+        split(data, PacketChunkKind.RESPONSE)
 
     fun decodeOrNull(data: ByteArray): PacketChunk? {
-        if (data.size < CHUNK_HEADER_SIZE) {
-            return null
-        }
+        if (data.size < Int.SIZE_BYTES) return null
 
-        val buf = Unpooled.wrappedBuffer(data)
+        val buffer = Unpooled.wrappedBuffer(data)
         try {
-            if (buf.readInt() != MAGIC) return null
+            if (buffer.readInt() != MAGIC) return null
+            if (data.size < CHUNK_HEADER_SIZE) {
+                throw SurfRabbitProtocolInvalidChunkMetadataException(
+                    field = "headerSize",
+                    expected = ">= $CHUNK_HEADER_SIZE",
+                    actual = data.size
+                )
+            }
 
-            val version = buf.readByte()
-            if (version != VERSION) return null
+            val version = buffer.readByte()
+            if (version != VERSION) {
+                throw SurfRabbitProtocolVersionMismatchException(
+                    VERSION.toInt(),
+                    version.toInt()
+                )
+            }
 
-            val kind = when (val rawKind = buf.readByte()) {
+            val kind = when (val rawKind = buffer.readByte()) {
                 KIND_REQUEST -> PacketChunkKind.REQUEST
                 KIND_RESPONSE -> PacketChunkKind.RESPONSE
                 else -> throw SurfRabbitProtocolUnknownChunkKindException(rawKind)
             }
 
-            val totalChunks = buf.readInt()
-            val chunkIndex = buf.readInt()
-            val originalSize = buf.readInt()
+            val totalChunks = buffer.readInt()
+            val chunkIndex = buffer.readInt()
+            val originalSize = buffer.readInt()
 
             if (totalChunks !in 1..MAX_CHUNKS_PER_PACKET) {
                 throw SurfRabbitProtocolInvalidChunkMetadataException(
@@ -110,7 +126,8 @@ object RabbitPacketChunking {
                 )
             }
 
-            val expectedTotalChunks = (originalSize + PACKET_CHUNK_SIZE_BYTES - 1) / PACKET_CHUNK_SIZE_BYTES
+            val expectedTotalChunks =
+                (originalSize + PACKET_CHUNK_SIZE_BYTES - 1) / PACKET_CHUNK_SIZE_BYTES
             if (totalChunks != expectedTotalChunks) {
                 throw SurfRabbitProtocolInvalidChunkMetadataException(
                     field = "totalChunks",
@@ -127,7 +144,7 @@ object RabbitPacketChunking {
                 )
             }
 
-            val payloadSize = buf.readableBytes()
+            val payloadSize = buffer.readableBytes()
             if (payloadSize !in 1..PACKET_CHUNK_SIZE_BYTES) {
                 throw SurfRabbitProtocolInvalidChunkMetadataException(
                     field = "payloadSize",
@@ -151,8 +168,7 @@ object RabbitPacketChunking {
             }
 
             val payload = ByteArray(payloadSize)
-            buf.readBytes(payload)
-
+            buffer.readBytes(payload)
             return PacketChunk(
                 kind = kind,
                 totalChunks = totalChunks,
@@ -161,7 +177,7 @@ object RabbitPacketChunking {
                 payload = payload
             )
         } finally {
-            buf.release()
+            buffer.release()
         }
     }
 
@@ -169,6 +185,14 @@ object RabbitPacketChunking {
         data: ByteArray,
         kind: PacketChunkKind,
     ): ObjectArrayList<ByteArray> {
+        if (data.isEmpty()) {
+            throw SurfRabbitProtocolInvalidChunkMetadataException(
+                field = "originalSize",
+                expected = "1..$MAX_CHUNKED_PACKET_SIZE_BYTES",
+                actual = 0
+            )
+        }
+
         if (data.size > MAX_CHUNKED_PACKET_SIZE_BYTES) {
             throw SurfRabbitProtocolInvalidChunkMetadataException(
                 field = "originalSize",
@@ -213,34 +237,25 @@ object RabbitPacketChunking {
         payloadOffset: Int,
         payloadLength: Int
     ): ByteArray {
-        val exactSize = // remember to update decodeOrNull if changing this
-            Int.SIZE_BYTES + // magic
-                    1 + // version
-                    1 + // kind
-                    Int.SIZE_BYTES + // totalChunks
-                    Int.SIZE_BYTES + // chunkIndex
-                    Int.SIZE_BYTES + // originalSize
-                    payloadLength
-
-        val buf = Unpooled.buffer(exactSize, exactSize)
+        val result = PlatformDependent.allocateUninitializedArray(CHUNK_HEADER_SIZE + payloadLength)
+        val buffer = Unpooled.wrappedBuffer(result).clear()
         try {
-            buf.writeInt(MAGIC)
-            buf.writeByte(VERSION.toInt())
-            buf.writeByte(
+            buffer.writeInt(MAGIC)
+            buffer.writeByte(VERSION.toInt())
+            buffer.writeByte(
                 when (kind) {
                     PacketChunkKind.REQUEST -> KIND_REQUEST.toInt()
                     PacketChunkKind.RESPONSE -> KIND_RESPONSE.toInt()
                 }
             )
-            buf.writeInt(totalChunks)
-            buf.writeInt(chunkIndex)
-            buf.writeInt(originalSize)
-            buf.writeBytes(payload, payloadOffset, payloadLength)
-
-            return buf.array()
+            buffer.writeInt(totalChunks)
+            buffer.writeInt(chunkIndex)
+            buffer.writeInt(originalSize)
+            buffer.writeBytes(payload, payloadOffset, payloadLength)
         } finally {
-            buf.release()
+            buffer.release()
         }
+        return result
     }
 
     enum class PacketChunkKind {

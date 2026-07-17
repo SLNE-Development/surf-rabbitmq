@@ -10,8 +10,9 @@ import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
-import io.netty.buffer.ByteBuf
+import dev.slne.surf.rabbitmq.common.util.rethrowIfFatal
 import io.netty.buffer.Unpooled
+import io.netty.util.internal.PlatformDependent
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 
@@ -59,10 +60,11 @@ object RabbitPacketSerializer {
             api.cbor.encodeToByteArray(serializer, packet)
         }
 
-        return writeFrame(Short.SIZE_BYTES + classNameBytes.size + payloadBytes.size) { buf ->
-            buf.writeShort(classNameBytes.size)
-            buf.writeBytes(classNameBytes)
-            buf.writeBytes(payloadBytes)
+        return try {
+            RabbitPacketEnvelopeCodec.encode(classNameBytes, payloadBytes)
+        } catch (throwable: Throwable) {
+            throwable.rethrowIfFatal()
+            throw SurfRabbitEnvelopeSerializationException(throwable)
         }
     }
 
@@ -71,18 +73,12 @@ object RabbitPacketSerializer {
         data: ByteArray,
         serializerCache: KotlinSerializerNameCache<R>
     ): R {
-        val buf = Unpooled.wrappedBuffer(data)
+        return wrapDeserializationErrors {
+            val envelope = RabbitPacketEnvelopeCodec.decode(data)
+            val serializer = serializerCache.get(envelope.className)
+                ?: throw SurfRabbitSerializerNotFoundException(envelope.className)
 
-        return try {
-            val className = readClassName(buf)
-            val serializer = serializerCache.get(className)
-                ?: throw SurfRabbitSerializerNotFoundException(className)
-
-            wrapDeserializationErrors {
-                api.cbor.decodeFromByteArray(serializer, readRemainingBytes(buf, data))
-            }
-        } finally {
-            buf.release()
+            api.cbor.decodeFromByteArray(serializer, envelope.payload)
         }
     }
 
@@ -103,36 +99,13 @@ object RabbitPacketSerializer {
         return deserialize(api, data, serializerCache)
     }
 
-    private inline fun writeFrame(exactSize: Int, write: (ByteBuf) -> Unit): ByteArray {
-        val buf = Unpooled.buffer(exactSize, exactSize)
-
-        try {
-            write(buf)
-            return buf.array()
-        } finally {
-            buf.release()
-        }
-    }
-
-    private fun readClassName(buf: ByteBuf): String {
-        val length = buf.readUnsignedShort()
-        val className = buf.toString(buf.readerIndex(), length, Charsets.UTF_8)
-        buf.skipBytes(length)
-        return className
-    }
-
-    private fun readRemainingBytes(buf: ByteBuf, source: ByteArray): ByteArray {
-        val offset = buf.readerIndex()
-        val length = buf.readableBytes()
-        return source.copyOfRange(offset, offset + length)
-    }
-
     private inline fun <T> wrapDeserializationErrors(block: () -> T): T =
         try {
             block()
         } catch (e: SurfRabbitSerializationException) {
             throw e
         } catch (e: Throwable) {
+            e.rethrowIfFatal()
             throw SurfRabbitEnvelopeDeserializationException(e)
         }
 
@@ -142,6 +115,53 @@ object RabbitPacketSerializer {
         } catch (e: SurfRabbitSerializationException) {
             throw e
         } catch (e: Throwable) {
+            e.rethrowIfFatal()
             throw SurfRabbitEnvelopeSerializationException(e)
         }
+}
+
+internal class RabbitPacketEnvelope(
+    val className: String,
+    val payload: ByteArray
+)
+
+internal object RabbitPacketEnvelopeCodec {
+    fun encode(classNameBytes: ByteArray, payload: ByteArray): ByteArray {
+        require(classNameBytes.isNotEmpty() && classNameBytes.size <= UShort.MAX_VALUE.toInt()) {
+            "Packet class name length is outside 1..${UShort.MAX_VALUE}: ${classNameBytes.size}"
+        }
+        require(payload.isNotEmpty()) { "Packet envelope payload must not be empty" }
+
+        val frameSize = Short.SIZE_BYTES.toLong() + classNameBytes.size + payload.size
+        require(frameSize <= Int.MAX_VALUE) { "Serialized packet envelope is too large: $frameSize bytes" }
+
+        val frame = PlatformDependent.allocateUninitializedArray(frameSize.toInt())
+        Unpooled.buffer().writeShort(1)
+        frame[0] = (classNameBytes.size ushr 8).toByte()
+        frame[1] = classNameBytes.size.toByte()
+        classNameBytes.copyInto(frame, destinationOffset = Short.SIZE_BYTES)
+        payload.copyInto(frame, destinationOffset = Short.SIZE_BYTES + classNameBytes.size)
+        return frame
+    }
+
+    fun decode(data: ByteArray): RabbitPacketEnvelope {
+        require(data.size >= Short.SIZE_BYTES) { "Packet envelope is missing the class-name length" }
+
+        val classNameLength = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
+        require(classNameLength > 0 && classNameLength <= data.size - Short.SIZE_BYTES) {
+            "Invalid packet class-name length $classNameLength for ${data.size}-byte envelope"
+        }
+
+        val payloadOffset = Short.SIZE_BYTES + classNameLength
+        require(payloadOffset < data.size) { "Packet envelope does not contain a payload" }
+
+        return RabbitPacketEnvelope(
+            className = data.decodeToString(
+                startIndex = Short.SIZE_BYTES,
+                endIndex = payloadOffset,
+                throwOnInvalidSequence = true
+            ),
+            payload = data.copyOfRange(payloadOffset, data.size)
+        )
+    }
 }

@@ -19,12 +19,12 @@ abstract class CommonRabbitRpcServiceImpl(private val api: RabbitMQApi) : Rabbit
     }
 
     private fun <Service : Any> findServiceDescriptor(kClass: KClass<Service>): Any? {
-        return ServiceDescriptorCache.get(kClass.java)
+        return ServiceDescriptorCache.get(kClass.java).takeUnless { it === NO_DESCRIPTOR }
     }
 
-    private object ServiceDescriptorCache : ClassValue<Any?>() {
-        override fun computeValue(type: Class<*>): Any? {
-            if (!type.isInterface) return null
+    private object ServiceDescriptorCache : ClassValue<Any>() {
+        override fun computeValue(type: Class<*>): Any {
+            if (!type.isInterface) return NO_DESCRIPTOR
             val packageName = type.packageName
             val simpleName = type.simpleName
             val descriptorFqName = "$packageName.${simpleName}Descriptor"
@@ -32,12 +32,14 @@ abstract class CommonRabbitRpcServiceImpl(private val api: RabbitMQApi) : Rabbit
             return try {
                 val descriptorClass = Class.forName(descriptorFqName, false, type.classLoader)
                 val descriptorKClass = descriptorClass.kotlin
-                descriptorKClass.objectInstance
+                descriptorKClass.objectInstance ?: NO_DESCRIPTOR
             } catch (_: ClassNotFoundException) {
-                null
-            } catch (_: LinkageError) {
-                null
+                NO_DESCRIPTOR
             }
         }
+    }
+
+    companion object {
+        private val NO_DESCRIPTOR = Any()
     }
 }

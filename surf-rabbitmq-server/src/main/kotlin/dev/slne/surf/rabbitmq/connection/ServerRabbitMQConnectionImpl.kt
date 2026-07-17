@@ -10,8 +10,8 @@ import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitAck
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunkAssembler
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
+import dev.slne.surf.rabbitmq.common.util.rethrowIfFatal
 import dev.slne.surf.rabbitmq.listener.RabbitListenerHandlerManager
-import it.unimi.dsi.fastutil.objects.ObjectList
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
 
@@ -21,6 +21,9 @@ class ServerRabbitMQConnectionImpl(
 ) : AbstractRabbitMQConnectionImpl(api, config), ServerRabbitMQConnection {
     companion object {
         private val log = logger()
+        private val VERSION_HEADERS = mapOf(
+            RabbitMqVersion.AMQP_HEADER to RabbitMqVersion.CURRENT.toString()
+        )
     }
 
     private val listenerHandler = RabbitListenerHandlerManager(api, this)
@@ -32,9 +35,12 @@ class ServerRabbitMQConnectionImpl(
         timeout = config.getRequestTimeoutSeconds().seconds
     )
 
+    private data class RequestChunkMetadata(
+        val replyTo: String,
+        val senderVersion: RabbitMqVersion
+    )
 
-    override suspend fun connect() {
-        super.connect()
+    override suspend fun onConnected() {
         startConsumingRequests()
     }
 
@@ -61,7 +67,13 @@ class ServerRabbitMQConnectionImpl(
             }
 
             try {
-                when (val result = requestChunkAssembler.accept(correlationId, body)) {
+                when (
+                    val result = requestChunkAssembler.accept(
+                        correlationId,
+                        body,
+                        RequestChunkMetadata(replyTo, senderVersion)
+                    )
+                ) {
                     RabbitPacketChunkAssembler.ChunkAcceptResult.NotChunk -> {
                         listenerHandler.handleRequest(
                             correlationId = correlationId,
@@ -90,6 +102,7 @@ class ServerRabbitMQConnectionImpl(
                 }
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
+                t.rethrowIfFatal()
 
                 requestChunkAssembler.discard(correlationId)
 
@@ -108,7 +121,7 @@ class ServerRabbitMQConnectionImpl(
         ack: RabbitAck?,
         body: ByteArray
     ) {
-        val responseBodies =
+        val responseChunks =
             if (
                 RabbitPacketChunking.supportsChunkedResponses(correlationId) &&
                 RabbitPacketChunking.shouldChunk(
@@ -118,22 +131,41 @@ class ServerRabbitMQConnectionImpl(
             ) {
                 RabbitPacketChunking.splitResponse(body)
             } else {
-                ObjectList.of(body)
+                null
             }
 
-        for (responseBody in responseBodies) {
+        val responseProperties = AMQP.BasicProperties.Builder()
+            .correlationId(correlationId)
+            .deliveryMode(if (persistResponses) 2 else 1)
+            .headers(VERSION_HEADERS)
+            .build()
+
+        if (responseChunks == null) {
             client.publish(
                 exchange = "",
                 routingKey = replyTo,
-                body = responseBody,
-                properties = AMQP.BasicProperties.Builder()
-                    .correlationId(correlationId)
-                    .deliveryMode(if (persistResponses) 2 else 1)
-                    .headers(mapOf(RabbitMqVersion.AMQP_HEADER to RabbitMqVersion.CURRENT.toString()))
-                    .build()
+                body = body,
+                properties = responseProperties
             )
+        } else {
+            for (responseBody in responseChunks) {
+                client.publish(
+                    exchange = "",
+                    routingKey = replyTo,
+                    body = responseBody,
+                    properties = responseProperties
+                )
+            }
         }
 
         ack?.ack()
+    }
+
+    override suspend fun disconnect() {
+        try {
+            super.disconnect()
+        } finally {
+            requestChunkAssembler.clear()
+        }
     }
 }

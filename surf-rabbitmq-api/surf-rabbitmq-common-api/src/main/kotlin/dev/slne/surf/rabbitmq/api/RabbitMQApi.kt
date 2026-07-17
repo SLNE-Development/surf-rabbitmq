@@ -21,6 +21,7 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.contextual
 import kotlinx.serialization.modules.overwriteWith
 import org.jetbrains.annotations.MustBeInvokedByOverriders
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.reflect.KClass
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -29,6 +30,10 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
     @InternalRabbitMQ val pluginName: String,
     val cbor: Cbor
 ) {
+    init {
+        require(pluginName.isNotBlank()) { "RabbitMQ plugin name must not be blank" }
+    }
+
     @InternalRabbitMQ
     val scope =
         CoroutineScope(Dispatchers.Default + CoroutineName("RabbitMQApi-$pluginName") + SupervisorJob() + CoroutineExceptionHandler { context, throwable ->
@@ -42,7 +47,7 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
 
     open val connection = RabbitMQConnection.create(this)
 
-    private var frozen = false
+    private val frozen = AtomicBoolean()
 
     @MustBeInvokedByOverriders
     open suspend fun connect() {
@@ -58,17 +63,21 @@ abstract class RabbitMQApi @InternalRabbitMQ constructor(
 
     @MustBeInvokedByOverriders
     open suspend fun disconnect() {
-        connection.disconnect()
-
-        scope.cancel("RabbitMQApi disconnected")
+        try {
+            connection.disconnect()
+        } finally {
+            scope.cancel("RabbitMQApi disconnected")
+        }
     }
 
     fun freeze() {
-        if (isFrozen()) throw SurfRabbitApiAlreadyFrozenException()
-        frozen = true
+        // Uses the API monitor to prevent freezing concurrently with handler registration.
+        synchronized(this) {
+            if (!frozen.compareAndSet(false, true)) throw SurfRabbitApiAlreadyFrozenException()
+        }
     }
 
-    fun isFrozen(): Boolean = frozen
+    fun isFrozen(): Boolean = frozen.get()
 
     /**
      * Returns the generated RPC service descriptor for the given service interface.

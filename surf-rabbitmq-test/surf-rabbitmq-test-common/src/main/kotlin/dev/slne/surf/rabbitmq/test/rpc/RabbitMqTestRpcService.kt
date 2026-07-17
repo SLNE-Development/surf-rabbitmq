@@ -19,7 +19,31 @@ interface RabbitMqTestRpcService {
     suspend fun customParameterWithCustomReturnType(
         parameter: @Serializable(with = CustomParameterTypeSerializer::class) String
     ): @Serializable(with = CustomReturnTypeSerializer::class) String
+
+    suspend fun annotatedValue(): @RpcMetadata(
+        tags = ["stable", "safe"],
+        priorities = [1, 2],
+        enabled = [true, false],
+        grade = RpcMetadataGrade.HIGH,
+        marker = '\'',
+        ratio = 1.25f
+    ) String
 }
+
+enum class RpcMetadataGrade {
+    LOW,
+    HIGH
+}
+
+@Target(AnnotationTarget.TYPE)
+annotation class RpcMetadata(
+    val tags: Array<String>,
+    val priorities: IntArray,
+    val enabled: BooleanArray,
+    val grade: RpcMetadataGrade,
+    val marker: Char,
+    val ratio: Float
+)
 
 
 object CustomReturnTypeSerializer : KSerializer<String> {

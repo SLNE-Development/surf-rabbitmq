@@ -4,6 +4,7 @@ import dev.slne.surf.rabbitmq.api.rpc.callable.RabbitRpcCallable
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.MissingFieldException
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.*
 import kotlinx.serialization.modules.SerializersModule
@@ -28,13 +29,15 @@ class CallableParametersSerializer(
         }
     }
 
-    override fun serialize(encoder: Encoder, value: Array<Any?>) = encoder.encodeStructure(descriptor) {
+    override fun serialize(encoder: Encoder, value: Array<Any?>) {
         if (callable.parameters.size != value.size) {
-            error("Expected ${callable.parameters.size} arguments, but got ${value.size}")
+            throw SerializationException("Expected ${callable.parameters.size} arguments, but got ${value.size}")
         }
 
-        for (i in callable.parameters.indices) {
-            encodeSerializableElement(descriptor, i, callableSerializers[i], value[i])
+        encoder.encodeStructure(descriptor) {
+            for (i in callable.parameters.indices) {
+                encodeSerializableElement(descriptor, i, callableSerializers[i], value[i])
+            }
         }
     }
 
@@ -47,6 +50,11 @@ class CallableParametersSerializer(
             val index = decodeElementIndex(descriptor)
             if (index == CompositeDecoder.DECODE_DONE) {
                 break
+            }
+            if (index !in result.indices) {
+                throw SerializationException(
+                    "Unexpected parameter index $index while decoding callable '${callable.name}'"
+                )
             }
 
             result[index] = decodeSerializableElement(descriptor, index, callableSerializers[index])

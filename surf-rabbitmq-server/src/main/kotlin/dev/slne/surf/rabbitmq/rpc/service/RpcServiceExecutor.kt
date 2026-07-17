@@ -4,6 +4,7 @@ import dev.slne.surf.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallRequestPacket
 import dev.slne.surf.rabbitmq.common.rpc.packet.RpcCallResponsePacket
 import dev.slne.surf.rabbitmq.common.rpc.serialization.RpcSerializerCache
+import dev.slne.surf.rabbitmq.common.util.rethrowIfFatal
 import dev.slne.surf.rabbitmq.rpc.rpcErrorResponse
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -32,12 +33,14 @@ class RpcServiceExecutor<T : Any>(
         try {
             processMessage(request)
         } catch (e: Throwable) {
-            if (!request.hasResponded()) {
-                request.respond(rpcErrorResponse(e, request.senderVersion))
-            }
+            e.rethrowIfFatal()
 
             if (e is CancellationException) {
                 currentCoroutineContext().ensureActive()
+            }
+
+            if (!request.hasResponded()) {
+                request.respond(rpcErrorResponse(e, request.senderVersion))
             }
 
             logger.error("Error processing RPC call '${request.rpcCallId}' in service '${service.javaClass.name}'", e)
@@ -74,8 +77,9 @@ class RpcServiceExecutor<T : Any>(
             sendResponse(serialFormat, returnSerializer, value, request)
         } catch (e: CancellationException) {
             failure = e
-            serverScope.ensureActive()
+            currentCoroutineContext().ensureActive()
         } catch (e: Throwable) {
+            e.rethrowIfFatal()
             failure = e
             logger.error("Error processing RPC call $callId in service '${service.javaClass.name}'", e)
         } finally {

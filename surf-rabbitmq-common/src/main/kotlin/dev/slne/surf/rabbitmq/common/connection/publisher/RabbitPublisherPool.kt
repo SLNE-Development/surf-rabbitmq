@@ -2,6 +2,7 @@ package dev.slne.surf.rabbitmq.common.connection.publisher
 
 import com.rabbitmq.client.AMQP
 import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionProvider
+import dev.slne.surf.rabbitmq.common.util.rethrowIfFatal
 import java.util.concurrent.atomic.AtomicInteger
 
 class RabbitPublisherPool(
@@ -11,8 +12,8 @@ class RabbitPublisherPool(
 ): AutoCloseable {
 
     init {
-        require(size > 0) {
-            "Publisher pool size must be greater than 0"
+        require(size in 1..64) {
+            "Publisher pool size must be in 1..64"
         }
     }
 
@@ -37,10 +38,20 @@ class RabbitPublisherPool(
     }
 
     override fun close() {
+        var failure: Throwable? = null
         publishers.forEach { publisher ->
-            runCatching {
+            try {
                 publisher.close()
+            } catch (throwable: Throwable) {
+                throwable.rethrowIfFatal()
+                val previous = failure
+                if (previous == null) {
+                    failure = throwable
+                } else {
+                    previous.addSuppressed(throwable)
+                }
             }
         }
+        failure?.let { throw it }
     }
 }

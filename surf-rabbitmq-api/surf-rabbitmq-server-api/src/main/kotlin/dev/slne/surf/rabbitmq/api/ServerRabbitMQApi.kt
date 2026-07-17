@@ -1,10 +1,13 @@
 package dev.slne.surf.rabbitmq.api
 
 import dev.slne.surf.rabbitmq.api.connection.ServerRabbitMQConnection
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiNotFrozenException
 import dev.slne.surf.rabbitmq.api.internal.StandaloneLifecycleHook
 import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.api.internal.config.GlobalRabbitMQConfig
 import dev.slne.surf.rabbitmq.api.rpc.ServerRabbitRpcService
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.modules.EmptySerializersModule
@@ -18,6 +21,9 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
     pluginName: String,
     cbor: Cbor
 ) : RabbitMQApi(config, pluginName, cbor) {
+    private val lifecycleMutex = Mutex()
+    private var lifecycleStarted = false
+
     @InternalRabbitMQ
     override val connection get() = super.connection as ServerRabbitMQConnection
 
@@ -136,14 +142,49 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
         unregisterRpcService(Service::class)
     }
 
-    override suspend fun connect() {
+    override suspend fun connect(): Unit = lifecycleMutex.withLock {
+        if (lifecycleStarted) return
+        if (!isFrozen()) throw SurfRabbitApiNotFrozenException()
+
         StandaloneLifecycleHook.beforeConnect()
-        super.connect()
+        lifecycleStarted = true
+        try {
+            super.connect()
+        } catch (failure: Throwable) {
+            try {
+                super.disconnect()
+            } catch (cleanupFailure: Throwable) {
+                failure.addSuppressed(cleanupFailure)
+            }
+            try {
+                StandaloneLifecycleHook.afterDisconnect()
+            } catch (cleanupFailure: Throwable) {
+                failure.addSuppressed(cleanupFailure)
+            }
+            lifecycleStarted = false
+            throw failure
+        }
     }
 
-    override suspend fun disconnect() {
-        super.disconnect()
-        StandaloneLifecycleHook.afterDisconnect()
+    override suspend fun disconnect(): Unit = lifecycleMutex.withLock {
+        var failure: Throwable? = null
+        try {
+            super.disconnect()
+        } catch (throwable: Throwable) {
+            failure = throwable
+        }
+
+        if (lifecycleStarted) {
+            lifecycleStarted = false
+            try {
+                StandaloneLifecycleHook.afterDisconnect()
+            } catch (throwable: Throwable) {
+                val previous = failure
+                if (previous == null) failure = throwable else previous.addSuppressed(throwable)
+            }
+        }
+
+        failure?.let { throw it }
     }
 
     companion object {

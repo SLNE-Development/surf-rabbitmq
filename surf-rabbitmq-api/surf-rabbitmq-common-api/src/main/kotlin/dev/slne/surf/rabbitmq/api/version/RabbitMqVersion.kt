@@ -1,8 +1,5 @@
 package dev.slne.surf.rabbitmq.api.version
 
-import dev.slne.surf.rabbitmq.api.version.RabbitMqVersion.Companion.AMQP_HEADER
-import dev.slne.surf.rabbitmq.api.version.RabbitMqVersion.Companion.UNKNOWN
-
 /**
  * The semantic version of a surf-rabbitmq library instance.
  *
@@ -26,13 +23,13 @@ data class RabbitMqVersion(
         }
     }
 
-    override fun compareTo(other: RabbitMqVersion): Int = compareValuesBy(
-        this,
-        other,
-        RabbitMqVersion::major,
-        RabbitMqVersion::minor,
-        RabbitMqVersion::patch
-    )
+    override fun compareTo(other: RabbitMqVersion): Int {
+        var result = major.compareTo(other.major)
+        if (result != 0) return result
+        result = minor.compareTo(other.minor)
+        if (result != 0) return result
+        return patch.compareTo(other.patch)
+    }
 
     fun isNewerThan(other: RabbitMqVersion): Boolean = this > other
     fun isOlderThan(other: RabbitMqVersion): Boolean = this < other

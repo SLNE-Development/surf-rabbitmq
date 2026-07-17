@@ -1,16 +1,12 @@
 package dev.slne.surf.rabbitmq.processor.rpc.codegen
 
-import com.google.devtools.ksp.symbol.ClassKind
-import com.google.devtools.ksp.symbol.KSAnnotation
-import com.google.devtools.ksp.symbol.KSClassDeclaration
-import com.google.devtools.ksp.symbol.KSType
+import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ksp.toClassName
 import com.squareup.kotlinpoet.ksp.toTypeName
 import dev.slne.surf.rabbitmq.processor.ClassNames
 import dev.slne.surf.rabbitmq.processor.MemberNames
 import dev.slne.surf.rabbitmq.processor.Names
-import dev.slne.surf.rabbitmq.processor.Types
 
 fun FileSpec.Builder.optInInternalRabbitApi() = apply {
     addAnnotation(
@@ -33,7 +29,9 @@ fun TypeSpec.Builder.addInternalDeprecation() = apply {
 }
 
 fun FileSpec.Builder.suppressInternalDeprecation() = apply {
-    addAnnotation(AnnotationSpec.builder(Suppress::class).addMember("%S", "DEPRECATION_ERROR").build())
+    addAnnotation(
+        AnnotationSpec.builder(Suppress::class).addMember("%S", "DEPRECATION_ERROR").build()
+    )
 }
 
 fun List<KSAnnotation>.toAnnotationListCode(): CodeBlock {
@@ -76,7 +74,13 @@ fun KSAnnotation.isSerializableAnnotation(): Boolean {
 }
 
 private fun KSAnnotation.toConstructorCode(): CodeBlock {
-    val annotationType = annotationType.resolve().toTypeName()
+    val resolvedAnnotationType = annotationType.resolve()
+    val annotationType = resolvedAnnotationType.toTypeName()
+    val parameterTypes = (resolvedAnnotationType.declaration as? KSClassDeclaration)
+        ?.primaryConstructor
+        ?.parameters
+        ?.associate { parameter -> parameter.name?.asString() to parameter.type.resolve() }
+        .orEmpty()
 
     return CodeBlock.builder()
         .add("%T(", annotationType)
@@ -89,10 +93,35 @@ private fun KSAnnotation.toConstructorCode(): CodeBlock {
                     add("%N = ", name)
                 }
 
-                add("%L", argument.value.toAnnotationValueCode())
+                add("%L", argument.value.toAnnotationValueCode(parameterTypes[name]))
             }
         }
         .add(")")
+        .build()
+}
+
+fun KSAnnotation.toTypeUseAnnotationSpec(): AnnotationSpec {
+    val resolvedAnnotationType = annotationType.resolve()
+    val annotationDeclaration = resolvedAnnotationType.declaration as? KSClassDeclaration
+        ?: error("Annotation type is not a class declaration: $resolvedAnnotationType")
+    val parameterTypes = annotationDeclaration
+        .primaryConstructor
+        ?.parameters
+        ?.associate { parameter -> parameter.name?.asString() to parameter.type.resolve() }
+        .orEmpty()
+
+    return AnnotationSpec.builder(annotationDeclaration.toClassName())
+        .apply {
+            arguments.forEach { argument ->
+                val name = argument.name?.asString()
+                val value = argument.value.toAnnotationValueCode(parameterTypes[name])
+                if (name == null) {
+                    addMember("%L", value)
+                } else {
+                    addMember("%N = %L", name, value)
+                }
+            }
+        }
         .build()
 }
 
@@ -135,17 +164,18 @@ private fun KSClassDeclaration.createSerializerInstanceCode(): CodeBlock {
     }
 }
 
-private fun Any?.toAnnotationValueCode(): CodeBlock {
+private fun Any?.toAnnotationValueCode(expectedType: KSType? = null): CodeBlock {
     return when (this) {
         is String -> CodeBlock.of("%S", this)
-        is Char -> CodeBlock.of("%S.single()", toString())
+        is Char -> toCharacterLiteralCode()
         is Boolean,
         is Byte,
         is Short,
-        is Int,
-        is Long,
-        is Float,
-        is Double -> CodeBlock.of("%L", this)
+        is Int -> CodeBlock.of("%L", this)
+
+        is Long -> CodeBlock.of("%LL", this)
+        is Float -> toFloatLiteralCode()
+        is Double -> toDoubleLiteralCode()
 
         is KSType -> CodeBlock.of("%T::class", toTypeName())
         is KSAnnotation -> toConstructorCode()
@@ -157,20 +187,77 @@ private fun Any?.toAnnotationValueCode(): CodeBlock {
             CodeBlock.of("%T.%N", parent.toClassName(), simpleName.asString())
         }
 
-        is Array<*> -> toArrayCode()
+        is Array<*> -> toArrayCode(expectedType)
+        is List<*> -> toArrayCode(expectedType)
+        is KSName -> toQualifiedNameCode()
 
         null -> error("Annotation values cannot be null")
         else -> error("Unsupported annotation argument value: $this (${this::class})")
     }
 }
 
-private fun Array<*>.toArrayCode(): CodeBlock {
-    if (isEmpty()) {
-        return CodeBlock.of("%M()", MemberNames.emptyArray)
+private fun Char.toCharacterLiteralCode(): CodeBlock {
+    val literal = when (this) {
+        '\b' -> "'\\b'"
+        '\t' -> "'\\t'"
+        '\n' -> "'\\n'"
+        '\u000C' -> "'\\f'"
+        '\r' -> "'\\r'"
+        '\'' -> "'\\\''"
+        '\\' -> "'\\\\'"
+        else -> if (isISOControl() || isSurrogate()) {
+            "'\\u${code.toString(16).padStart(4, '0')}'"
+        } else {
+            "'$this'"
+        }
     }
+    return CodeBlock.of("%L", literal)
+}
+
+private fun Float.toFloatLiteralCode(): CodeBlock = when {
+    isNaN() -> CodeBlock.of("%T.NaN", Float::class)
+    this == Float.POSITIVE_INFINITY -> CodeBlock.of("%T.POSITIVE_INFINITY", Float::class)
+    this == Float.NEGATIVE_INFINITY -> CodeBlock.of("%T.NEGATIVE_INFINITY", Float::class)
+    else -> CodeBlock.of("%Lf", this)
+}
+
+private fun Double.toDoubleLiteralCode(): CodeBlock = when {
+    isNaN() -> CodeBlock.of("%T.NaN", Double::class)
+    this == Double.POSITIVE_INFINITY -> CodeBlock.of("%T.POSITIVE_INFINITY", Double::class)
+    this == Double.NEGATIVE_INFINITY -> CodeBlock.of("%T.NEGATIVE_INFINITY", Double::class)
+    else -> CodeBlock.of("%L", this)
+}
+
+private fun KSName.toQualifiedNameCode(): CodeBlock {
+    val parts = asString().split('.')
+    return CodeBlock.builder().apply {
+        parts.forEachIndexed { index, part ->
+            if (index > 0) add(".")
+            add("%N", part)
+        }
+    }.build()
+}
+
+private fun Array<*>.toArrayCode(expectedType: KSType?): CodeBlock {
+    return asList().toArrayCode(expectedType)
+}
+
+private fun List<*>.toArrayCode(expectedType: KSType?): CodeBlock {
+    val factoryName = when (expectedType?.declaration?.qualifiedName?.asString()) {
+        "kotlin.BooleanArray" -> "booleanArrayOf"
+        "kotlin.ByteArray" -> "byteArrayOf"
+        "kotlin.CharArray" -> "charArrayOf"
+        "kotlin.DoubleArray" -> "doubleArrayOf"
+        "kotlin.FloatArray" -> "floatArrayOf"
+        "kotlin.IntArray" -> "intArrayOf"
+        "kotlin.LongArray" -> "longArrayOf"
+        "kotlin.ShortArray" -> "shortArrayOf"
+        else -> "arrayOf"
+    }
+    val factory = MemberName("kotlin", factoryName)
 
     return CodeBlock.builder()
-        .add("%M(", MemberNames.arrayOf)
+        .add("%M(", factory)
         .apply {
             this@toArrayCode.forEachIndexed { index, value ->
                 if (index > 0) add(", ")

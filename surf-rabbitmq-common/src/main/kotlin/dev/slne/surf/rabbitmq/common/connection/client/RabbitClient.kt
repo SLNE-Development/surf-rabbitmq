@@ -4,11 +4,13 @@ import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.ConnectionFactory
 import com.rabbitmq.client.RecoveryDelayHandler
 import dev.slne.surf.api.core.util.logger
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitConnectionClosedException
 import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionProvider
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitConsumer
 import dev.slne.surf.rabbitmq.common.connection.publisher.RabbitPublisherOptions
 import dev.slne.surf.rabbitmq.common.connection.publisher.RabbitPublisherPool
+import dev.slne.surf.rabbitmq.common.util.rethrowIfFatal
 import io.netty.channel.Channel
 import io.netty.channel.IoHandlerFactory
 import io.netty.channel.MultiThreadIoEventLoopGroup
@@ -25,9 +27,9 @@ import io.netty.channel.uring.IoUringIoHandler
 import io.netty.channel.uring.IoUringSocketChannel
 import org.jetbrains.annotations.Blocking
 import java.lang.AutoCloseable
-import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.*
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.seconds
 
 class RabbitClient private constructor(
@@ -81,6 +83,8 @@ class RabbitClient private constructor(
         private val sharedEventLoopGroup: MultiThreadIoEventLoopGroup
         private val sharedConsumerExecutor: ExecutorService
         private val activeClients = ConcurrentHashMap<RabbitClient, ActiveClientInfo>()
+        private val sharedLifecycleLock = Any()
+        private val sharedResourcesClosed = AtomicBoolean()
 
         init {
 
@@ -89,6 +93,7 @@ class RabbitClient private constructor(
 
             val nettyThreadFactory = Thread.ofPlatform()
                 .name("rabbitmq-netty-thread-", 0)
+                .daemon()
                 .uncaughtExceptionHandler { thread, throwable ->
                     log.atSevere()
                         .withCause(throwable)
@@ -101,8 +106,12 @@ class RabbitClient private constructor(
                 .factory()
 
             sharedEventLoopGroup = MultiThreadIoEventLoopGroup(8, nettyThreadFactory, transport.ioHandlerFactory)
-            sharedConsumerExecutor = Executors.newFixedThreadPool(
+            sharedConsumerExecutor = ThreadPoolExecutor(
                 16,
+                16,
+                0L,
+                TimeUnit.MILLISECONDS,
+                ArrayBlockingQueue(4_096),
                 Thread.ofPlatform()
                     .name("rabbitmq-consumer-thread-", 0)
                     .uncaughtExceptionHandler { thread, throwable ->
@@ -115,7 +124,8 @@ class RabbitClient private constructor(
                             )
                     }
                     .daemon()
-                    .factory()
+                    .factory(),
+                ThreadPoolExecutor.CallerRunsPolicy()
             )
         }
 
@@ -124,6 +134,9 @@ class RabbitClient private constructor(
             connectionName: String,
             publisherOptions: RabbitPublisherOptions = RabbitPublisherOptions()
         ): RabbitClient {
+            val timeoutSeconds = config.getTimeout()
+            require(timeoutSeconds > 0) { "RabbitMQ connection timeout must be greater than 0" }
+
             val connectionFactory = ConnectionFactory().apply {
                 host = config.getHost()
                 port = config.getPort()
@@ -136,7 +149,9 @@ class RabbitClient private constructor(
                 recoveryDelayHandler = RecoveryDelayHandler.ExponentialBackoffDelayHandler()
 
                 requestedHeartbeat = 60
-                connectionTimeout = config.getTimeout().seconds.inWholeMilliseconds.toInt()
+                connectionTimeout = timeoutSeconds.seconds.inWholeMilliseconds
+                    .coerceAtMost(Int.MAX_VALUE.toLong())
+                    .toInt()
 
                 setSharedExecutor(sharedConsumerExecutor)
                 netty().eventLoopGroup(sharedEventLoopGroup)
@@ -145,38 +160,47 @@ class RabbitClient private constructor(
                 }
             }
 
-            val connectionProvider = RabbitConnectionProvider(
-                factory = connectionFactory,
-                connectionName = connectionName
-            )
+            synchronized(sharedLifecycleLock) {
+                if (sharedResourcesClosed.get()) {
+                    throw SurfRabbitConnectionClosedException("create RabbitMQ client after shared-resource shutdown")
+                }
 
-            val publisherPool = RabbitPublisherPool(
-                connectionProvider = connectionProvider,
-                size = config.getPublisherPoolSize(),
-                options = publisherOptions
-            )
+                val connectionProvider = RabbitConnectionProvider(
+                    factory = connectionFactory,
+                    connectionName = connectionName
+                )
 
-            val client = RabbitClient(
-                connectionProvider = connectionProvider,
-                publisherPool = publisherPool
-            )
+                val publisherPool = RabbitPublisherPool(
+                    connectionProvider = connectionProvider,
+                    size = config.getPublisherPoolSize(),
+                    options = publisherOptions
+                )
 
-            activeClients[client] = ActiveClientInfo(
-                connectionName = connectionName,
-                createdAtMillis = System.currentTimeMillis(),
-                creationThread = Thread.currentThread().name,
-                creationStackTrace = Throwable().stackTrace
-                    .drop(1)
-                    .take(12)
-                    .map { it.toString() }
-            )
+                val client = RabbitClient(
+                    connectionProvider = connectionProvider,
+                    publisherPool = publisherPool
+                )
 
-            return client
+                activeClients[client] = ActiveClientInfo(
+                    connectionName = connectionName,
+                    createdAtMillis = System.currentTimeMillis(),
+                    creationThread = Thread.currentThread().name,
+                    creationStackTrace = Throwable().stackTrace
+                        .drop(1)
+                        .take(12)
+                        .map { it.toString() }
+                )
+
+                return client
+            }
         }
 
         @Blocking
         fun closeSharedResources() {
-            val stillActive = activeClients.values.toList()
+            val stillActive = synchronized(sharedLifecycleLock) {
+                if (!sharedResourcesClosed.compareAndSet(false, true)) return
+                activeClients.entries.map { it.key to it.value }
+            }
 
             if (stillActive.isNotEmpty()) {
                 log.atWarning()
@@ -184,19 +208,10 @@ class RabbitClient private constructor(
                         "RabbitMQ shared resources are being shut down while %s RabbitClient(s) are still active. " +
                                 "These plugins probably did not call RabbitMQApi.disconnect(): %s",
                         stillActive.size,
-                        stillActive.joinToString { it.connectionName }
+                        stillActive.joinToString { it.second.connectionName }
                     )
 
-                log.atWarning()
-                    .log(
-                        "Any RabbitMQ connection recovery errors that appear after this message are expected follow-up " +
-                                "errors caused by shutting down shared RabbitMQ resources while RabbitMQ clients are " +
-                                "still active. Fix the plugins listed above by calling RabbitMQApi.disconnect() during shutdown."
-                    )
-
-                Thread.sleep(Duration.ofSeconds(10))
-
-                stillActive.forEach { info ->
+                stillActive.forEach { (client, info) ->
                     log.atWarning()
                         .log(
                             """
@@ -208,14 +223,44 @@ class RabbitClient private constructor(
                                 ${info.creationStackTrace.joinToString(separator = "\n") { "    at $it" }}
                                 """.trimIndent()
                         )
+
+                    try {
+                        client.close()
+                    } catch (throwable: Throwable) {
+                        throwable.rethrowIfFatal()
+                        log.atSevere()
+                            .withCause(throwable)
+                            .log("Failed to close leaked RabbitClient '${info.connectionName}'")
+                    }
                 }
             }
 
             sharedConsumerExecutor.shutdown()
-            if (!sharedConsumerExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
-                sharedConsumerExecutor.shutdownNow()
+            var interrupted = false
+            val terminatedGracefully = try {
+                sharedConsumerExecutor.awaitTermination(10, TimeUnit.SECONDS)
+            } catch (_: InterruptedException) {
+                interrupted = true
+                false
             }
-            sharedEventLoopGroup.shutdownGracefully().syncUninterruptibly()
+            if (!terminatedGracefully) {
+                sharedConsumerExecutor.shutdownNow()
+                val terminatedAfterInterrupt = try {
+                    sharedConsumerExecutor.awaitTermination(10, TimeUnit.SECONDS)
+                } catch (_: InterruptedException) {
+                    interrupted = true
+                    false
+                }
+                if (!terminatedAfterInterrupt) {
+                    log.atWarning().log("RabbitMQ consumer executor did not terminate after forced shutdown")
+                }
+            }
+
+            val shutdownFuture = sharedEventLoopGroup.shutdownGracefully(0, 10, TimeUnit.SECONDS)
+            if (!shutdownFuture.awaitUninterruptibly(15, TimeUnit.SECONDS)) {
+                log.atWarning().log("RabbitMQ Netty event loop did not terminate within 15 seconds")
+            }
+            if (interrupted) Thread.currentThread().interrupt()
         }
     }
 
@@ -226,6 +271,7 @@ class RabbitClient private constructor(
         properties: AMQP.BasicProperties? = null,
         mandatory: Boolean = false
     ) {
+        if (closed.get()) throw SurfRabbitConnectionClosedException("publish")
         publisherPool.publish(
             exchange = exchange,
             routingKey = routingKey,
@@ -236,32 +282,58 @@ class RabbitClient private constructor(
     }
 
     fun newConsumer(name: String): RabbitConsumer {
+        if (closed.get()) throw SurfRabbitConnectionClosedException("create consumer")
         val consumer = RabbitConsumer(
             connectionProvider = connectionProvider,
             name = name
         )
         consumers.add(consumer)
 
+        if (closed.get()) {
+            consumers.remove(consumer)
+            consumer.close()
+            throw SurfRabbitConnectionClosedException("create consumer")
+        }
+
         return consumer
     }
 
+    internal fun discardConsumer(consumer: RabbitConsumer) {
+        consumers.remove(consumer)
+    }
+
     override fun close() {
-        try {
-            consumers.forEach { consumer ->
-                runCatching {
-                    consumer.close()
+        if (!closed.compareAndSet(false, true)) return
+
+        var failure: Throwable? = null
+        fun closeResource(block: () -> Unit) {
+            try {
+                block()
+            } catch (throwable: Throwable) {
+                throwable.rethrowIfFatal()
+                val previous = failure
+                if (previous == null) {
+                    failure = throwable
+                } else {
+                    previous.addSuppressed(throwable)
                 }
             }
+        }
 
-            runCatching {
-                publisherPool.close()
+        try {
+            consumers.forEach { consumer ->
+                closeResource(consumer::close)
             }
+            consumers.clear()
 
-            runCatching {
-                connectionProvider.close()
-            }
+            closeResource(publisherPool::close)
+            closeResource(connectionProvider::close)
         } finally {
             activeClients.remove(this)
         }
+
+        failure?.let { throw it }
     }
+
+    private val closed = AtomicBoolean()
 }

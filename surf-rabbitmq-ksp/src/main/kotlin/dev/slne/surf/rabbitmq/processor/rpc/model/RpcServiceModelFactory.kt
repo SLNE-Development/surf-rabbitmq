@@ -52,8 +52,10 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
         val classTypeParameterResolver = declaration.typeParameters.toTypeParameterResolver()
         val seenFunctionNames = mutableSetOf<String>()
         val functions = mutableListOf<RpcFunctionModel>()
+        var valid = true
 
         for (property in declaration.getAllProperties()) {
+            valid = false
             logger.error(
                 "Cannot generate descriptor for property ${property.simpleName.asString()}: properties are not allowed",
                 property,
@@ -65,6 +67,7 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
 
             val functionName = function.simpleName.asString()
             if (!seenFunctionNames.add(functionName)) {
+                valid = false
                 logger.error(
                     "A function with the name '$functionName' is already defined in $simpleName",
                     function,
@@ -73,6 +76,7 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
             }
 
             if (!function.modifiers.contains(Modifier.SUSPEND)) {
+                valid = false
                 logger.error(
                     "Cannot generate descriptor for function $functionName: must be suspend",
                     function,
@@ -81,6 +85,7 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
             }
 
             if (function.typeParameters.isNotEmpty()) {
+                valid = false
                 logger.error(
                     "Cannot generate descriptor for function $functionName: type parameters are not allowed",
                     function,
@@ -90,9 +95,36 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
 
             val returnType = function.returnType
             if (returnType == null) {
+                valid = false
                 logger.error(
                     "Cannot generate descriptor for function $functionName: no return type",
                     function,
+                )
+                continue
+            }
+
+            if (function.extensionReceiver != null) {
+                valid = false
+                logger.error(
+                    "Cannot generate descriptor for function $functionName: extension functions are not supported",
+                    function,
+                )
+                continue
+            }
+
+            val invalidParameter = function.parameters.firstOrNull { parameter ->
+                parameter.name == null || parameter.isVararg
+            }
+            if (invalidParameter != null) {
+                valid = false
+                val reason = if (invalidParameter.name == null) {
+                    "parameter names must be available"
+                } else {
+                    "vararg parameters are not supported"
+                }
+                logger.error(
+                    "Cannot generate descriptor for function $functionName: $reason",
+                    invalidParameter,
                 )
                 continue
             }
@@ -107,6 +139,8 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
                 typeParameterResolver = function.typeParameters.toTypeParameterResolver(classTypeParameterResolver),
             )
         }
+
+        if (!valid) return null
 
         return RpcServiceModel(
             declaration = declaration,

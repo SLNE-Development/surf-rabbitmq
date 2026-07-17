@@ -23,4 +23,6 @@ object RabbitMqTestRpcServerImpl: RabbitMqTestRpcService {
     ) String {
         return "Hello, $parameter!"
     }
+
+    override suspend fun annotatedValue(): String = "annotated"
 }

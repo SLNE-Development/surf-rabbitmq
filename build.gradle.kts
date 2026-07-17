@@ -3,6 +3,9 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmExtension
 import org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -26,9 +29,11 @@ subprojects {
     if (name.contains("surf-rabbitmq-test")) return@subprojects
 
     afterEvaluate {
-        extensions.findByType<KotlinJvmExtension>()?.apply {
-            compilerOptions {
-                optIn.add("dev.slne.surf.rabbitmq.api.InternalRabbitMQ")
+        if (name != "surf-rabbitmq-ksp") {
+            extensions.findByType<KotlinJvmExtension>()?.apply {
+                compilerOptions {
+                    optIn.add("dev.slne.surf.rabbitmq.api.InternalRabbitMQ")
+                }
             }
         }
 
@@ -55,49 +60,64 @@ subprojects {
                 if (!jar.exists()) return@doLast
 
                 val tmpJar = File(jar.parentFile, "${jar.name}.tmp")
+                Files.deleteIfExists(tmpJar.toPath())
 
-                ZipFile(jar).use { zipIn ->
-                    ZipOutputStream(tmpJar.outputStream()).use { zipOut ->
-                        for (entry in zipIn.entries()) {
-                            val name = entry.name
+                try {
+                    ZipFile(jar).use { zipIn ->
+                        ZipOutputStream(tmpJar.outputStream()).use { zipOut ->
+                            for (entry in zipIn.entries()) {
+                                val name = entry.name
 
-                            val newName = if (
-                                name.startsWith("META-INF/native/") &&
-                                name != "META-INF/native/" &&
-                                name.contains("netty_")
-                            ) {
-                                val fileName = name.substringAfter("META-INF/native/")
-                                val nettyIndex = fileName.indexOf("netty_")
-                                if (nettyIndex >= 0) {
-                                    val before = fileName.substring(0, nettyIndex)
-                                    val after = fileName.substring(nettyIndex)
-                                    "META-INF/native/$before$mangledPrefix$after"
+                                val newName = if (
+                                    name.startsWith("META-INF/native/") &&
+                                    name != "META-INF/native/" &&
+                                    name.contains("netty_")
+                                ) {
+                                    val fileName = name.substringAfter("META-INF/native/")
+                                    val nettyIndex = fileName.indexOf("netty_")
+                                    if (nettyIndex >= 0) {
+                                        val before = fileName.substring(0, nettyIndex)
+                                        val after = fileName.substring(nettyIndex)
+                                        "META-INF/native/$before$mangledPrefix$after"
+                                    } else {
+                                        name
+                                    }
                                 } else {
                                     name
                                 }
-                            } else {
-                                name
-                            }
 
-                            val newEntry = ZipEntry(newName)
-                            newEntry.time = entry.time
-                            if (entry.method == ZipEntry.STORED) {
-                                newEntry.method = ZipEntry.STORED
-                                newEntry.size = entry.size
-                                newEntry.crc = entry.crc
-                                newEntry.compressedSize = entry.compressedSize
+                                val newEntry = ZipEntry(newName)
+                                newEntry.time = entry.time
+                                newEntry.comment = entry.comment
+                                newEntry.extra = entry.extra
+                                if (entry.method == ZipEntry.STORED) {
+                                    newEntry.method = ZipEntry.STORED
+                                    newEntry.size = entry.size
+                                    newEntry.crc = entry.crc
+                                    newEntry.compressedSize = entry.compressedSize
+                                }
+                                zipOut.putNextEntry(newEntry)
+                                zipIn.getInputStream(entry).use { input ->
+                                    input.copyTo(zipOut)
+                                }
+                                zipOut.closeEntry()
                             }
-                            zipOut.putNextEntry(newEntry)
-                            zipIn.getInputStream(entry).use { input ->
-                                input.copyTo(zipOut)
-                            }
-                            zipOut.closeEntry()
                         }
                     }
-                }
 
-                jar.delete()
-                tmpJar.renameTo(jar)
+                    try {
+                        Files.move(
+                            tmpJar.toPath(),
+                            jar.toPath(),
+                            StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.REPLACE_EXISTING
+                        )
+                    } catch (_: AtomicMoveNotSupportedException) {
+                        Files.move(tmpJar.toPath(), jar.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                    }
+                } finally {
+                    Files.deleteIfExists(tmpJar.toPath())
+                }
             }
         }
     }

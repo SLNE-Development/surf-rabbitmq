@@ -4,7 +4,6 @@ import com.google.devtools.ksp.symbol.KSTypeReference
 import com.squareup.kotlinpoet.CodeBlock
 import com.squareup.kotlinpoet.TypeName
 import com.squareup.kotlinpoet.ksp.TypeParameterResolver
-import com.squareup.kotlinpoet.ksp.toAnnotationSpec
 import com.squareup.kotlinpoet.ksp.toTypeName
 import com.squareup.kotlinpoet.withIndent
 import dev.slne.surf.rabbitmq.processor.ClassNames
@@ -39,7 +38,7 @@ private fun KSTypeReference.toAnnotatedTypeName(
     typeParameterResolver: TypeParameterResolver,
 ): TypeName {
     val baseType = toTypeName(typeParameterResolver)
-    val typeUseAnnotations = annotations.map { it.toAnnotationSpec() }.toList()
+    val typeUseAnnotations = annotations.map { it.toTypeUseAnnotationSpec() }.toList()
 
     if (typeUseAnnotations.isEmpty()) {
         return baseType

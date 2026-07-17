@@ -2,8 +2,9 @@ package dev.slne.surf.rabbitmq.common.connection.consumer
 
 import com.rabbitmq.client.Channel
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * @see Channel.basicAck
@@ -16,45 +17,49 @@ class RabbitAck(
     private val deliveryTag: Long,
     private val enabled: Boolean
 ) {
-    private val settled = AtomicBoolean(false)
+    private val settlementMutex = Mutex()
+    private var settled = false
 
     suspend fun ack() {
         if (!enabled) return
 
-        if (settled.compareAndSet(false, true)) {
-            withContext(channelDispatcher) {
-                channel.basicAck(deliveryTag, false)
-            }
+        settle {
+            channel.basicAck(deliveryTag, false)
         }
     }
 
     suspend fun nack(requeue: Boolean = true) {
         if (!enabled) return
 
-        if (settled.compareAndSet(false, true)) {
-            withContext(channelDispatcher) {
-                channel.basicNack(deliveryTag, false, requeue)
-            }
+        settle {
+            channel.basicNack(deliveryTag, false, requeue)
         }
     }
 
     suspend fun reject(requeue: Boolean = true) {
         if (!enabled) return
 
-        if (settled.compareAndSet(false, true)) {
-            withContext(channelDispatcher) {
-                channel.basicReject(deliveryTag, requeue)
-            }
+        settle {
+            channel.basicReject(deliveryTag, requeue)
         }
     }
 
     suspend fun nackIfUnsettled(requeue: Boolean) {
         if (!enabled) return
 
-        if (settled.compareAndSet(false, true)) {
+        settle {
+            channel.basicNack(deliveryTag, false, requeue)
+        }
+    }
+
+    private suspend inline fun settle(crossinline operation: () -> Unit) {
+        settlementMutex.withLock {
+            if (settled) return
+
             withContext(channelDispatcher) {
-                channel.basicNack(deliveryTag, false, requeue)
+                operation()
             }
+            settled = true
         }
     }
 }
