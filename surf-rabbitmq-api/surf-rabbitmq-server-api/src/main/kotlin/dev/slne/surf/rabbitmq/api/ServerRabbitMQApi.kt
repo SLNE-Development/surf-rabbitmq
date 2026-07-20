@@ -4,6 +4,7 @@ import dev.slne.surf.rabbitmq.api.connection.ServerRabbitMQConnection
 import dev.slne.surf.rabbitmq.api.internal.StandaloneLifecycleHook
 import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.api.internal.config.GlobalRabbitMQConfig
+import dev.slne.surf.rabbitmq.api.internal.config.resolveRabbitMQConfig
 import dev.slne.surf.rabbitmq.api.rpc.ServerRabbitRpcService
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
@@ -154,7 +155,7 @@ class ServerRabbitMQApi @InternalRabbitMQ constructor(
         ): ServerRabbitMQApi {
             StandaloneLifecycleHook.onInit(path)
 
-            val config = GlobalRabbitMQConfig.getOrLoad(path, "rabbitmq.yml")
+            val config = resolveRabbitMQConfig(GlobalRabbitMQConfig.getOrLoad(path, "rabbitmq.yml"))
             val cbor = createCbor(serializer)
 
             return ServerRabbitMQApi(config, pluginName, cbor)
