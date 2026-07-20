@@ -165,6 +165,15 @@ data class PluginRabbitMQConfig(
         return outgoingResponseChunkingEnabled or GlobalRabbitMQConfig.getConfig().isOutgoingResponseChunkingEnabled()
     }
 
+    override fun toString(): String {
+        return "PluginRabbitMQConfig(host=$host, port=$port, username=$username, password=<redacted>, " +
+                "vhost=$vhost, timeout=$timeout, requestTimeoutSeconds=$requestTimeoutSeconds, " +
+                "publisherPoolSize=$publisherPoolSize, serverPrefetchCount=$serverPrefetchCount, " +
+                "persistRequests=$persistRequests, persistResponses=$persistResponses, " +
+                "outgoingRequestChunkingEnabled=$outgoingRequestChunkingEnabled, " +
+                "outgoingResponseChunkingEnabled=$outgoingResponseChunkingEnabled)"
+    }
+
     @InternalRabbitMQ
     companion object {
         fun create(path: Path): PluginRabbitMQConfig {

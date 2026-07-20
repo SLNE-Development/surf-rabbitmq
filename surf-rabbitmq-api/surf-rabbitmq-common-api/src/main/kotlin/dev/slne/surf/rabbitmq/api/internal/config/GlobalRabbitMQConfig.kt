@@ -9,7 +9,6 @@ import dev.slne.surf.api.core.config.surfConfigApi
 import dev.slne.surf.api.core.config.type.BooleanOrDefault
 import dev.slne.surf.api.core.config.type.number.IntOr
 import dev.slne.surf.rabbitmq.api.InternalRabbitMQ
-import org.apache.commons.lang3.BooleanUtils
 import org.spongepowered.configurate.objectmapping.ConfigSerializable
 import org.spongepowered.configurate.objectmapping.meta.Comment
 import java.nio.file.Path
@@ -150,27 +149,30 @@ data class GlobalRabbitMQConfig(
     override fun isPersistResponses(): Boolean = persistResponses or false
 
     override fun isOutgoingRequestChunkingEnabled(): Boolean {
-        return outgoingRequestChunkingEnabled or systemOutgoingRequestChunkingEnabled
+        return outgoingRequestChunkingEnabled or systemBoolean(
+            name = "surf.rabbitmq.outgoingRequestChunkingEnabled",
+            default = false,
+        )
     }
 
     override fun isOutgoingResponseChunkingEnabled(): Boolean {
-        return outgoingResponseChunkingEnabled or systemOutgoingResponseChunkingEnabled
+        return outgoingResponseChunkingEnabled or systemBoolean(
+            name = "surf.rabbitmq.outgoingResponseChunkingEnabled",
+            default = true,
+        )
+    }
+
+    override fun toString(): String {
+        return "GlobalRabbitMQConfig(host=$host, port=$port, username=$username, password=<redacted>, " +
+                "vhost=$vhost, timeout=$timeout, requestTimeoutSeconds=$requestTimeoutSeconds, " +
+                "publisherPoolSize=$publisherPoolSize, serverPrefetchCount=$serverPrefetchCount, " +
+                "persistRequests=$persistRequests, persistResponses=$persistResponses, " +
+                "outgoingRequestChunkingEnabled=$outgoingRequestChunkingEnabled, " +
+                "outgoingResponseChunkingEnabled=$outgoingResponseChunkingEnabled)"
     }
 
     @InternalRabbitMQ
     companion object {
-        private val systemOutgoingResponseChunkingEnabled = BooleanUtils.toBoolean(
-            System.getProperty("surf.rabbitmq.outgoingResponseChunkingEnabled", "true"),
-            "true",
-            "false"
-        )
-
-        private val systemOutgoingRequestChunkingEnabled = BooleanUtils.toBoolean(
-            System.getProperty("surf.rabbitmq.outgoingRequestChunkingEnabled", "false"),
-            "true",
-            "false"
-        )
-
         @Volatile
         private var config: GlobalRabbitMQConfig? = null
 
@@ -198,6 +200,17 @@ data class GlobalRabbitMQConfig(
 
         fun getConfig(): GlobalRabbitMQConfig {
             return config ?: error("RabbitMQ config not initialized.")
+        }
+
+        private fun systemBoolean(name: String, default: Boolean): Boolean {
+            val rawValue = System.getProperty(name) ?: return default
+            return when {
+                rawValue.equals("true", ignoreCase = true) -> true
+                rawValue.equals("false", ignoreCase = true) -> false
+                else -> throw IllegalArgumentException(
+                    "System property $name must be either 'true' or 'false'."
+                )
+            }
         }
     }
 }
