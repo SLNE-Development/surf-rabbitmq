@@ -8,12 +8,14 @@ import com.rabbitmq.client.RecoverableConnection
 class RabbitConnectionProvider(
     private val factory: ConnectionFactory,
     val connectionName: String
-): AutoCloseable {
+) : AutoCloseable {
 
     private val lock = Any()
 
     @Volatile
     private var connection: RecoverableConnection? = null
+
+    val isOpen: Boolean get() = connection?.isOpen == true
 
     fun connection(): RecoverableConnection {
         val connection = this.connection

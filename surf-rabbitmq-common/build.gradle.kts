@@ -8,6 +8,8 @@ dependencies {
     api(projects.surfRabbitmqApi.surfRabbitmqCommonApi)
     api(libs.amqp.client)
 
+    compileOnly(libs.surf.microservice)
+
     api(platform(libs.netty.bom))
 
     // transport classes

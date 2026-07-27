@@ -83,7 +83,6 @@ class RabbitClient private constructor(
         private val activeClients = ConcurrentHashMap<RabbitClient, ActiveClientInfo>()
 
         init {
-
             log.atInfo()
                 .log("Using ${transport.name} for RabbitMQ client")
 
@@ -172,6 +171,17 @@ class RabbitClient private constructor(
             )
 
             return client
+        }
+
+        fun healthSnapshot(): List<RabbitClientHealthSnapshot> {
+            return activeClients.entries
+                .map { (client, info) ->
+                    RabbitClientHealthSnapshot(
+                        connectionName = info.connectionName,
+                        connected = client.connectionProvider.isOpen
+                    )
+                }
+                .sortedBy(RabbitClientHealthSnapshot::connectionName)
         }
 
         @Blocking
