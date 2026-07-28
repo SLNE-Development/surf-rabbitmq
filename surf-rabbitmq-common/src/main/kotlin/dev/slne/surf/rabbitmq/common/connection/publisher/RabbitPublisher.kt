@@ -4,10 +4,7 @@ import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.Channel
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitPublishException
 import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionProvider
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import java.lang.AutoCloseable
 import java.util.concurrent.Executors
 import kotlin.coroutines.cancellation.CancellationException
@@ -37,15 +34,15 @@ class RabbitPublisher(
         routingKey: String = "",
         properties: AMQP.BasicProperties? = null,
         mandatory: Boolean = false,
+        expectedConnectionGeneration: Long? = null
     ) {
-        val attempts = options.maxAttempts.coerceAtLeast(1)
+        val completed = withTimeoutOrNull(options.operationTimeout) {
+            connectionProvider.awaitOpen(expectedConnectionGeneration)
 
-        var lastError: Throwable? = null
+            val channel = obtainChannel(expectedConnectionGeneration)
 
-        repeat(attempts) { attempt ->
-            try {
-                withContext(dispatcher) {
-                    val channel = getChannel()
+            withContext(dispatcher) {
+                try {
                     channel.basicPublish(
                         exchange,
                         routingKey,
@@ -55,47 +52,67 @@ class RabbitPublisher(
                     )
 
                     if (options.confirmPublishes) {
-                        channel.waitForConfirmsOrDie(options.confirmTimeoutMillis)
+                        channel.waitForConfirmsOrDie(options.confirmTimeout.inWholeMilliseconds)
                     }
+                } catch (cause: Throwable) {
+                    resetChannel()
+                    throw cause
+                }
+            }
+
+            true
+        }
+
+        if (completed != true) {
+            throw SurfRabbitPublishException("RabbitMQ publish timed out after ${options.operationTimeout}")
+        }
+    }
+
+    private suspend fun obtainChannel(expectedGeneration: Long?): Channel {
+        var lastFailure: Throwable? = null
+
+        repeat(options.channelOpenAttempts.coerceAtLeast(1)) { attempt ->
+            try {
+                connectionProvider.awaitOpen(expectedGeneration)
+
+                return withContext(dispatcher) {
+                    getChannel(expectedGeneration)
+                }
+            } catch (cause: Throwable) {
+                if (cause is CancellationException) {
+                    throw cause
                 }
 
-                return
-            } catch (e: Throwable) {
-                if (e is CancellationException) {
-                    throw e
-                }
-
-                lastError = e
+                lastFailure = cause
 
                 withContext(dispatcher) {
                     resetChannel()
                 }
 
-                val hasNextAttempt = attempt < attempts - 1
-                if (hasNextAttempt) {
-                    delay(options.retryDelayMillis)
+                if (attempt < options.channelOpenAttempts - 1) {
+                    delay(options.channelRetryDelay)
                 }
             }
         }
 
-        throw SurfRabbitPublishException(attempts, lastError)
+        throw SurfRabbitPublishException("Could not open a RabbitMQ publisher channel", lastFailure)
     }
 
-    private fun getChannel(): Channel {
-        val existing = this.channel
+    private fun getChannel(expectedGeneration: Long?): Channel {
+        val existing = channel
         if (existing != null && existing.isOpen) {
             return existing
         }
 
-        val newChannel = connectionProvider.createChannel()
+        return connectionProvider
+            .createChannel(expectedGeneration)
+            .also { created ->
+                if (options.confirmPublishes) {
+                    created.confirmSelect()
+                }
 
-        if (options.confirmPublishes) {
-            newChannel.confirmSelect()
-        }
-
-        this.channel = newChannel
-
-        return newChannel
+                channel = created
+            }
     }
 
     private fun resetChannel() {

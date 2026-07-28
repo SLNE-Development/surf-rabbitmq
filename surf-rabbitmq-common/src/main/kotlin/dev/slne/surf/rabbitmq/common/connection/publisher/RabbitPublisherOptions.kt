@@ -1,8 +1,13 @@
 package dev.slne.surf.rabbitmq.common.connection.publisher
 
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+
 data class RabbitPublisherOptions(
     val confirmPublishes: Boolean = true,
-    val confirmTimeoutMillis: Long = 5_000,
-    val maxAttempts: Int = 3,
-    val retryDelayMillis: Long = 250
+    val confirmTimeout: Duration = 5.seconds,
+    val operationTimeout: Duration = 15.seconds,
+    val channelOpenAttempts: Int = 3,
+    val channelRetryDelay: Duration = 250.milliseconds
 )

@@ -27,7 +27,8 @@ class RabbitPublisherPool(
         body: ByteArray,
         routingKey: String = "",
         properties: AMQP.BasicProperties? = null,
-        mandatory: Boolean = false
+        mandatory: Boolean = false,
+        expectedConnectionGeneration: Long? = null
     ) {
         selectPublisher().publish(exchange, body, routingKey, properties, mandatory)
     }
