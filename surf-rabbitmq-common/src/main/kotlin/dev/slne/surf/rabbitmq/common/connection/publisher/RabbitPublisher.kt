@@ -42,6 +42,8 @@ class RabbitPublisher(
             val channel = obtainChannel(expectedConnectionGeneration)
 
             withContext(dispatcher) {
+                connectionProvider.requireGeneration(expectedConnectionGeneration)
+
                 try {
                     channel.basicPublish(
                         exchange,

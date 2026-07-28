@@ -30,7 +30,7 @@ class RabbitPublisherPool(
         mandatory: Boolean = false,
         expectedConnectionGeneration: Long? = null
     ) {
-        selectPublisher().publish(exchange, body, routingKey, properties, mandatory)
+        selectPublisher().publish(exchange, body, routingKey, properties, mandatory, expectedConnectionGeneration)
     }
 
     private fun selectPublisher(): RabbitPublisher {

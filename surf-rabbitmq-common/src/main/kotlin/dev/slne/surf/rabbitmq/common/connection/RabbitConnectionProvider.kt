@@ -125,6 +125,22 @@ class RabbitConnectionProvider(
         return connection().createChannel() as RecoverableChannel // connection is recoverable so this is safe
     }
 
+    fun requireGeneration(expectedGeneration: Long?) {
+        if (expectedGeneration == null) {
+            return
+        }
+
+        val actualGeneration = state.value.generation
+
+        if (actualGeneration != expectedGeneration) {
+            throw RabbitConnectionGenerationChangedException(
+                connectionName = connectionName,
+                expectedGeneration = expectedGeneration,
+                actualGeneration = actualGeneration
+            )
+        }
+    }
+
     private fun installListeners(created: RecoverableConnection) {
         created.addShutdownListener { cause ->
             if (closed || cause.isInitiatedByApplication) {

@@ -84,6 +84,7 @@ class ClientRabbitMQConnectionImpl(
     private val correlationIdSequence = AtomicLong()
     private val correlationIdPrefix = "${api.pluginName}-${System.nanoTime()}"
 
+    private val callbackQueueName = AtomicReference<String?>(null)
     private val recoveredCallbackQueueName = AtomicReference<String?>(null)
     private val replyEndpoint = MutableStateFlow<ReplyEndpoint?>(null)
 
@@ -94,10 +95,13 @@ class ClientRabbitMQConnectionImpl(
 
         override fun onRecoveryStarted() {
             replyEndpoint.value = null
+            recoveredCallbackQueueName.set(null)
         }
 
         override fun onQueueRecovered(oldName: String, newName: String) {
-            recoveredCallbackQueueName.compareAndSet(oldName, newName)
+            if (callbackQueueName.compareAndSet(oldName, newName)) {
+                recoveredCallbackQueueName.set(newName)
+            }
         }
 
         override fun onRecoveryCompleted(generation: Long) {
@@ -124,7 +128,8 @@ class ClientRabbitMQConnectionImpl(
             autoDelete = true
         ).queue
 
-        recoveredCallbackQueueName.set(callbackQueueName)
+        this.callbackQueueName.set(callbackQueueName)
+        recoveredCallbackQueueName.set(null)
 
         startConsumingResponses(callbackQueueName)
 
@@ -157,6 +162,9 @@ class ClientRabbitMQConnectionImpl(
         mainConsumer.consume(
             queue = callbackQueueName,
             autoAck = false,
+            onCancelled = { consumerTag ->
+                markReplyConsumerUnavailable(SurfRabbitRequestException("RabbitMQ reply consumer '$consumerTag' was cancelled"))
+            }
         ) { _, message, ack ->
             val correlationId = message.properties.correlationId
             val body = message.body
