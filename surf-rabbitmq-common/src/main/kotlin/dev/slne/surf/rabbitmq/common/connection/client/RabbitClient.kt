@@ -5,7 +5,9 @@ import com.rabbitmq.client.ConnectionFactory
 import com.rabbitmq.client.RecoveryDelayHandler
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
+import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionListener
 import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionProvider
+import dev.slne.surf.rabbitmq.common.connection.RabbitQueueNames
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitConsumer
 import dev.slne.surf.rabbitmq.common.connection.publisher.RabbitPublisherOptions
 import dev.slne.surf.rabbitmq.common.connection.publisher.RabbitPublisherPool
@@ -35,6 +37,9 @@ class RabbitClient private constructor(
     private val publisherPool: RabbitPublisherPool
 ) : AutoCloseable {
     private val consumers = ConcurrentLinkedQueue<RabbitConsumer>()
+
+    val connectionGeneration: Long
+        get() = connectionProvider.generation
 
     companion object {
         private data class NettyTransport(
@@ -132,7 +137,41 @@ class RabbitClient private constructor(
 
                 isAutomaticRecoveryEnabled = true
                 isTopologyRecoveryEnabled = true
-                recoveryDelayHandler = RecoveryDelayHandler.ExponentialBackoffDelayHandler()
+
+                /**
+                 * Uses capped exponential backoff with jitter instead of a fixed exponential delay.
+                 *
+                 * The randomized delay prevents all clients from attempting to recover their
+                 * connections, channels, queues, and consumers within the same millisecond window,
+                 * reducing synchronized retry spikes and avoiding a thundering-herd effect.
+                 */
+                recoveryDelayHandler = RecoveryDelayHandler { attempts ->
+                    val exponent = attempts.coerceIn(0, 6)
+                    val maximum = minOf(
+                        30_000L,
+                        1_000L shl exponent
+                    )
+
+                    ThreadLocalRandom
+                        .current()
+                        .nextLong(
+                            maximum / 2,
+                            maximum + 1
+                        )
+                }
+
+                setRecoveredQueueNameSupplier { queue ->
+                    if (
+                        RabbitQueueNames.isCallbackQueue(
+                            connectionName = connectionName,
+                            queueName = queue.name
+                        )
+                    ) {
+                        RabbitQueueNames.newCallbackQueueName(connectionName)
+                    } else {
+                        queue.name
+                    }
+                }
 
                 requestedHeartbeat = 60
                 connectionTimeout = config.getTimeout().seconds.inWholeMilliseconds.toInt()
@@ -234,14 +273,16 @@ class RabbitClient private constructor(
         routingKey: String,
         body: ByteArray,
         properties: AMQP.BasicProperties? = null,
-        mandatory: Boolean = false
+        mandatory: Boolean = false,
+        expectedConnectionGeneration: Long? = null
     ) {
         publisherPool.publish(
             exchange = exchange,
             routingKey = routingKey,
             body = body,
             properties = properties,
-            mandatory = mandatory
+            mandatory = mandatory,
+            expectedConnectionGeneration = expectedConnectionGeneration
         )
     }
 
@@ -253,6 +294,18 @@ class RabbitClient private constructor(
         consumers.add(consumer)
 
         return consumer
+    }
+
+    fun newCallbackQueueName(): String {
+        return RabbitQueueNames.newCallbackQueueName(connectionProvider.connectionName)
+    }
+
+    fun addConnectionListener(listener: RabbitConnectionListener) {
+        connectionProvider.addListener(listener)
+    }
+
+    fun removeConnectionListener(listener: RabbitConnectionListener) {
+        connectionProvider.removeListener(listener)
     }
 
     override fun close() {

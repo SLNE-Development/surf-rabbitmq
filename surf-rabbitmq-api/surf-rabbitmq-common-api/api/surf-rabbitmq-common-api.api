@@ -25,17 +25,29 @@ public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitApiNotFrozenEx
 }
 
 public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionClosedException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionException {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionClosedException$Companion;
 	public fun <init> (Ljava/lang/String;)V
 }
 
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionClosedException$Companion {
+}
+
 public class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitException {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionException$Companion;
 	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 }
 
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionException$Companion {
+}
+
 public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionFailedException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionException {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionFailedException$Companion;
 	public fun <init> (Ljava/lang/String;ILjava/lang/Throwable;)V
 	public synthetic fun <init> (Ljava/lang/String;ILjava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionFailedException$Companion {
 }
 
 public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitDuplicateHandlerException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitHandlerRegistrationException {
@@ -114,8 +126,14 @@ public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitProtocolVersio
 }
 
 public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitPublishException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionException {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/exception/SurfRabbitPublishException$Companion;
 	public fun <init> (ILjava/lang/Throwable;)V
 	public synthetic fun <init> (ILjava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitPublishException$Companion {
 }
 
 public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitRequestAlreadyRespondedException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitRequestException {

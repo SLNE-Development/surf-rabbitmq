@@ -14,7 +14,10 @@ class RabbitConsumer(
 
     private val channelDispatcher = Executors
         .newSingleThreadExecutor { runnable ->
-            Thread(runnable, "rabbit-consumer-channel-${connectionProvider.connectionName}-$name").apply {
+            Thread(
+                runnable,
+                "rabbit-consumer-channel-${connectionProvider.connectionName}-$name"
+            ).apply {
                 isDaemon = true
             }
         }
@@ -75,6 +78,7 @@ class RabbitConsumer(
         autoAck: Boolean = false,
         prefetchCount: Int = 10,
         requeueOnHandlerError: Boolean = true,
+        onCancelled: (consumerTag: String) -> Unit = {},
         handler: suspend (consumerTag: String, message: Delivery, ack: RabbitAck) -> Unit
     ): String = withContext(channelDispatcher) {
         val channel = getChannel()
@@ -107,11 +111,10 @@ class RabbitConsumer(
         channel.basicConsume(
             queue,
             autoAck,
-            callback,
-            { _ ->
-                // Consumer was cancelled by broker or client.
-            }
-        )
+            callback
+        ) { consumerTag ->
+            onCancelled(consumerTag)
+        }
     }
 
     suspend fun cancel(consumerTag: String) {
@@ -120,15 +123,17 @@ class RabbitConsumer(
         }
     }
 
-    private fun getChannel(): Channel {
-        val channel = this.channel
-        if (channel != null && channel.isOpen) {
-            return channel
+    private suspend fun getChannel(): Channel {
+        connectionProvider.awaitOpen()
+
+        val existing = channel
+        if (existing != null && existing.isOpen) {
+            return existing
         }
 
-        val newChannel = connectionProvider.createChannel()
-        this.channel = newChannel
-        return newChannel
+        return connectionProvider.createChannel().also {
+            channel = it
+        }
     }
 
     private fun resetChannel() {
