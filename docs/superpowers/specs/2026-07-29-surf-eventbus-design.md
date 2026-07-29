@@ -316,7 +316,12 @@ Ein Weg für beide Transports, in `surf-eventbus-common`:
 - **Alle passenden Abonnements laufen.** Ein Handler auf `faction.disbanded` und einer auf
   `faction.#` feuern beide.
 - **Ein scheiternder Handler stoppt seine Nachbarn nicht.** Der erste Fehler wird nach dem
-  Durchlauf aller Handler geworfen, damit der Transport über Retry entscheiden kann.
+  Durchlauf aller Handler geworfen, damit der Transport über Retry entscheiden kann. Er reist
+  in einer `EventHandlingFailure`, die die Retry-Absicht mitführt: der Bus kennt die
+  `retry`-Flags der Abonnements, der Transport kennt die Wiederzustellung. Ein einziges
+  nicht-idempotentes Abonnement unter den Treffern hebt Retry für **alle** auf — sie kommen als
+  eine Nachricht, und den idempotenten Handler neben dem nicht-idempotenten erneut laufen zu
+  lassen ist keine Option.
 - **Unbekannter `type`** — kein Handler im Prozess registriert die Klasse: einmal warnen,
   quittieren, verwerfen. Nicht requeuen; eine durable `SHARED`-Queue würde die Nachricht sonst
   endlos erneut zustellen. Die Warnung ist die einzige Spur einer veralteten Binding-Leiche und
@@ -326,6 +331,23 @@ Validiert wird bei der Registrierung, nicht bei der Zustellung: Parameterzahl, P
 Muster-Syntax, Modus/Capability, `includeSelf`/Modus-Kombination. Ein fehlerhaftes Muster
 bindet auf dem Broker beschwerdefrei und trifft dann nichts — das einzige Symptom wäre ein
 Event, das nie ankommt.
+
+### Typauflösung bei Abonnements auf Basistypen
+
+Auf dem Draht steht der **konkrete** Typname, registriert hat ein Handler unter Umständen nur
+einen Basistyp: `@SurfSubscribe(topic = "faction.#") fun onAny(event: FactionEvent)`. Eine
+Auflösung, die nur wörtlich registrierte Typen kennt, verwirft ein solches Event — das
+dokumentierte polymorphe Abonnement wäre funktionslos. Genau diesen Fehler hat der heutige
+Rabbit-Pfad: `KotlinSerializerNameCache.register(subscription.eventClass)` registriert den
+Handler-Parametertyp, `deserializeEvent` sucht nach dem Wire-Namen, und bei einem Basistyp
+treffen sich beide nie.
+
+Auflösung in zwei Stufen: zuerst die Registry (billig, exakt, der Normalfall), dann
+`Class.forName` über die Classloader der registrierten Listener — nicht über den eigenen, weil
+Event-Typen auf Paper und Velocity im abonnierenden Plugin liegen. Geladen wird ausschließlich,
+was `SurfBusEvent` erweitert; positive und negative Ergebnisse werden gecacht, damit ein Strom
+unbekannter Typen nicht zu einem Strom fehlschlagender Klassensuchen wird. Bleibt der Typ
+unauflösbar, greift der dokumentierte Weg: einmal warnen, quittieren, verwerfen.
 
 ## Lebenszyklus
 
@@ -455,8 +477,16 @@ echte Broker in Testcontainers.
 | 6 | Typhierarchie: Handler auf Basistyp erhält Subtyp | ja | ja |
 | 7 | `includeSelf = false` unterdrückt das eigene Event | ja | ja |
 | 8 | `includeSelf = true` liefert es | ja | ja |
-| 9 | Unbekannter `type` wird verworfen, nicht requeued | ja | ja |
-| 10 | Ein scheiternder Handler blockiert seine Nachbarn nicht | ja | ja |
+| 9 | Ein scheiternder Handler blockiert seine Nachbarn nicht | ja | ja |
+| 10 | Ein Event ohne Abonnenten ist kein Fehler | ja | ja |
+
+Test 9 der ursprünglichen Fassung — „unbekannter `type` wird verworfen, nicht requeued" —
+lässt sich nicht über die Bus-API stellen: die Typauflösung findet jede Klasse, die im selben
+JVM auf dem Classpath liegt. Er wird deshalb je Transport mit dem Rohclient gestellt: eine
+Nachricht mit erfundenem Typnamen wird direkt auf Exchange beziehungsweise Kanal publiziert,
+und geprüft wird zweierlei — sie wird nicht zugestellt, und der Consumer lebt danach weiter.
+Das ist die Lage nach einem Deploy, in dem ein Dienst einen Event-Typ gelöscht hat, dessen
+durables Binding noch steht.
 
 Transportspezifisches Verhalten und Fehlermeldungen, ebenfalls getestet:
 
