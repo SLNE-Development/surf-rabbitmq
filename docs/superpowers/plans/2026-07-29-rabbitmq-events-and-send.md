@@ -26,6 +26,17 @@
   | Fire-and-forget | none |
   | Event | none |
 
+- **Fire-and-forget is acknowledged on handler completion, not on `respond()`.** An F&F
+  handler naturally never responds; awaiting `responseDeferred` would time it out
+  server-side, treat the successful handler as failed, and (once Plan 4 lands) retry and
+  dead-letter work that already happened.
+- Shared event queues use `QueueArguments.sharedEventQueue(serviceName)` from Plan 2:
+  `x-dead-letter-routing-key` pinned to the service (else nacked events dead-letter with a
+  topic key into the direct `surf.dlx`, match nothing, and vanish) and `drop-head` overflow
+  (else one full subscriber queue fails every matching publisher fleet-wide via confirms).
+- Any process that declares a shared event queue also declares `surf.dlq.<service>` — its
+  dead-letters have to land somewhere, and event-only subscribers never call
+  `declareServiceQueue`.
 - Integration tests are tagged `integration` and skipped without Docker. Never report a
   skipped test as passing.
 - Commit after every task.
@@ -983,11 +994,18 @@ Append to `RabbitTopologyDeclarer`:
      *
      * Because all instances consume this one queue, exactly one of them handles each event.
      *
+     * Also declares the service's dead-letter queue: this queue dead-letters (with the
+     * routing key pinned to [serviceName]), and an event-only subscriber never calls
+     * [declareServiceQueue] — without the DLQ its dead-letters would enter `surf.dlx`,
+     * match no binding, and vanish.
+     *
      * @return the queue name
      */
     fun declareSharedEventQueue(serviceName: String, patterns: Set<String>): String {
+        declareDeadLetterQueue(serviceName)
+
         val queue = RabbitTopology.sharedEventQueue(serviceName)
-        channel.queueDeclare(queue, true, false, false, QueueArguments.sharedEventQueue())
+        channel.queueDeclare(queue, true, false, false, QueueArguments.sharedEventQueue(serviceName))
 
         for (pattern in patterns) {
             channel.queueBind(queue, RabbitTopology.EVENTS_EXCHANGE, pattern)
@@ -1025,10 +1043,8 @@ package dev.slne.surf.rabbitmq.core.event
 
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.event.RabbitEventPacket
-import kotlinx.coroutines.CoroutineScope
-import kotlin.coroutines.Continuation
+import java.lang.reflect.InvocationTargetException
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
-import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
 
 /**
  * Invokes the handler methods matching a delivered event.
@@ -1040,8 +1056,7 @@ import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
  * let the retry machinery in Plan 4 take over.
  */
 class EventDispatcher(
-    private val registry: EventSubscriptionRegistry,
-    private val scope: CoroutineScope
+    private val registry: EventSubscriptionRegistry
 ) {
     companion object {
         private val log = logger()
@@ -1056,7 +1071,15 @@ class EventDispatcher(
         val matching = registry.subscriptionsFor(event.javaClass, topic)
 
         if (matching.isEmpty()) {
-            log.atFine().log("No subscription matched event %s on topic %s", event.javaClass.name, topic)
+            // Loud on purpose. Durable SHARED queues keep their bindings across deploys,
+            // and bindings are only ever added - a pattern removed from the code keeps
+            // routing events here, where they are acked and dropped. This log line is the
+            // only trace of that drift; delete stale bindings via the management UI.
+            log.atWarning().log(
+                "No subscription matched event %s on topic %s - if this pattern was removed " +
+                        "from the code, its binding on the shared event queue is stale",
+                event.javaClass.name, topic
+            )
             return
         }
 
@@ -1087,12 +1110,18 @@ class EventDispatcher(
         val method = subscription.method
         val isSuspend = method.parameterTypes.lastOrNull()?.name == "kotlin.coroutines.Continuation"
 
-        if (isSuspend) {
-            suspendCoroutineUninterceptedOrReturn<Any?> { continuation ->
-                method.invoke(subscription.listener, event, continuation)
+        try {
+            if (isSuspend) {
+                suspendCoroutineUninterceptedOrReturn<Any?> { continuation ->
+                    method.invoke(subscription.listener, event, continuation)
+                }
+            } else {
+                method.invoke(subscription.listener, event)
             }
-        } else {
-            method.invoke(subscription.listener, event)
+        } catch (wrapped: InvocationTargetException) {
+            // Reflection wraps synchronous handler failures; retry decisions and logs must
+            // see the handler's own exception, not the reflective envelope.
+            throw wrapped.targetException
         }
     }
 }
@@ -1104,7 +1133,7 @@ In `RabbitConnectionImpl`, add:
 
 ```kotlin
     private val subscriptions = EventSubscriptionRegistry()
-    private val eventDispatcher by lazy { EventDispatcher(subscriptions, api.scope) }
+    private val eventDispatcher by lazy { EventDispatcher(subscriptions) }
 
     override fun registerListener(listener: Any) {
         subscriptions.register(listener)
@@ -1228,7 +1257,49 @@ with:
             val fireAndForget = correlationId == null || replyTo == null
 ```
 
-and pass `replyTo = null` into the handler so `replyToRequest` is skipped.
+and make `RabbitListenerHandlerManager.handleRequest` take `replyTo: String?`.
+
+**The F&F branch must acknowledge on handler *completion*, not on `respond()`.** The
+existing flow awaits `request.responseDeferred` with the request timeout and nacks when it
+expires. An F&F handler naturally never calls `respond()` — under the existing flow every
+*successful* F&F handler would time out after `requestTimeoutSeconds`, be nacked, and (once
+Plan 4 lands) be retried three times and dead-lettered despite having done its work. In
+`handleRequest`:
+
+```kotlin
+            if (replyTo == null) {
+                // Fire-and-forget: done when the handler is done. There is no response to
+                // wait for and nobody to send one to.
+                val failure = AtomicReference<Throwable?>(null)
+                handlerJob.invokeOnCompletion { cause ->
+                    if (cause != null && cause !is CancellationException) failure.set(cause)
+                }
+                handlerJob.join()
+
+                val cause = failure.get()
+                if (cause == null) {
+                    if (request.hasResponded()) {
+                        log.atFine().log(
+                            "Fire-and-forget handler for %s called respond(); the response is discarded",
+                            request.javaClass.name
+                        )
+                    }
+                    ack.ack()
+                } else {
+                    log.atSevere().withCause(cause)
+                        .log("Fire-and-forget handler for %s failed", request.javaClass.name)
+                    // Plan 4 replaces this nack with the retry ladder.
+                    ack.nack(requeue = false)
+                }
+                return
+            }
+
+            // RPC path: unchanged - await responseDeferred with the request timeout.
+```
+
+What must hold, however it is mechanised: **ack after the handler completed successfully,
+failure path after it threw, never a timeout-based nack for a handler that simply has no
+response to give.**
 
 - [ ] **Step 5: Expose it on the API**
 
@@ -1286,12 +1357,16 @@ git commit -m "feat(events): publish and consume events, add fire-and-forget sen
 
 ---
 
-### Task 5: Integration tests for both subscription modes
+### Task 5: Integration tests for subscription modes and fire-and-forget
 
-The one property that must be proven against a real broker: `BROADCAST` reaches every instance, `SHARED` reaches exactly one. Getting this backwards is the failure mode that multiplies a database write by the instance count.
+The properties that must be proven against a real broker: `BROADCAST` reaches every instance,
+`SHARED` reaches exactly one (getting this backwards is the failure mode that multiplies a
+database write by the instance count), and a fire-and-forget handler that never responds is
+acknowledged instead of timed out.
 
 **Files:**
 - Test: `surf-rabbitmq-core/src/test/kotlin/dev/slne/surf/rabbitmq/core/event/EventDeliveryTest.kt`
+- Test: `surf-rabbitmq-core/src/test/kotlin/dev/slne/surf/rabbitmq/core/send/FireAndForgetTest.kt`
 
 **Interfaces:**
 - Consumes: everything from Tasks 1–4
@@ -1513,10 +1588,147 @@ class EventDeliveryTest {
 }
 ```
 
-- [ ] **Step 2: Run**
+- [ ] **Step 2: Write the fire-and-forget tests**
 
-With Docker: `./gradlew :surf-rabbitmq-core:test --tests '*EventDeliveryTest*'`
-Expected: `BUILD SUCCESSFUL`, 5 tests passed.
+Create `surf-rabbitmq-core/src/test/kotlin/dev/slne/surf/rabbitmq/core/send/FireAndForgetTest.kt`:
+
+```kotlin
+package dev.slne.surf.rabbitmq.core.send
+
+import dev.slne.surf.rabbitmq.api.SurfRabbitApi
+import dev.slne.surf.rabbitmq.api.handler.RabbitHandler
+import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
+import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
+import dev.slne.surf.rabbitmq.api.target.RabbitTarget
+import dev.slne.surf.rabbitmq.common.testing.RabbitBrokerExtension
+import dev.slne.surf.rabbitmq.common.testing.RequiresDocker
+import dev.slne.surf.rabbitmq.common.testing.testConfig
+import dev.slne.surf.rabbitmq.common.topology.RabbitTopology
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.Serializable
+import org.junit.jupiter.api.Test
+import java.nio.file.Files
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+@Serializable
+class WorkPacket(val text: String) : RabbitRequestPacket<WorkResponse>()
+
+@Serializable
+class WorkResponse : RabbitResponsePacket()
+
+@RequiresDocker
+class FireAndForgetTest {
+
+    private val dataPath = Files.createTempDirectory("fnf-test")
+
+    private fun api(service: String) =
+        SurfRabbitApi.builder(service, dataPath).config(testConfig(requestTimeoutSeconds = 3)).build()
+
+    @Test
+    fun `a handler that never responds is acked, not timed out`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("fnf")
+        val handled = AtomicInteger()
+
+        // The natural F&F handler shape: process the message, respond to nobody.
+        class SilentHandler {
+            @RabbitHandler
+            suspend fun onWork(packet: WorkPacket) {
+                handled.incrementAndGet()
+            }
+        }
+
+        val server = api(service).also {
+            it.registerRequestHandler(SilentHandler())
+            it.freezeAndConnect()
+        }
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            client.send(WorkPacket("x"), RabbitTarget.ServiceTarget(service))
+
+            awaitCondition("the handler runs") { handled.get() == 1 }
+
+            // Longer than the 3s request timeout: with the broken await-respond() flow the
+            // message would be nacked around now and, later, retried.
+            delay(5_000)
+
+            assertEquals(
+                1, handled.get(),
+                "a successful F&F handler must be acked on completion - a second run means " +
+                        "it was nacked and redelivered despite succeeding"
+            )
+            assertEquals(
+                0, messageCount(RabbitTopology.serviceQueue(service)),
+                "the message must be gone from the queue after the ack"
+            )
+        } finally {
+            client.disconnect()
+            server.disconnect()
+        }
+    }
+
+    @Test
+    fun `a respond() from a fire-and-forget handler is discarded without error`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("fnf-respond")
+        val handled = AtomicInteger()
+
+        class RespondingHandler {
+            @RabbitHandler
+            suspend fun onWork(packet: WorkPacket) {
+                handled.incrementAndGet()
+                packet.respond(WorkResponse())
+            }
+        }
+
+        val server = api(service).also {
+            it.registerRequestHandler(RespondingHandler())
+            it.freezeAndConnect()
+        }
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            client.send(WorkPacket("x"), RabbitTarget.ServiceTarget(service))
+
+            awaitCondition("the handler runs") { handled.get() == 1 }
+            delay(1_000)
+
+            assertEquals(1, handled.get(), "respond() on F&F must be a no-op, not a failure")
+        } finally {
+            client.disconnect()
+            server.disconnect()
+        }
+    }
+
+    private fun messageCount(queue: String): Int =
+        RabbitBrokerExtension.newConnection("depth-check").use { connection ->
+            connection.createChannel().use { channel ->
+                channel.queueDeclarePassive(queue).messageCount
+            }
+        }
+
+    private suspend fun awaitCondition(
+        description: String,
+        timeoutMillis: Long = 10_000,
+        condition: () -> Boolean
+    ) {
+        val satisfied = withTimeoutOrNull(timeoutMillis) {
+            while (!condition()) delay(50)
+            true
+        }
+
+        assertTrue(satisfied == true, "timed out waiting for: $description")
+    }
+}
+```
+
+- [ ] **Step 3: Run**
+
+With Docker: `./gradlew :surf-rabbitmq-core:test --tests '*EventDeliveryTest*' --tests '*FireAndForgetTest*'`
+Expected: `BUILD SUCCESSFUL`, 7 tests passed.
 
 If `a shared event reaches exactly one instance` reports 3, each instance declared its own
 queue: check that `declareSharedEventQueue` uses `serviceName`, not `instanceId`.
@@ -1526,11 +1738,11 @@ check that `declareInstanceEventQueue` uses `instanceId`, not `serviceName`.
 
 Without Docker: skipped, record as unverified.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add -A
-git commit -m "test(events): verify SHARED delivers once and BROADCAST delivers to all"
+git commit -m "test(events): verify SHARED/BROADCAST delivery and fire-and-forget acking"
 ```
 
 ---
@@ -1621,16 +1833,24 @@ git commit -m "docs: document events, subscription modes and fire-and-forget"
 ## Done when
 
 - [ ] `./gradlew build -PskipIntegration` succeeds
-- [ ] With Docker: all `EventDeliveryTest` cases pass
+- [ ] With Docker: all `EventDeliveryTest` and `FireAndForgetTest` cases pass
 - [ ] `BROADCAST` reaches all three instances, `SHARED` reaches exactly one
 - [ ] A `SHARED` event published while every instance was down is delivered after restart
+- [ ] A fire-and-forget handler that never responds is acked on completion, not timed out
 - [ ] Fire-and-forget carries no `expiration`; RPC requests still do
 
 ## Deliberately out of scope
 
-- **Retry and DLQ for failed event handlers** — Plan 4. Until then `retry = false` is recorded
-  but not acted on, and a failed handler nacks straight to nowhere.
+- **Retry for failed event handlers** — Plan 4. Until then `retry = false` is recorded but
+  not acted on. A failed handler's nack is *not* lost, though: the shared event queue
+  dead-letters with the routing key pinned to the service name, and `declareSharedEventQueue`
+  declares the DLQ — the message is preserved in `surf.dlq.<service>` from this plan on.
 - **Circuit breaker** — Plan 4.
 - **KSP `@RpcService(service = ...)`** — Plan 4.
+- **Unroutable fire-and-forget fail-fast** — Plan 4 (needs the return listener). Until then
+  a `send()` to a nonexistent service is silently dropped by the broker.
 - **Ordering guarantees across instances.** Not provided, by design; enforce per-entity
   consistency inside the service.
+- **Automatic cleanup of stale SHARED-queue bindings** after a pattern is removed from the
+  code. Requires the management API; the dispatcher logs a warning when a stale binding
+  delivers an unmatched event, and the binding must be removed via the management UI.

@@ -3,6 +3,12 @@
 **Datum:** 2026-07-29
 **Status:** Entwurf zur Freigabe
 **Ausgangsversion:** 1.6.2
+**Revision:** 2026-07-29 nach Design-Review. Vier Entscheidungen wurden korrigiert, weil der
+ursprüngliche Entwurf technisch nicht umsetzbar war oder Nachrichten verloren hätte:
+Retry-Routing (Rückkehr über die Default-Exchange statt `surf.rpc`), Unroutable-Behandlung
+(Return-Listener statt Alternate Exchange — beides zugleich kann RabbitMQ nicht),
+Instanz-Adressierung (konfigurierbarer stabiler Name) und Overflow der Event-Queues
+(`drop-head` statt `reject-publish`). Details in den jeweiligen Abschnitten.
 
 ## Problemstellung
 
@@ -84,24 +90,34 @@ Alle `durable`, beim Verbinden idempotent deklariert.
 | `surf.rpc` | `direct` | RPC und Fire-and-Forget. Routing-Key = Service-Name oder Instanz-ID |
 | `surf.events` | `topic` | Broadcast und Pub/Sub. Routing-Key = Event-Topic |
 | `surf.dlx` | `direct` | Dead-Letter-Ziel |
-| `surf.unroutable` | `fanout` | Alternate Exchange von `surf.rpc` |
+| `surf.retry.10s` / `.60s` / `.300s` | `fanout` | Einwurf in die jeweilige Retry-Queue (siehe Retry-Queues) |
 
 `surf.rpc` ist `direct`, nicht `topic`: Das Ziel ist stets ein exakter Name, Pattern-Matching
 wird nicht benötigt.
 
-`surf.rpc` wird mit `alternate-exchange: surf.unroutable` deklariert.
+**Keine Alternate Exchange.** Der ursprüngliche Entwurf sah `alternate-exchange:
+surf.unroutable` an `surf.rpc` vor — *zusätzlich* zu `mandatory = true` mit Return-Listener.
+Das ist in RabbitMQ nicht kombinierbar: Routet die Alternate Exchange eine Nachricht, gilt sie
+als zugestellt und `basic.return` feuert **nie**. Fail-Fast und Audit-Kopie schließen sich
+über die AE also gegenseitig aus. Entschieden: `mandatory = true` + Return-Listener liefert
+das Fail-Fast; der Return-Listener publiziert die zurückgegebene Nachricht selbst als Kopie
+nach `surf.unroutable` (Client-seitiges Republish). Damit bleiben beide Garantien erhalten,
+ohne AE.
 
 ### Queues
 
 | Queue | Eigenschaften | Deklariert von | Binding |
 |---|---|---|---|
 | `surf.service.<service>` | quorum, durable | nur dem Service-Host | `surf.rpc`, Key `<service>` |
-| `surf.instance.<instanceId>` | exclusive, autoDelete, transient | jedem Prozess | `surf.rpc`, Key `<instanceId>` |
-| `surf.events.<instanceId>` | exclusive, autoDelete, transient | jedem `BROADCAST`-Abonnenten | `surf.events`, Keys = Patterns |
-| `surf.events.<service>` | quorum, durable | dem `SHARED`-Abonnenten | `surf.events`, Keys = Patterns |
+| `surf.instance.<instanceId>` | exclusive, autoDelete, transient | jedem Prozess mit Handlern | `surf.rpc`, Key `<instanceId>` |
+| `surf.events.instance.<instanceId>` | exclusive, autoDelete, transient | jedem `BROADCAST`-Abonnenten | `surf.events`, Keys = Patterns |
+| `surf.events.shared.<service>` | quorum, durable | dem `SHARED`-Abonnenten | `surf.events`, Keys = Patterns |
 | `surf.reply.<instanceId>` | exclusive, autoDelete, transient | jedem Prozess | Default-Exchange |
-| `surf.dlq.<service>` | quorum, durable | dem Service-Host | `surf.dlx`, Key `<service>` |
-| `surf.unroutable` | quorum, durable | beim Verbinden | `surf.unroutable` (fanout) |
+| `surf.dlq.<service>` | quorum, durable | Service-Host **und** `SHARED`-Abonnent | `surf.dlx`, Key `<service>` |
+| `surf.unroutable` | quorum, durable | beim Verbinden | keins — befüllt vom Return-Listener per Republish |
+
+Die Event-Queues tragen ein zusätzliches Segment `instance.` bzw. `shared.`, damit ein
+Service und eine Instanz gleichen Namens nicht auf derselben Queue kollidieren können.
 
 Argumente von `surf.service.<service>`:
 
@@ -115,34 +131,87 @@ x-overflow:          reject-publish
 `reject-publish` lässt den Broker neue Nachrichten ablehnen, sobald die Queue voll ist. Der
 Absender erhält einen Fehler, statt dass ältere Nachrichten still verworfen werden.
 
+Argumente von `surf.events.shared.<service>`:
+
+```
+x-queue-type:        quorum
+x-dead-letter-exchange: surf.dlx
+x-dead-letter-routing-key: <service>
+x-max-length-bytes:  268435456        (256 MiB)
+x-overflow:          drop-head
+```
+
+Zwei bewusste Abweichungen von der Service-Queue:
+
+- **`x-dead-letter-routing-key: <service>`** — Events werden mit ihrem *Topic* als
+  Routing-Key zugestellt. Ohne den pinnenden Key würde eine genackte Event-Nachricht mit
+  Topic-Key in die `direct`-Exchange `surf.dlx` dead-lettern, dort kein Binding treffen und
+  spurlos verschwinden — genau das P5, das dieser Umbau behebt. Das Pinnen ist hier korrekt,
+  weil `surf.dlq.<service>` die terminale Station ist.
+- **`drop-head` statt `reject-publish`** — Publisher-Confirms bestätigen eine Nachricht erst,
+  wenn *alle* gebundenen Queues sie angenommen haben. Mit `reject-publish` würde die volle
+  Event-Queue **eines** Abonnenten jeden Publisher passender Topics flottenweit scheitern
+  lassen, obwohl alle anderen Abonnenten das Event erhalten haben. Mit `drop-head` verliert
+  ausschließlich der überlaufende Abonnent seine ältesten Events — der Fehler bleibt lokal.
+
+`surf.dlq.<service>` und `surf.unroutable` sind ebenfalls begrenzt
+(`x-max-length-bytes: 268435456`, `x-overflow: drop-head`): Es sind Queues, die **niemand
+konsumiert** — genau dort schlägt unbegrenztes Wachstum am ehesten in Broker-Speichernot um.
+`reject-publish` wäre hier falsch, weil es den Dead-Letter- bzw. Audit-Pfad selbst zum
+Scheitern brächte.
+
 **Ein Prozess deklariert ausschließlich Queues, die er selbst konsumiert.** Damit ist P4
 behoben. Exchanges werden weiterhin von allen deklariert, da idempotent bei identischer
-Definition.
+Definition. Ausnahmen von der Regel sind die Infrastruktur-Queues, die niemand konsumiert
+(`surf.retry.*`, `surf.unroutable`, `surf.dlq.<service>`): Sie werden von jedem Prozess, der
+sie befüllen kann, mit identischen Argumenten idempotent deklariert.
 
 ### Retry-Queues
 
-Drei global geteilte Queues für die gesamte Flotte, nicht pro Service:
+Drei global geteilte Queues für die gesamte Flotte, nicht pro Service. Jede Stufe besteht aus
+einer `fanout`-Exchange und einer Queue gleichen Namens:
 
-| Queue | `x-message-ttl` | `x-dead-letter-exchange` |
+| Exchange (fanout) → Queue | `x-message-ttl` (Default) | `x-dead-letter-exchange` |
 |---|---|---|
-| `surf.retry.10s` | 10 000 | `surf.rpc` |
-| `surf.retry.60s` | 60 000 | `surf.rpc` |
-| `surf.retry.300s` | 300 000 | `surf.rpc` |
+| `surf.retry.10s` | 10 000 | `""` (Default-Exchange) |
+| `surf.retry.60s` | 60 000 | `""` (Default-Exchange) |
+| `surf.retry.300s` | 300 000 | `""` (Default-Exchange) |
 
-Beim Dead-Lettering behält RabbitMQ den ursprünglichen Routing-Key, solange
-`x-dead-letter-routing-key` nicht gesetzt ist. Eine fehlgeschlagene `surf-punish`-Nachricht
-landet nach Ablauf der TTL selbsttätig wieder in `surf.service.surf-punish`. Drei Queues
-genügen daher für beliebig viele Services.
+**Funktionsweise.** Der Consumer publiziert die gescheiterte Nachricht in die Stufen-Exchange
+mit **Routing-Key = Name der Herkunfts-Queue** (z. B. `surf.service.surf-punish` oder
+`surf.events.shared.surf-stats`). Die `fanout`-Exchange ignoriert den Key beim Einwurf, die
+Nachricht behält ihn aber. Läuft die TTL ab, dead-lettert die Stufen-Queue in die
+Default-Exchange — und die routet über den erhaltenen Key **exakt in die Queue zurück, aus
+der die Nachricht kam**. Drei Stufen genügen daher für beliebig viele Services *und* für
+Shared-Event-Queues gleichermaßen.
+
+Warum dieser Umweg über eine eigene Exchange: Der ursprüngliche Entwurf publizierte per
+Default-Exchange „in die Retry-Queue" und verließ sich darauf, dass Dead-Lettering „den
+ursprünglichen Routing-Key behält". Das ist ein Trugschluss — bei einem Client-Republish über
+die Default-Exchange *ist* der Routing-Key der Queue-Name der Retry-Queue. Nach TTL-Ablauf
+wäre die Nachricht mit Key `surf.retry.10s` in `surf.rpc` gelandet: unroutbar, verloren. Die
+Key-Erhaltung gilt nur für das, womit die Nachricht in die Stufen-Queue *publiziert* wurde —
+deshalb muss der Einwurf den Herkunfts-Queue-Namen als Key tragen und über eine Exchange
+laufen, die nicht nach Key routet. Ein DLX von `surf.events` wäre ebenso falsch gewesen: Ein
+Retry hätte das Event erneut an **alle** Abonnenten der Flotte gebroadcastet.
+
+Die TTL-Werte kommen aus der Konfiguration (`CommonRabbitMQConfig`, Default 10 s/60 s/300 s),
+damit Integrationstests die volle Leiter in Sekunden statt Minuten durchlaufen können. Die
+Queue-Namen bleiben dabei stabil.
+
+Für `BROADCAST`-Abonnements gilt: Die Herkunfts-Queue ist ephemer. Stirbt die Instanz vor
+Ablauf der Stufe, verpufft der Retry an der Default-Exchange — konsistent mit der
+Zustellgarantie von `BROADCAST` (kein Überleben von Ausfällen).
 
 Ablauf bei Handler-Fehler. `n` ist die Anzahl bereits erfolgter Retries, gelesen aus dem
 `x-death`-Header (`0` bei Erstzustellung):
 
 | `n` | Aktion |
 |---|---|
-| 0 | publish nach `surf.retry.10s`, dann `ack` der Originalnachricht |
-| 1 | publish nach `surf.retry.60s`, dann `ack` |
-| 2 | publish nach `surf.retry.300s`, dann `ack` |
-| 3 | publish nach `surf.dlx` → `surf.dlq.<service>`, dann `ack` |
+| 0 | publish in Exchange `surf.retry.10s` (Key = Herkunfts-Queue), dann `ack` der Originalnachricht |
+| 1 | publish in Exchange `surf.retry.60s`, dann `ack` |
+| 2 | publish in Exchange `surf.retry.300s`, dann `ack` |
+| 3 | publish nach `surf.dlx` mit Key `<service>` → `surf.dlq.<service>`, dann `ack` |
 
 Eine Nachricht wird also höchstens **viermal zugestellt** (Erstzustellung plus drei Retries),
 bevor sie in der DLQ landet. Bei `retry = false` entfällt die Retry-Kette vollständig: Der
@@ -157,7 +226,14 @@ unter Volllast.
 Zwei getrennte Begriffe ersetzen `pluginName`:
 
 - `serviceName` — logisch, von allen Instanzen geteilt, z. B. `surf-factions`
-- `instanceId` — eindeutig pro Prozess, `<serviceName>-<8 Hex-Zeichen>`
+- `instanceId` — eindeutig pro Prozess. Default `<serviceName>-<8 Hex-Zeichen>` (zufällig),
+  **per Builder überschreibbar** mit einem stabilen Namen, z. B. `lobby-3`.
+
+Der stabile Name ist die Voraussetzung für Instanz-Adressierung: Eine zufällige ID kennt kein
+Aufrufer, `InstanceTarget("lobby-3")` setzt voraus, dass der Prozess `lobby-3` seinen Namen
+aus seiner Konfiguration bezieht. Prozesse ohne Adressierungsbedarf bleiben beim zufälligen
+Default. Ein versehentlich doppelt vergebener stabiler Name scheitert laut und früh: Die
+Instanz-Queues sind `exclusive`, die zweite Deklaration wird vom Broker abgewiesen.
 
 ### Nachrichten-TTL
 
@@ -177,9 +253,16 @@ TTL wird pro Nachrichtenart gesetzt, nicht global:
 | Alle Instanzen eines Service offline, RPC | Nachricht wartet in der Queue; Aufrufer erhält nach Timeout `SurfRabbitRequestTimeoutException`; TTL räumt die Nachricht ab |
 | Alle Instanzen offline, Fire-and-Forget | Nachricht wartet in der durablen Queue und wird bei Rückkehr verarbeitet |
 | Alle Instanzen offline, Broadcast | Event verfällt. Keine gebundene Queue, kein Empfänger |
-| Service existiert nicht | `mandatory = true` + `ReturnListener` → sofortige `SurfRabbitServiceUnavailableException`; Kopie in `surf.unroutable` |
+| Service existiert nicht (RPC **und** Fire-and-Forget) | `mandatory = true` + `ReturnListener` → sofortige `SurfRabbitServiceUnavailableException`; der Listener publiziert die Kopie nach `surf.unroutable`. Der Return wird vor der Publisher-Confirm verarbeitet, daher ist das Ergebnis beim Rückkehren von `send()` bereits bekannt |
 | Broker nicht erreichbar | Bestehende Auto-Recovery mit Backoff und Jitter (`RabbitClient.kt:148`) bleibt unverändert |
-| Service-Queue voll | `reject-publish` → Absender erhält Fehler |
+| Service-Queue voll | `reject-publish` → Publisher-Confirm wird genackt, Absender erhält eine typisierte `SurfRabbitPublishException` |
+
+**Fire-and-Forget und `respond()`.** Ein Fire-and-Forget-Handler ruft naturgemäß nie
+`respond()` auf. Die Zustellung wird deshalb **mit Abschluss des Handlers** quittiert, nicht
+mit dem Eintreffen einer Antwort — sonst liefe jeder erfolgreiche F&F-Handler in den
+serverseitigen Antwort-Timeout und würde fälschlich als Fehlschlag behandelt (und ab
+Einführung der Retries mehrfach ausgeführt und dead-lettered). Ruft ein F&F-Handler dennoch
+`respond()` auf, wird die Antwort verworfen und geloggt.
 
 Die `autoDelete`-Event-Queues des `BROADCAST`-Modus bedeuten: Ein Prozess verpasst Events,
 die während seiner Ausfallzeit gesendet wurden. Für Cache-Invalidierung, Kick und Reload ist
@@ -193,8 +276,8 @@ Instanzen desselben Service relevant.
 
 | Modus | Queue | Verarbeitet von | Überlebt Ausfall | Anwendungsfall |
 |---|---|---|---|---|
-| `SHARED` | `surf.events.<service>`, quorum, durable | **genau einer** Instanz | ja | DB-Schreibzugriff, Statistik, Webhook, alles mit Seiteneffekt |
-| `BROADCAST` | `surf.events.<instanceId>`, ephemer | **jeder** Instanz | nein | Cache-Invalidierung, Config-Reload, Spieler kicken |
+| `SHARED` | `surf.events.shared.<service>`, quorum, durable | **genau einer** Instanz | ja | DB-Schreibzugriff, Statistik, Webhook, alles mit Seiteneffekt |
+| `BROADCAST` | `surf.events.instance.<instanceId>`, ephemer | **jeder** Instanz | nein | Cache-Invalidierung, Config-Reload, Spieler kicken |
 
 Der Fallstrick, den die Modi auflösen: Laufen acht Instanzen von `surf-transaction` und
 abonniert ein Handler im `BROADCAST`-Modus, führen ihn alle acht aus. Bei einem Handler, der
@@ -263,10 +346,24 @@ rabbit.registerService<FactionService>(FactionServiceImpl)
 rabbit.registerListener(FactionsEventListener)
 
 rabbit.freezeAndConnect()
+
+// Prozesse, die per InstanceTarget adressierbar sein sollen (z. B. Paper-Server),
+// vergeben einen stabilen Instanznamen aus ihrer Konfiguration:
+val lobby = SurfRabbitApi.builder("lobby", dataPath)
+    .instanceName("lobby-3")
+    .build()
 ```
 
 Es gibt keine Client-/Server-Unterscheidung mehr. Ob ein Prozess eine Service-Queue hostet,
 ergibt sich daraus, ob er `registerService()` oder `registerRequestHandler()` aufruft.
+
+**Konfigurationsauflösung bleibt vierstufig**: `env > Plugin-YAML > globale YAML > Default`.
+Auf Paper/Velocity liegt die globale YAML weiterhin im Datenordner des Plattform-Plugins
+(`RabbitMQInstance.dataPath`), die Plugin-YAML im `dataPath` des Aufrufers. Standalone
+(Microservice) entfällt die Plugin-Schicht und die globale YAML liegt im eigenen `dataPath` —
+exakt das heutige Verhalten beider APIs, nun in einem Builder vereint. Der
+JVM-weite Konfigurations-Cache wird nach `(Pfad, Dateiname)` geschlüsselt, damit zwei
+API-Instanzen im selben Prozess nicht stillschweigend die zuerst geladene Datei teilen.
 
 ### Senden
 
@@ -297,7 +394,7 @@ interface FactionService {
     suspend fun findFaction(player: UUID): Faction?
 }
 
-@RabbitEvent("faction.*.disbanded")
+@RabbitEvent("faction.disbanded")
 @Serializable
 class FactionDisbandedEvent(val factionId: UUID)
 
@@ -313,6 +410,10 @@ object CacheInvalidationListener {
     }
 }
 ```
+
+Publish-Topics sind wildcardfrei (`*` und `#` sind Binding-Syntax und würden vom Broker als
+Literale behandelt — das Event träfe kein einziges Binding). Wildcards gehören in
+`@RabbitSubscribe(topic = "faction.#")`-Patterns.
 
 Ziel und Topic stehen am Typ, nicht an der Call-Site — konsistent zwischen `@RpcService` und
 `@RabbitEvent`. Beide sind pro Aufruf überschreibbar:
@@ -354,7 +455,21 @@ Nur Transportfehler zählen auf den Schwellwert ein. Fachliche Exceptions aus ei
 lassen den Breaker unberührt — ein Service, der zuverlässig fachliche Fehler liefert, ist
 erreichbar und darf nicht abgeschaltet werden.
 
-Client-Retry greift ausschließlich bei Transportfehlern (unroutable, Verbindungsverlust):
+**Was genau ein Transportfehler ist, ist eine geschlossene Liste**, kein Typ-Hierarchie-Match:
+
+- `SurfRabbitServiceUnavailableException` (unroutable, vom Return-Listener)
+- `SurfRabbitConnectionException` samt Subtypen — insbesondere `SurfRabbitPublishException`
+  (Publish/Confirm gescheitert) und Verbindungsverlust
+
+**Nicht** transport: `SurfRabbitRequestTimeoutException`. Ein Timeout ist mehrdeutig — der
+Service kann bloß langsam sein, und der Handler kann die Anfrage bereits ausgeführt haben.
+Ein wiederholter Timeout-Request würde nicht-idempotente Handler erneut ausführen und die
+Wartezeit des Aufrufers vervielfachen. Timeouts werden daher weder wiederholt noch auf den
+Breaker gezählt. (Achtung bei der Umsetzung: `SurfRabbitRequestTimeoutException` *erbt* von
+`SurfRabbitRequestException` — ein naives `is SurfRabbitRequestException` schlösse Timeouts
+fälschlich ein und `SurfRabbitPublishException` fälschlich aus.)
+
+Client-Retry greift ausschließlich bei Transportfehlern nach obiger Liste:
 2 Versuche mit 250 ms und 1 s Abstand. Fachliche Exceptions aus dem Handler werden unverändert
 durchgereicht und niemals wiederholt.
 
@@ -458,18 +573,21 @@ gegen Mocks nicht prüfbar.
 | 4b | 3 Instanzen, `SHARED`, 1 Event | **Genau eine** erhält das Event |
 | 4c | `SHARED`, alle Instanzen offline, dann Neustart | Event überlebt in der durablen Queue |
 | 5 | Topic-Pattern | Nur passende Abonnenten erhalten das Event |
-| 6 | Handler wirft Exception | Retry über 10 s / 60 s / 300 s, danach DLQ |
+| 6 | Handler wirft Exception | Volle Retry-Leiter über alle drei Stufen, danach DLQ |
 | 7 | `retry = false` | Direkt DLQ ohne Wiederholung |
-| 8 | Send an unbekannten Service | Sofortige Exception, Kopie in `surf.unroutable` |
+| 8 | Send an unbekannten Service (RPC **und** F&F) | Sofortige Exception, Kopie in `surf.unroutable` |
 | 9 | Circuit Breaker | Öffnet nach 5 Fehlern, schließt über `HALF_OPEN` |
 | 10 | TTL-Trennung | RPC-Nachricht verfällt, Fire-and-Forget nicht |
-| 11 | Broker-Neustart im Betrieb | Recovery, neue Callback-Queue, keine hängenden Requests |
+| 11 | Broker-Neustart im Betrieb | Recovery mit stabiler Reply-Queue, keine hängenden Requests |
 | 12 | Queue voll | `reject-publish` meldet Fehler an den Absender |
 | 13 | Chunking | Seit 1.6 vorhanden, bisher ungetestet |
 | 14 | Zwei Ziele über eine Connection | Genau eine TCP-Verbindung für zwei RPC-Proxys |
+| 15 | `InstanceTarget` mit stabilem Namen | Nachricht erreicht genau die benannte Instanz |
+| 16 | F&F-Handler ohne `respond()` | Wird nach Handler-Abschluss quittiert, kein Retry, keine DLQ |
+| 17 | KSP-generierter RPC-Proxy | `rabbit.rpc<T>()` Round-Trip gegen echten Broker |
 
 Die Retry-Tests 6 und 7 verwenden zur Laufzeitverkürzung verkürzte TTLs aus der
-Testkonfiguration.
+Testkonfiguration — möglich, weil die Stufen-TTLs aus `CommonRabbitMQConfig` kommen.
 
 ### Unit-Tests
 
@@ -481,6 +599,8 @@ Ohne Broker lauffähig:
   `CLOSED → OPEN → HALF_OPEN → CLOSED` und `HALF_OPEN → OPEN`, mit injizierter `Clock`
   statt realer Wartezeit
 - Circuit Breaker: fachliche Exceptions zählen nicht auf den Schwellwert ein
+- Transportfehler-Klassifikation pro Exception-Typ, insbesondere: Timeout wird weder
+  wiederholt noch gezählt; `SurfRabbitPublishException` wird gezählt
 - Config-Layering `env > plugin YAML > global YAML > Default`
 - TTL-Zuordnung pro Nachrichtenart
 - Import-Regel für `shared.*` und `platform.*`

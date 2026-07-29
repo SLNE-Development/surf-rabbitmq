@@ -850,8 +850,14 @@ class CircuitBreakerConcurrencyTest {
         }.awaitAll()
 
         assertEquals(CircuitState.OPEN, cb.state)
-        // Once open, further callers must be turned away rather than reaching the block.
-        assert(executions.get() <= 32) { "no caller may run the block twice" }
+
+        // The definitive check: with the breaker open, one more call must be rejected
+        // without the block ever running.
+        val afterOpen = AtomicInteger()
+        assertFailsWith<CircuitOpenException> {
+            cb.withBreaker { afterOpen.incrementAndGet(); "never" }
+        }
+        assertEquals(0, afterOpen.get(), "an open breaker must not execute the block")
     }
 }
 ```

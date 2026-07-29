@@ -17,13 +17,22 @@
 - The Gradle plugin does **not** configure `useJUnitPlatform()`. Set it explicitly per module.
 - Root `build.gradle.kts` skips subprojects whose name contains `surf-rabbitmq-test` when
   applying the `InternalRabbitMQ` opt-in and shadow config. Keep that guard intact.
-- Exchange names, copied verbatim from the spec: `surf.rpc`, `surf.events`, `surf.dlx`,
-  `surf.unroutable`.
-- `surf.rpc` is declared with `alternate-exchange` = `surf.unroutable`.
+- Exchange names, copied verbatim from the spec: `surf.rpc`, `surf.events`, `surf.dlx`.
+- **No alternate exchange on `surf.rpc`.** The spec originally combined an AE with
+  `mandatory = true` — RabbitMQ treats an AE-routed message as routed, so `basic.return`
+  would never fire and fail-fast would silently die. Unroutable messages are surfaced via
+  mandatory returns; the audit copy in the `surf.unroutable` **queue** (bound to nothing)
+  is produced by the return listener republishing in Plan 4.
 - Service queue arguments, verbatim: `x-queue-type: quorum`,
   `x-dead-letter-exchange: surf.dlx`, `x-max-length-bytes: 268435456`,
   `x-overflow: reject-publish`.
+- Audit queues nobody consumes (`surf.dlq.<service>`, `surf.unroutable`) are bounded:
+  `x-max-length-bytes: 268435456`, `x-overflow: drop-head`. `reject-publish` there would
+  break the dead-letter path itself; unbounded they are the likeliest broker-memory risk.
 - **A process declares only queues it consumes.** Never declare another service's queue.
+  Exception: infrastructure queues nobody consumes (`surf.unroutable`, `surf.dlq.<service>`,
+  later the retry queues) are declared idempotently with identical arguments by every
+  process that can feed them.
 - Breaking changes are permitted. Wire compatibility with 1.6.x is explicitly **not** a goal.
 - Commit after every task.
 
@@ -254,7 +263,9 @@ object RabbitBrokerExtension {
 
     /** Unique per test to keep parallel tests from colliding on names. */
     fun uniqueServiceName(prefix: String): String =
-        "$prefix-${System.nanoTime().toString(16)}"
+        // nanoTime alone can collide across forked test JVMs sharing one broker;
+        // the random suffix removes that.
+        "$prefix-${System.nanoTime().toString(16)}-${java.util.UUID.randomUUID().toString().take(8)}"
 }
 ```
 
@@ -321,7 +332,6 @@ Every queue, exchange and routing key name in one place, fully unit-testable wit
       const val RPC_EXCHANGE = "surf.rpc"
       const val EVENTS_EXCHANGE = "surf.events"
       const val DLX_EXCHANGE = "surf.dlx"
-      const val UNROUTABLE_EXCHANGE = "surf.unroutable"
       const val UNROUTABLE_QUEUE = "surf.unroutable"
 
       fun serviceQueue(serviceName: String): String
@@ -353,11 +363,11 @@ import kotlin.test.assertTrue
 class RabbitTopologyTest {
 
     @Test
-    fun `exchange names match the specification`() {
+    fun `exchange and audit queue names match the specification`() {
         assertEquals("surf.rpc", RabbitTopology.RPC_EXCHANGE)
         assertEquals("surf.events", RabbitTopology.EVENTS_EXCHANGE)
         assertEquals("surf.dlx", RabbitTopology.DLX_EXCHANGE)
-        assertEquals("surf.unroutable", RabbitTopology.UNROUTABLE_EXCHANGE)
+        assertEquals("surf.unroutable", RabbitTopology.UNROUTABLE_QUEUE)
     }
 
     @Test
@@ -453,10 +463,13 @@ object RabbitTopology {
     /** Dead-letter destination for rejected messages. Type `direct`. */
     const val DLX_EXCHANGE = "surf.dlx"
 
-    /** Alternate exchange of [RPC_EXCHANGE], catching messages to unknown targets. Type `fanout`. */
-    const val UNROUTABLE_EXCHANGE = "surf.unroutable"
-
-    /** Single queue bound to [UNROUTABLE_EXCHANGE]. */
+    /**
+     * Audit queue for messages the broker returned as unroutable.
+     *
+     * Bound to nothing. The publish-side return listener republishes returned messages
+     * here (Plan 4). Deliberately not an alternate exchange: an AE would swallow the
+     * `basic.return` that the fail-fast path depends on.
+     */
     const val UNROUTABLE_QUEUE = "surf.unroutable"
 
     private const val MAX_NAME_LENGTH = 255
@@ -534,7 +547,9 @@ Splits the overloaded `pluginName` into `serviceName` and `instanceId`, and intr
 - Produces:
   ```kotlin
   class RabbitIdentity(val serviceName: String, val instanceId: String) {
-      companion object { fun create(serviceName: String): RabbitIdentity }
+      companion object {
+          fun create(serviceName: String, instanceName: String? = null): RabbitIdentity
+      }
   }
 
   sealed interface RabbitTarget {
@@ -620,6 +635,24 @@ class RabbitIdentityTest {
     }
 
     @Test
+    fun `an explicit instance name is used verbatim`() {
+        // Instance targeting only works if the target's id is knowable in advance.
+        // A Paper server configured as "lobby-3" must be addressable as exactly that.
+        val identity = RabbitIdentity.create("lobby", instanceName = "lobby-3")
+
+        assertEquals("lobby", identity.serviceName)
+        assertEquals("lobby-3", identity.instanceId)
+    }
+
+    @Test
+    fun `a blank instance name is rejected`() {
+        val thrown = runCatching {
+            RabbitIdentity.create("lobby", instanceName = " ")
+        }.exceptionOrNull()
+        assertTrue(thrown is IllegalArgumentException)
+    }
+
+    @Test
     fun `a service target routes by service name`() {
         assertEquals("surf-factions", RabbitTarget.ServiceTarget("surf-factions").routingKey)
     }
@@ -671,13 +704,22 @@ class RabbitIdentity(
 
     companion object {
         /**
-         * Builds an identity for [serviceName] with a random instance suffix.
+         * Builds an identity for [serviceName].
          *
-         * The suffix keeps the service name visible so an operator looking at a queue list can
-         * tell which service an instance queue belongs to.
+         * Without [instanceName], the instance id is the service name plus a random suffix —
+         * readable in broker tooling, but unknowable to other processes. Pass a stable
+         * [instanceName] (e.g. `lobby-3` from the server's config) when this process must be
+         * addressable via `InstanceTarget`: instance targeting is only possible when the
+         * caller can predict the id. A duplicated stable name fails loudly at connect time,
+         * because the instance queues are exclusive.
          */
-        fun create(serviceName: String): RabbitIdentity {
+        fun create(serviceName: String, instanceName: String? = null): RabbitIdentity {
             require(serviceName.isNotBlank()) { "serviceName must not be blank" }
+
+            if (instanceName != null) {
+                require(instanceName.isNotBlank()) { "instanceName must not be blank" }
+                return RabbitIdentity(serviceName = serviceName, instanceId = instanceName)
+            }
 
             val suffix = ThreadLocalRandom.current()
                 .nextInt()
@@ -745,7 +787,7 @@ sealed interface RabbitTarget {
 - [ ] **Step 5: Run and confirm it PASSES**
 
 Run: `./gradlew :surf-rabbitmq-api:surf-rabbitmq-common-api:test`
-Expected: `BUILD SUCCESSFUL`, 7 tests passed.
+Expected: `BUILD SUCCESSFUL`, 9 tests passed.
 
 - [ ] **Step 6: Commit**
 
@@ -771,15 +813,16 @@ Declares the topology against a real broker. The arguments are what make quorum 
 - Produces:
   ```kotlin
   object QueueArguments {
-      const val MAX_SERVICE_QUEUE_BYTES = 268_435_456L
+      const val MAX_QUEUE_BYTES = 268_435_456L
       fun serviceQueue(): Map<String, Any>
       fun deadLetterQueue(): Map<String, Any>
-      fun sharedEventQueue(): Map<String, Any>
+      fun sharedEventQueue(serviceName: String): Map<String, Any>
       fun ephemeralQueue(): Map<String, Any>
   }
 
   class RabbitTopologyDeclarer(private val channel: Channel) {
       fun declareExchanges()
+      fun declareDeadLetterQueue(serviceName: String): String
       fun declareServiceQueue(serviceName: String): String
       fun declareInstanceQueue(instanceId: String): String
       fun declareReplyQueue(instanceId: String): String
@@ -818,12 +861,17 @@ class QueueArgumentsTest {
     }
 
     @Test
-    fun `the dead letter queue is not itself dead-lettered`() {
-        // Otherwise a failing DLQ consumer would loop messages forever.
+    fun `the dead letter queue is not itself dead-lettered but is bounded`() {
+        // Not dead-lettered: a failing DLQ consumer would loop messages forever.
+        // Bounded with drop-head: nobody consumes it, so unbounded growth would
+        // eventually exhaust broker memory - and reject-publish here would break
+        // the dead-letter path itself.
         val args = QueueArguments.deadLetterQueue()
 
         assertEquals("quorum", args["x-queue-type"])
         assertNull(args["x-dead-letter-exchange"])
+        assertEquals(268_435_456L, args["x-max-length-bytes"])
+        assertEquals("drop-head", args["x-overflow"])
     }
 
     @Test
@@ -836,11 +884,27 @@ class QueueArgumentsTest {
     }
 
     @Test
-    fun `shared event queues are durable and dead-lettered`() {
-        val args = QueueArguments.sharedEventQueue()
+    fun `shared event queues pin the dead-letter routing key to the service`() {
+        // Events are delivered with their TOPIC as routing key. Without the pinned key,
+        // a nacked event would dead-letter into the direct surf.dlx with a topic key,
+        // match no binding, and vanish - exactly the P5 message loss this redesign fixes.
+        val args = QueueArguments.sharedEventQueue("surf-stats")
 
         assertEquals("quorum", args["x-queue-type"])
         assertEquals(RabbitTopology.DLX_EXCHANGE, args["x-dead-letter-exchange"])
+        assertEquals("surf-stats", args["x-dead-letter-routing-key"])
+    }
+
+    @Test
+    fun `shared event queues drop oldest instead of rejecting publishes`() {
+        // Publisher confirms only ack once EVERY bound queue accepted the message.
+        // reject-publish here would let one full subscriber queue fail every publisher
+        // of matching topics fleet-wide. drop-head keeps the failure local to the
+        // overflowing subscriber.
+        val args = QueueArguments.sharedEventQueue("surf-stats")
+
+        assertEquals(268_435_456L, args["x-max-length-bytes"])
+        assertEquals("drop-head", args["x-overflow"])
     }
 }
 ```
@@ -867,43 +931,59 @@ package dev.slne.surf.rabbitmq.common.topology
 object QueueArguments {
 
     /**
-     * Upper bound on a service queue, in bytes.
+     * Upper bound on a bounded queue, in bytes.
      *
-     * Combined with `reject-publish` this stops a service that has been down for days from
-     * exhausting broker memory and taking every other service down with it.
+     * On service queues (combined with `reject-publish`) this stops a service that has been
+     * down for days from exhausting broker memory and taking every other service down with it.
+     * On audit queues (combined with `drop-head`) it caps queues nobody consumes.
      */
-    const val MAX_SERVICE_QUEUE_BYTES = 268_435_456L
+    const val MAX_QUEUE_BYTES = 268_435_456L
 
     /**
      * Durable, replicated, bounded, dead-lettered.
      *
-     * No `x-dead-letter-routing-key` is set on purpose: RabbitMQ then preserves the original
-     * routing key when dead-lettering, which is what lets a retried message return to its own
-     * service queue without per-service retry queues.
+     * No `x-dead-letter-routing-key` is set on purpose: a nacked message keeps the routing
+     * key it was delivered with — the service name — which is exactly what the
+     * `surf.dlq.<service>` binding on `surf.dlx` matches.
      */
     fun serviceQueue(): Map<String, Any> = mapOf(
         "x-queue-type" to "quorum",
         "x-dead-letter-exchange" to RabbitTopology.DLX_EXCHANGE,
-        "x-max-length-bytes" to MAX_SERVICE_QUEUE_BYTES,
+        "x-max-length-bytes" to MAX_QUEUE_BYTES,
         "x-overflow" to "reject-publish"
     )
 
     /**
-     * Durable and replicated, but **not** dead-lettered.
+     * Durable and replicated, bounded, but **not** dead-lettered.
      *
-     * A dead-letter queue that dead-letters would cycle messages endlessly when its own
-     * consumer fails.
+     * Not dead-lettered: a dead-letter queue that dead-letters would cycle messages
+     * endlessly. Bounded with `drop-head` rather than `reject-publish`: nothing consumes
+     * this queue, and rejecting would make the dead-letter path itself fail.
+     *
+     * Also used for the `surf.unroutable` audit queue, which has the same lifecycle.
      */
     fun deadLetterQueue(): Map<String, Any> = mapOf(
-        "x-queue-type" to "quorum"
+        "x-queue-type" to "quorum",
+        "x-max-length-bytes" to MAX_QUEUE_BYTES,
+        "x-overflow" to "drop-head"
     )
 
-    /** Same durability as a service queue: shared subscriptions must survive a restart. */
-    fun sharedEventQueue(): Map<String, Any> = mapOf(
+    /**
+     * Same durability as a service queue, two deliberate differences:
+     *
+     * - `x-dead-letter-routing-key` pins dead-letters to the service name. Events carry
+     *   their *topic* as routing key; without the pin a nacked event would enter the
+     *   direct `surf.dlx` with a topic key, match no binding, and vanish.
+     * - `drop-head` instead of `reject-publish`. Publisher confirms only ack once every
+     *   bound queue accepted the message, so `reject-publish` would let one full
+     *   subscriber queue fail every publisher of matching topics fleet-wide.
+     */
+    fun sharedEventQueue(serviceName: String): Map<String, Any> = mapOf(
         "x-queue-type" to "quorum",
         "x-dead-letter-exchange" to RabbitTopology.DLX_EXCHANGE,
-        "x-max-length-bytes" to MAX_SERVICE_QUEUE_BYTES,
-        "x-overflow" to "reject-publish"
+        "x-dead-letter-routing-key" to serviceName,
+        "x-max-length-bytes" to MAX_QUEUE_BYTES,
+        "x-overflow" to "drop-head"
     )
 
     /**
@@ -919,7 +999,7 @@ object QueueArguments {
 - [ ] **Step 4: Run and confirm it PASSES**
 
 Run: `./gradlew :surf-rabbitmq-common:test --tests '*QueueArgumentsTest*'`
-Expected: `BUILD SUCCESSFUL`, 5 tests passed.
+Expected: `BUILD SUCCESSFUL`, 6 tests passed.
 
 - [ ] **Step 5: Write the failing declarer test**
 
@@ -969,7 +1049,6 @@ class RabbitTopologyDeclarerTest {
         channel.exchangeDeclarePassive(RabbitTopology.RPC_EXCHANGE)
         channel.exchangeDeclarePassive(RabbitTopology.EVENTS_EXCHANGE)
         channel.exchangeDeclarePassive(RabbitTopology.DLX_EXCHANGE)
-        channel.exchangeDeclarePassive(RabbitTopology.UNROUTABLE_EXCHANGE)
     }
 
     @Test
@@ -992,21 +1071,41 @@ class RabbitTopologyDeclarerTest {
     }
 
     @Test
-    fun `a message to an unknown service lands in the unroutable queue`() {
+    fun `a mandatory publish to an unknown service is returned to the publisher`() {
         declarer.declareExchanges()
-        declarer.declareUnroutableQueue()
+
+        // This is the property fail-fast is built on in Plan 4. It only holds because
+        // surf.rpc has NO alternate exchange: an AE would route the message and
+        // basic.return would never fire.
+        val returned = java.util.concurrent.CompletableFuture<String>()
+        channel.addReturnListener { _, _, _, _, _, body ->
+            returned.complete(String(body))
+        }
 
         channel.basicPublish(
             RabbitTopology.RPC_EXCHANGE,
             "service-that-does-not-exist",
+            /* mandatory = */ true,
             null,
             "orphan".toByteArray()
         )
 
-        val delivered = awaitMessage(RabbitTopology.UNROUTABLE_QUEUE)
         assertEquals(
-            "orphan", String(delivered),
-            "without the alternate exchange this message would be dropped silently"
+            "orphan",
+            returned.get(5, java.util.concurrent.TimeUnit.SECONDS),
+            "an unroutable mandatory publish must come back via basic.return"
+        )
+    }
+
+    @Test
+    fun `the unroutable audit queue is declared unbound and redeclarable`() {
+        val queue = declarer.declareUnroutableQueue()
+
+        assertEquals(RabbitTopology.UNROUTABLE_QUEUE, queue)
+
+        // Identical redeclaration must succeed - every process declares this queue.
+        assertNotNull(
+            channel.queueDeclare(queue, true, false, false, QueueArguments.deadLetterQueue())
         )
     }
 
@@ -1124,26 +1223,21 @@ import com.rabbitmq.client.Channel
 class RabbitTopologyDeclarer(private val channel: Channel) {
 
     /**
-     * Declares the four exchanges.
+     * Declares the three exchanges.
      *
      * Safe to call from every process and on every reconnect: redeclaring with identical
      * properties is a no-op on the broker.
+     *
+     * `surf.rpc` deliberately has **no** alternate exchange. Unroutable messages must come
+     * back to the publisher via `basic.return` (`mandatory = true`) so the caller can fail
+     * fast; an AE would swallow the return. The audit copy in [RabbitTopology.UNROUTABLE_QUEUE]
+     * is produced by the return listener republishing (Plan 4), not by the broker.
      */
     fun declareExchanges() {
         channel.exchangeDeclare(
-            RabbitTopology.UNROUTABLE_EXCHANGE,
-            BuiltinExchangeType.FANOUT,
-            /* durable = */ true
-        )
-
-        // Anything published to surf.rpc with no matching binding is re-routed here instead
-        // of being dropped without trace.
-        channel.exchangeDeclare(
             RabbitTopology.RPC_EXCHANGE,
             BuiltinExchangeType.DIRECT,
-            /* durable = */ true,
-            /* autoDelete = */ false,
-            mapOf("alternate-exchange" to RabbitTopology.UNROUTABLE_EXCHANGE)
+            /* durable = */ true
         )
 
         channel.exchangeDeclare(
@@ -1160,6 +1254,23 @@ class RabbitTopologyDeclarer(private val channel: Channel) {
     }
 
     /**
+     * Declares the dead-letter queue for [serviceName] and binds it to [RabbitTopology.DLX_EXCHANGE].
+     *
+     * Called from [declareServiceQueue] and (in Plan 3) from `declareSharedEventQueue`: any
+     * process whose queues dead-letter under this service name must ensure the DLQ exists,
+     * otherwise dead-lettered messages route into `surf.dlx`, match nothing, and vanish.
+     *
+     * @return the queue name
+     */
+    fun declareDeadLetterQueue(serviceName: String): String {
+        val dlq = RabbitTopology.deadLetterQueue(serviceName)
+        channel.queueDeclare(dlq, true, false, false, QueueArguments.deadLetterQueue())
+        channel.queueBind(dlq, RabbitTopology.DLX_EXCHANGE, serviceName)
+
+        return dlq
+    }
+
+    /**
      * Declares the shared service queue and its dead-letter queue, and binds both.
      *
      * Call this only on a process that hosts [serviceName].
@@ -1167,9 +1278,7 @@ class RabbitTopologyDeclarer(private val channel: Channel) {
      * @return the queue name
      */
     fun declareServiceQueue(serviceName: String): String {
-        val dlq = RabbitTopology.deadLetterQueue(serviceName)
-        channel.queueDeclare(dlq, true, false, false, QueueArguments.deadLetterQueue())
-        channel.queueBind(dlq, RabbitTopology.DLX_EXCHANGE, serviceName)
+        declareDeadLetterQueue(serviceName)
 
         val queue = RabbitTopology.serviceQueue(serviceName)
         channel.queueDeclare(queue, true, false, false, QueueArguments.serviceQueue())
@@ -1205,11 +1314,16 @@ class RabbitTopologyDeclarer(private val channel: Channel) {
         return queue
     }
 
-    /** Declares the single queue collecting messages addressed to unknown targets. */
+    /**
+     * Declares the audit queue for returned (unroutable) messages.
+     *
+     * Bound to nothing: the publish-side return listener republishes returned messages into
+     * it by name through the default exchange (Plan 4). Declared by every process at connect,
+     * with identical arguments, so it exists before the first return can happen.
+     */
     fun declareUnroutableQueue(): String {
         val queue = RabbitTopology.UNROUTABLE_QUEUE
         channel.queueDeclare(queue, true, false, false, QueueArguments.deadLetterQueue())
-        channel.queueBind(queue, RabbitTopology.UNROUTABLE_EXCHANGE, "")
 
         return queue
     }
@@ -1221,7 +1335,7 @@ class RabbitTopologyDeclarer(private val channel: Channel) {
 With Docker running:
 
 Run: `./gradlew :surf-rabbitmq-common:test --tests '*RabbitTopologyDeclarerTest*'`
-Expected: `BUILD SUCCESSFUL`, 7 tests passed.
+Expected: `BUILD SUCCESSFUL`, 8 tests passed.
 
 Without Docker:
 
@@ -1339,7 +1453,26 @@ Iterate until green. Do **not** change behaviour in this task; only make it comp
 Run: `./gradlew test -PskipIntegration`
 Expected: `BUILD SUCCESSFUL`, all Task 1–4 tests still pass.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 8: Regenerate the ABI dumps**
+
+The old API modules carry committed ABI dumps (`surf-rabbitmq-api/*/api/*.api`) and
+`surf-rabbitmq-common-api` configures `abiValidation`. After the merge the dumps name modules
+that no longer exist, and the ABI check (if wired into `check`) fails the build on the first
+API change.
+
+Delete the stale dumps (they were removed with their modules by `git rm`; verify none remain)
+and regenerate for the merged module:
+
+```bash
+./gradlew updateLegacyAbi
+```
+
+(Confirm the exact task name with `./gradlew :surf-rabbitmq-api:tasks --all | grep -i abi` —
+it comes from the Kotlin ABI-validation plugin.) Commit the regenerated dump together with
+the move. Every later task in this and the following plans that changes the public API must
+re-run this task before its commit.
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -1384,7 +1517,11 @@ The unified entry point. Replaces `ClientRabbitMQApi` and `ServerRabbitMQApi`, s
       companion object { fun builder(serviceName: String, dataPath: Path): SurfRabbitApiBuilder }
   }
   ```
-  Plan 3 adds `publish`, `send` and `registerListener`. Plan 4 adds breaker wiring.
+  The builder additionally offers `instanceName(name: String)` for processes that must be
+  addressable via `InstanceTarget` (see Task 3).
+
+  Plan 3 adds `publish`, `send` and `registerListener`. Plan 4 adds breaker wiring and
+  `@RpcService(service = ...)`; until then `rpc()` requires the explicit `service` argument.
 
 - [ ] **Step 1: Write the failing builder test**
 
@@ -1393,6 +1530,7 @@ Create `surf-rabbitmq-api/src/test/kotlin/dev/slne/surf/rabbitmq/api/SurfRabbitA
 ```kotlin
 package dev.slne.surf.rabbitmq.api
 
+import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import kotlin.test.assertEquals
@@ -1403,30 +1541,62 @@ class SurfRabbitApiBuilderTest {
 
     private val dataPath = Files.createTempDirectory("surf-rabbit-test")
 
+    // Builder tests always inject a config stub. Default config loading touches the
+    // filesystem and, standalone, the StandaloneLifecycleHook - both are exercised by the
+    // integration tests in core, not here.
+    private fun stubConfig(): CommonRabbitMQConfig = object : CommonRabbitMQConfig {
+        override fun getHost() = "localhost"
+        override fun getPort() = 5672
+        override fun getUsername() = "guest"
+        override fun getPassword() = "guest"
+        override fun getVhost() = "/"
+        override fun getTimeout() = 5
+        override fun getRequestTimeoutSeconds() = 5
+        override fun getPublisherPoolSize() = 1
+        override fun getServerPrefetchCount() = 1
+        override fun isPersistRequests() = false
+        override fun isPersistResponses() = false
+        override fun isOutgoingRequestChunkingEnabled() = false
+        override fun isOutgoingResponseChunkingEnabled() = false
+    }
+
+    private fun builder(serviceName: String) =
+        SurfRabbitApi.builder(serviceName, dataPath).config(stubConfig())
+
     @Test
     fun `the builder derives an identity from the service name`() {
-        val api = SurfRabbitApi.builder("surf-factions", dataPath).build()
+        val api = builder("surf-factions").build()
 
         assertEquals("surf-factions", api.identity.serviceName)
         assertTrue(api.identity.instanceId.startsWith("surf-factions-"))
     }
 
     @Test
+    fun `an explicit instance name overrides the random suffix`() {
+        val api = SurfRabbitApi.builder("lobby", dataPath)
+            .config(stubConfig())
+            .instanceName("lobby-3")
+            .build()
+
+        assertEquals("lobby-3", api.identity.instanceId)
+    }
+
+    @Test
     fun `a blank service name is rejected at build time`() {
         assertFailsWith<IllegalArgumentException> {
-            SurfRabbitApi.builder("  ", dataPath).build()
+            builder("  ").build()
         }
     }
 
     @Test
     fun `a fresh api is not frozen`() {
-        val api = SurfRabbitApi.builder("svc", dataPath).build()
+        val api = builder("svc").build()
         assertTrue(!api.isFrozen())
     }
 
     @Test
     fun `freezing twice is refused`() {
-        val api = SurfRabbitApi.builder("svc", dataPath).build()
+        val api = builder("svc").build()
         api.freeze()
 
         assertFailsWith<IllegalStateException> { api.freeze() }
@@ -1434,7 +1604,7 @@ class SurfRabbitApiBuilderTest {
 
     @Test
     fun `handlers cannot be registered after freezing`() {
-        val api = SurfRabbitApi.builder("svc", dataPath).build()
+        val api = builder("svc").build()
         api.freeze()
 
         assertFailsWith<IllegalStateException> {
@@ -1444,8 +1614,8 @@ class SurfRabbitApiBuilderTest {
 
     @Test
     fun `two instances of the same service get different identities`() {
-        val a = SurfRabbitApi.builder("svc", dataPath).build()
-        val b = SurfRabbitApi.builder("svc", dataPath).build()
+        val a = builder("svc").build()
+        val b = builder("svc").build()
 
         assertTrue(
             a.identity.instanceId != b.identity.instanceId,
@@ -1491,13 +1661,26 @@ class SurfRabbitApiBuilder internal constructor(
     private var serializers: SerializersModule = EmptySerializersModule()
     private var configOverride: CommonRabbitMQConfig? = null
     private var configFileName: String = "rabbitmq.yml"
+    private var instanceName: String? = null
 
     /** Additional serializers for packet, event and RPC payload types. */
     fun serializers(module: SerializersModule): SurfRabbitApiBuilder = apply {
         serializers = module
     }
 
-    /** Overrides the config file name looked up under the data path. */
+    /**
+     * Gives this process a stable instance id instead of a random suffix.
+     *
+     * Required for processes that must be addressable via `InstanceTarget` — a caller can
+     * only target an instance whose id it can predict. Take the name from the process's own
+     * configuration (e.g. the Paper server name). A duplicated name fails loudly at connect,
+     * because the instance queues are exclusive.
+     */
+    fun instanceName(name: String): SurfRabbitApiBuilder = apply {
+        instanceName = name
+    }
+
+    /** Overrides the global config file name (standalone mode only). */
     fun configFileName(name: String): SurfRabbitApiBuilder = apply {
         configFileName = name
     }
@@ -1510,17 +1693,56 @@ class SurfRabbitApiBuilder internal constructor(
     fun build(): SurfRabbitApi {
         require(serviceName.isNotBlank()) { "serviceName must not be blank" }
 
-        val config = configOverride
-            ?: resolveRabbitMQConfig(GlobalRabbitMQConfig.getOrLoad(dataPath, configFileName))
+        val platform = platformInstanceOrNull()
+        val config = configOverride ?: resolveConfig(platform)
 
         return SurfRabbitApi(
-            identity = RabbitIdentity.create(serviceName),
+            identity = RabbitIdentity.create(serviceName, instanceName),
             config = config,
-            cbor = SurfRabbitApi.createCbor(serializers)
+            cbor = SurfRabbitApi.createCbor(serializers),
+            standalone = platform == null && configOverride == null
         )
     }
+
+    /**
+     * Resolution stays four-layered, exactly as before the client/server merge:
+     * `env > plugin YAML > global YAML > default`.
+     *
+     * On Paper/Velocity the global YAML lives in the platform plugin's data folder
+     * ([RabbitMQInstance.dataPath], file `config.yml`) and the per-plugin overrides in this
+     * builder's [dataPath] — the former `ClientRabbitMQApi.create` behaviour. Standalone
+     * there is no plugin layer and the global YAML lives in [dataPath] — the former
+     * `ServerRabbitMQApi.create` behaviour, including the [StandaloneLifecycleHook] init.
+     */
+    private fun resolveConfig(platform: RabbitMQInstance?): CommonRabbitMQConfig {
+        return if (platform != null) {
+            resolveRabbitMQConfig(
+                GlobalRabbitMQConfig.getOrLoad(platform.dataPath, "config.yml"),
+                PluginRabbitMQConfig.create(dataPath)
+            )
+        } else {
+            StandaloneLifecycleHook.onInit(dataPath)
+            resolveRabbitMQConfig(GlobalRabbitMQConfig.getOrLoad(dataPath, configFileName))
+        }
+    }
+
+    private fun platformInstanceOrNull(): RabbitMQInstance? =
+        ServiceLoader.load(RabbitMQInstance::class.java).firstOrNull()
 }
 ```
+
+Two supporting changes in the same step:
+
+1. `RabbitMQInstance.Companion.instance` currently uses `requiredService`, which throws when
+   no platform is present. Keep it, but the builder must use the `ServiceLoader`-based
+   optional lookup above (or an `optionalService` helper if surf-api-core provides one) so
+   standalone processes work.
+2. `GlobalRabbitMQConfig.getOrLoad` caches in a single JVM-wide static — the first load wins
+   and every later `(path, fileName)` is silently ignored, which turns `configFileName()`
+   into a no-op and makes several `SurfRabbitApi` instances in one JVM (a Paper server full
+   of plugins) share whichever file loaded first. Change the cache to a
+   `ConcurrentHashMap<Pair<Path, String>, GlobalRabbitMQConfig>` keyed by
+   `(path.toAbsolutePath().normalize(), fileName)`.
 
 - [ ] **Step 4: Implement the API**
 
@@ -1575,7 +1797,8 @@ import kotlin.reflect.KClass
 class SurfRabbitApi @InternalRabbitMQ constructor(
     val identity: RabbitIdentity,
     @InternalRabbitMQ val config: CommonRabbitMQConfig,
-    val cbor: Cbor
+    val cbor: Cbor,
+    private val standalone: Boolean = false
 ) {
     @InternalRabbitMQ
     val scope = CoroutineScope(
@@ -1612,6 +1835,11 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
 
     suspend fun connect() {
         if (!frozen) throw SurfRabbitApiNotFrozenException()
+
+        // Preserves the former ServerRabbitMQApi lifecycle for standalone microservices;
+        // on Paper/Velocity the platform manages the lifecycle and the hook must not run.
+        if (standalone) StandaloneLifecycleHook.beforeConnect()
+
         connection.connect()
     }
 
@@ -1623,6 +1851,8 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
     suspend fun disconnect() {
         connection.disconnect()
         scope.cancel("SurfRabbitApi disconnected")
+
+        if (standalone) StandaloneLifecycleHook.afterDisconnect()
     }
 
     /**
@@ -1733,6 +1963,61 @@ Update `RabbitMQConnectionFactory.createConnection` to take `SurfRabbitApi`, and
 fun <Service : Any> createService(serviceKClass: KClass<Service>, service: String?): Service
 ```
 
+- [ ] **Step 5b: Update the RPC descriptor contract and the KSP processor**
+
+Deleting `RabbitMQApi` is not free for KSP: the generated descriptors implement
+`RabbitRpcServiceDescriptor.createInstance(serviceId: Long, api: RabbitMQApi)` and
+`surf-rabbitmq-ksp`'s `Names.kt:27` holds a `ClassName` for `RabbitMQApi`. This work belongs
+here, not in Plan 4 — the build does not compile without it.
+
+The proxy also needs to know *where* its calls go now that `sendRequest` takes a target:
+
+1. `RabbitRpcServiceDescriptor`:
+
+```kotlin
+fun createInstance(serviceId: Long, api: SurfRabbitApi, target: RabbitTarget): Service
+```
+
+2. `RabbitRpcCall` gains `val target: RabbitTarget`; the generated client impl passes its
+   constructor target into every call it builds.
+
+3. `surf-rabbitmq-ksp`: point `Names.kt`'s `rabbitMqApi` at
+   `dev.slne.surf.rabbitmq.api.SurfRabbitApi`, add a `ClassName` for `RabbitTarget`, and
+   extend `RpcClientImplCodegen` / `RpcDescriptorCodegen` so the generated constructor and
+   `createInstance` carry the target parameter through.
+
+4. `ClientRpcServiceImpl` (merged into core in Task 5):
+
+```kotlin
+    override fun <Service : Any> createService(
+        serviceKClass: KClass<Service>,
+        service: String?
+    ): Service {
+        val descriptor = serviceDescriptorOf(serviceKClass)
+
+        // @RpcService(service = ...) lands in Plan 4; until then the override is mandatory.
+        val target = service ?: error(
+            "No target service for ${descriptor.fqName}. Pass rpc(service = \"...\")."
+        )
+
+        return descriptor.createInstance(
+            serviceIdCounter.incrementAndGet(),
+            api,
+            RabbitTarget.ServiceTarget(target)
+        )
+    }
+```
+
+   and `call(...)` forwards `call.target` into `connection.sendRequest`.
+
+The `ClientRpcServiceImpl` part lives in core, which does not compile again until Task 7 —
+apply the edit now, expect the green build only there. After Task 7, verify the generated
+code against the new contract:
+
+```bash
+./gradlew :surf-rabbitmq-test:surf-rabbitmq-test-common:build
+```
+
 - [ ] **Step 6: Delete the superseded API classes**
 
 ```bash
@@ -1753,7 +2038,7 @@ Task 7. Restrict this step to `:surf-rabbitmq-api`.
 - [ ] **Step 8: Run the API tests**
 
 Run: `./gradlew :surf-rabbitmq-api:test`
-Expected: `BUILD SUCCESSFUL`, 6 builder tests plus the 7 identity tests pass.
+Expected: `BUILD SUCCESSFUL`, 7 builder tests plus the 9 identity tests pass.
 
 - [ ] **Step 9: Commit**
 
@@ -1777,6 +2062,7 @@ Fuses `ClientRabbitMQConnectionImpl` and `ServerRabbitMQConnectionImpl` into one
 - Delete: `surf-rabbitmq-core/src/main/kotlin/dev/slne/surf/rabbitmq/client/connection/ClientRabbitMQConnectionImpl.kt`
 - Delete: `surf-rabbitmq-core/src/main/kotlin/dev/slne/surf/rabbitmq/connection/ServerRabbitMQConnectionImpl.kt`
 - Delete: `surf-rabbitmq-core/src/main/kotlin/dev/slne/surf/rabbitmq/common/connection/AbstractRabbitMQConnectionImpl.kt`
+- Delete: `surf-rabbitmq-core/src/main/kotlin/dev/slne/surf/rabbitmq/common/connection/RabbitQueueNames.kt`
 - Modify: `surf-rabbitmq-core/src/main/kotlin/dev/slne/surf/rabbitmq/common/connection/client/RabbitClient.kt`
 
 **Interfaces:**
@@ -1800,9 +2086,13 @@ handling from `ClientRabbitMQConnectionImpl`, request dispatch from
     override suspend fun connect() {
         val declareConsumer = client.newConsumer("declare")
 
-        // Every process declares the exchanges; they are idempotent.
+        // Every process declares the exchanges and the unroutable audit queue; both are
+        // idempotent. The audit queue must exist before the first basic.return can be
+        // republished into it (Plan 4).
         declareConsumer.withChannel { channel ->
-            RabbitTopologyDeclarer(channel).declareExchanges()
+            val declarer = RabbitTopologyDeclarer(channel)
+            declarer.declareExchanges()
+            declarer.declareUnroutableQueue()
         }
 
         // Reply and instance queues get their own consumer, and therefore their own channel.
@@ -1813,13 +2103,22 @@ handling from `ClientRabbitMQConnectionImpl`, request dispatch from
         }
         startConsumingResponses(replyQueueName)
 
-        // Only a process that actually handles requests declares and consumes a service queue.
+        // Only a process that actually handles requests declares and consumes request
+        // queues. It consumes TWO of them: the shared service queue (competing consumers)
+        // and its own instance queue (InstanceTarget). Without the instance queue, every
+        // InstanceTarget send would be unroutable.
         if (listenerHandler.hasHandlers()) {
             serviceConsumer = client.newConsumer("service")
             val serviceQueue = serviceConsumer.withChannel { channel ->
                 RabbitTopologyDeclarer(channel).declareServiceQueue(api.identity.serviceName)
             }
             startConsumingRequests(serviceQueue)
+
+            instanceConsumer = client.newConsumer("instance")
+            val instanceQueue = instanceConsumer.withChannel { channel ->
+                RabbitTopologyDeclarer(channel).declareInstanceQueue(api.identity.instanceId)
+            }
+            startConsumingRequests(instanceQueue)
         }
 
         replyEndpoint.value = ReplyEndpoint(
@@ -1828,6 +2127,9 @@ handling from `ClientRabbitMQConnectionImpl`, request dispatch from
         )
     }
 ```
+
+`startConsumingRequests(queue: String)` keeps the queue name it consumes — Plan 4 threads it
+through to the retry machinery as the origin queue.
 
 3. Publish to the topology exchange instead of the default exchange. In the request path,
    replace:
@@ -1859,6 +2161,41 @@ fails immediately instead of after the request timeout.
 ```
 
 5. Thread `target: RabbitTarget` through `sendRequest` and `awaitResponse`.
+
+6. **Rework recovery signaling for the stable reply queue name.** The inherited listener
+   logic only repopulates `replyEndpoint` from `onQueueRecovered(oldName, newName)` — a
+   callback built for the old *renamed* callback queues (`setRecoveredQueueNameSupplier` in
+   `RabbitClient.create` renames queues matching `RabbitQueueNames.isCallbackQueue`). The new
+   `surf.reply.<instanceId>` never matches and is recovered under its own name, so the rename
+   path never fires, `replyEndpoint` stays `null` after a recovery, and **every subsequent
+   RPC times out forever**. Replace it:
+
+```kotlin
+    private val connectionListener = object : RabbitConnectionListener {
+        override fun onConnectionLost(cause: ShutdownSignalException) {
+            markReplyConsumerUnavailable(SurfRabbitConnectionLostException(api.identity.instanceId, cause))
+        }
+
+        override fun onRecoveryStarted() {
+            replyEndpoint.value = null
+        }
+
+        override fun onRecoveryCompleted(generation: Long) {
+            // The reply queue name is stable per instance. Topology recovery has already
+            // re-declared it and re-attached the consumer; the endpoint only needs the
+            // new connection generation.
+            replyEndpoint.value = ReplyEndpoint(
+                queueName = replyQueueName,
+                connectionGeneration = generation
+            )
+        }
+    }
+```
+
+   Delete `RabbitQueueNames`, `RabbitClient.newCallbackQueueName()` and the
+   `setRecoveredQueueNameSupplier` block in `RabbitClient.create` — all three exist only for
+   the renamed-callback-queue scheme this replaces. `onQueueRecovered` remains on the
+   listener interface but no longer drives the reply endpoint.
 
 - [ ] **Step 2: Add `withChannel` to RabbitConsumer**
 
@@ -1952,7 +2289,9 @@ class RpcRoundTripTest {
 
     private val dataPath = Files.createTempDirectory("rpc-test")
 
-    private object EchoHandler {
+    // Not private: handler registration goes through the hidden-class invoker
+    // (HANDLER_FACTORY.canAccess), which rejects inaccessible members.
+    object EchoHandler {
         @RabbitHandler
         suspend fun onEcho(packet: EchoPacket) {
             packet.respond(EchoResponse("echo:${packet.text}"))
@@ -2020,6 +2359,7 @@ class RpcRoundTripTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("return listener lands in Plan 4 Task 4 - re-enable there")
     fun `a request to an unknown service fails fast instead of timing out`() = runBlocking {
         val client = api("caller")
         client.freezeAndConnect()
@@ -2075,7 +2415,8 @@ class CompetingConsumersTest {
 
     private val dataPath = Files.createTempDirectory("competing-test")
 
-    private class CountingHandler(val id: Int, val seen: MutableMap<String, Int>) {
+    // Not private: registration rejects members the hidden-class invoker cannot access.
+    class CountingHandler(val id: Int, val seen: MutableMap<String, Int>) {
         val handled = AtomicInteger()
 
         @RabbitHandler
@@ -2147,7 +2488,9 @@ import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 /** Points a [CommonRabbitMQConfig] at the Testcontainers broker with test-sized timeouts. */
 fun testConfig(
     requestTimeoutSeconds: Int = 10,
-    prefetch: Int = 16
+    prefetch: Int = 16,
+    requestChunking: Boolean = false,
+    responseChunking: Boolean = true
 ): CommonRabbitMQConfig = object : CommonRabbitMQConfig {
     private val factory = RabbitBrokerExtension.connectionFactory()
 
@@ -2162,23 +2505,25 @@ fun testConfig(
     override fun getServerPrefetchCount() = prefetch
     override fun isPersistRequests() = true
     override fun isPersistResponses() = false
-    override fun isOutgoingRequestChunkingEnabled() = false
-    override fun isOutgoingResponseChunkingEnabled() = true
+    override fun isOutgoingRequestChunkingEnabled() = requestChunking
+    override fun isOutgoingResponseChunkingEnabled() = responseChunking
+
+    // Plan 4 adds getRetryTtlMillis() to CommonRabbitMQConfig with a production default;
+    // this stub then overrides it with sub-second tiers so the retry-ladder integration
+    // tests run in seconds. Until then the interface default applies.
 }
 ```
 
 - [ ] **Step 3: Run**
 
 With Docker: `./gradlew :surf-rabbitmq-core:test`
-Expected: `BUILD SUCCESSFUL`, 4 tests passed.
+Expected: `BUILD SUCCESSFUL`, 3 tests passed, 1 skipped (the `@Disabled` fast-fail test).
 
 Without Docker: tests are skipped. Record as unverified.
 
-If `a request to an unknown service fails fast` fails on the elapsed-time assertion, the
-`ReturnListener` is not wired: `mandatory = true` alone only returns the message to the
-publisher, something must observe it. That wiring belongs to Plan 4 — if it is not yet
-present, mark this single test `@Disabled("return listener lands in Plan 4")` and re-enable
-it there.
+The fast-fail test is `@Disabled` from the start, deliberately: `mandatory = true` alone only
+makes the broker send `basic.return` — without the listener from Plan 4 Task 4 nothing
+observes it, and the call falls through to the request timeout. Plan 4 re-enables it.
 
 - [ ] **Step 4: Commit**
 
@@ -2311,29 +2656,20 @@ surf-broker stays a move rather than a redesign."
 
 ---
 
-### Task 10: Reconcile the spec and README
+### Task 10: Document the migration in the README
 
-The plan changed two decisions from the spec. Leaving the spec stale would mislead the next reader.
+The spec was already reconciled during the 2026-07-29 design review (queue name segments,
+no alternate exchange, retry routing, instance naming, event overflow). This task only
+documents the API migration for consumers.
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-07-29-rabbitmq-topology-redesign-design.md`
 - Modify: `README.md`
 
 **Interfaces:**
 - Consumes: everything above
 - Produces: nothing
 
-- [ ] **Step 1: Correct the event queue names in the spec**
-
-In the queue table, replace `surf.events.<instanceId>` with `surf.events.instance.<instanceId>`
-and `surf.events.<service>` with `surf.events.shared.<service>`. Add below the table:
-
-```markdown
-Event queues carry an extra `instance.` or `shared.` segment so that a service and an instance
-of the same name cannot collide on one queue.
-```
-
-- [ ] **Step 2: Document the API change in the README**
+- [ ] **Step 1: Document the API change in the README**
 
 Add after the intro:
 
@@ -2369,11 +2705,11 @@ val punish   = rabbit.rpc<PunishService>()
 ```
 ````
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Commit**
 
 ```bash
-git add docs README.md
-git commit -m "docs: reconcile spec with implemented queue naming, add migration guide"
+git add README.md
+git commit -m "docs: add migration guide from 1.6.x to SurfRabbitApi"
 ```
 
 ---
@@ -2385,13 +2721,19 @@ git commit -m "docs: reconcile spec with implemented queue naming, add migration
 - [ ] Six modules are now `surf-rabbitmq-api` and `surf-rabbitmq-core`
 - [ ] One client reaches two services over one TCP connection (Task 8)
 - [ ] Three instances share a queue and handle each message exactly once (Task 8)
+- [ ] A process with handlers consumes both its service queue and its instance queue (Task 7)
+- [ ] The ABI dump matches the merged module (Task 5)
 - [ ] `SharedPackagePurityTest` passes
 
 ## Deliberately out of scope
 
 - **Events, fire-and-forget, TTL split** — Plan 3.
-- **DLQ, retry queues, return listener, circuit breaker wiring** — Plan 4.
-- **KSP `@RpcService(service = ...)`** — Plan 4. Until then, `rpc()` requires the explicit
-  service override argument.
+- **DLQ wiring, retry queues, return listener, circuit breaker wiring** — Plan 4.
+- **The KSP annotation parameter `@RpcService(service = ...)`** — Plan 4. Until then, `rpc()`
+  requires the explicit service override argument. Note that the KSP *codegen* itself is
+  already touched in this plan (Task 6 Step 5b) — deleting `RabbitMQApi` and threading the
+  target through the generated proxies cannot wait.
 - **Migrating `surf-rabbitmq-test`** — Plan 4.
-- **Connection recovery and Netty transport setup** — untouched by design; it works.
+- **Netty transport setup** — untouched by design; it works. Connection recovery is touched
+  in exactly one place (Task 7 Step 1 item 6): the reply-endpoint signaling had to change
+  because reply queues now keep a stable name.
