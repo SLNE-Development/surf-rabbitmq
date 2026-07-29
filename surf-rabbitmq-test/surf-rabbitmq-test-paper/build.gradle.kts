@@ -20,5 +20,5 @@ surfPaperPluginApi {
 
 dependencies {
     api(projects.surfRabbitmqTest.surfRabbitmqTestCommon)
-    compileOnly(projects.surfRabbitmqApi.surfRabbitmqClientApi)
+    compileOnly(projects.surfRabbitmqApi)
 }

@@ -3,8 +3,8 @@ plugins {
 }
 
 dependencies {
-    api(projects.surfRabbitmqApi.surfRabbitmqClientApi)
-    api(projects.surfRabbitmqClient)
+    api(projects.surfRabbitmqApi)
+    api(projects.surfRabbitmqCore)
 }
 
 velocityPluginFile {

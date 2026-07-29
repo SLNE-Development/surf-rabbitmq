@@ -12,17 +12,13 @@ plugins {
 
 rootProject.name = "surf-rabbitmq"
 
-include("surf-rabbitmq-api:surf-rabbitmq-common-api")
-include("surf-rabbitmq-api:surf-rabbitmq-client-api")
-include("surf-rabbitmq-api:surf-rabbitmq-server-api")
-include("surf-rabbitmq-server")
-include("surf-rabbitmq-client")
-include("surf-rabbitmq-common")
+include("surf-rabbitmq-api")
+include("surf-rabbitmq-core")
+include("surf-circuitbreaker")
 
 include("surf-rabbitmq-paper")
 include("surf-rabbitmq-velocity")
 include("surf-rabbitmq-ksp")
-include("surf-circuitbreaker")
 
 val isCi = providers.environmentVariable("CI").isPresent
 
