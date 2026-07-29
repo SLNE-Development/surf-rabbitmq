@@ -1,11 +1,11 @@
-package dev.slne.surf.rabbitmq.listener;
+package dev.slne.surf.rabbitmq.shared.dispatch;
 
 import java.lang.invoke.MethodHandles;
 
-public final class RabbitListenerMethodHandleProvider {
+public final class HandlerMethodHandleProvider {
     public static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
 
-    private RabbitListenerMethodHandleProvider() {
+    private HandlerMethodHandleProvider() {
         throw new AssertionError("No instances");
     }
 }

@@ -1,8 +1,9 @@
-package dev.slne.surf.rabbitmq.listener;
+package dev.slne.surf.rabbitmq.shared.dispatch;
 
 import dev.slne.surf.api.core.invoker.HiddenInvokerUtil;
 import dev.slne.surf.api.core.invoker.InvokerClassData;
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket;
+import dev.slne.surf.rabbitmq.listener.RabbitListenerHandler;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -13,7 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 @SuppressWarnings("UnstableApiUsage")
-final class RabbitListenerHandlerTemplate implements RabbitListenerHandler {
+public final class HandlerTemplate implements RabbitListenerHandler {
 
     private static final Method METHOD;
     private static final MethodHandle METHOD_HANDLE;
@@ -31,7 +32,7 @@ final class RabbitListenerHandlerTemplate implements RabbitListenerHandler {
             REQUEST_CLASS = classData.payloadClass();
             IS_SUSPEND = classData.isSuspend();
         } catch (Throwable e) {
-            throw new AssertionError("Failed to load RabbitListenerHandlerTemplate", e);
+            throw new AssertionError("Failed to load HandlerTemplate", e);
         }
     }
 
@@ -62,6 +63,6 @@ final class RabbitListenerHandlerTemplate implements RabbitListenerHandler {
 
     @Override
     public String toString() {
-        return "RabbitListenerHandleTemplate{" + METHOD + '}';
+        return "HandlerTemplate{" + METHOD + '}';
     }
 }

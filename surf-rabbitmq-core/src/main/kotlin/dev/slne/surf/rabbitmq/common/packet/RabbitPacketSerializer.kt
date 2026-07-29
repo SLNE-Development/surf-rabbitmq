@@ -8,8 +8,8 @@ import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundExceptio
 import dev.slne.surf.rabbitmq.api.packet.RabbitPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
-import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
-import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
+import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerCache
+import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerNameCache
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
 import kotlinx.serialization.ExperimentalSerializationApi

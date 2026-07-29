@@ -17,8 +17,10 @@ import dev.slne.surf.rabbitmq.api.version.RabbitMqVersion
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitAck
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketPropertiesInjector
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
-import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
-import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
+import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerCache
+import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerNameCache
+import dev.slne.surf.rabbitmq.shared.dispatch.HandlerMethodHandleProvider
+import dev.slne.surf.rabbitmq.shared.dispatch.HandlerTemplate
 import dev.slne.surf.rabbitmq.core.connection.RabbitConnectionImpl
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -51,9 +53,9 @@ class RabbitListenerHandlerManager(
     companion object {
         private val log = logger()
         private val HANDLER_FACTORY = InvokerFactory(
-            /* templateClass = */ RabbitListenerHandlerTemplate::class.java,
+            /* templateClass = */ HandlerTemplate::class.java,
             /* invokerInterface = */ RabbitListenerHandler::class.java,
-            /* lookup = */ RabbitListenerMethodHandleProvider.LOOKUP
+            /* lookup = */ HandlerMethodHandleProvider.LOOKUP
         )
     }
 

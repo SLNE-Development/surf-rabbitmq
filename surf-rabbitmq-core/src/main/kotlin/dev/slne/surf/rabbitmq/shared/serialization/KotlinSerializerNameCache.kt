@@ -1,4 +1,4 @@
-package dev.slne.surf.rabbitmq.common.util
+package dev.slne.surf.rabbitmq.shared.serialization
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.modules.SerializersModule

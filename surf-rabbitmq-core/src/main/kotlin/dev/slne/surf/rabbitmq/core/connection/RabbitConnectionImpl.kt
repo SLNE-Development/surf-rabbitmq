@@ -25,8 +25,8 @@ import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
 import dev.slne.surf.rabbitmq.common.topology.RabbitTopology
 import dev.slne.surf.rabbitmq.common.topology.RabbitTopologyDeclarer
-import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
-import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
+import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerCache
+import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerNameCache
 import dev.slne.surf.rabbitmq.listener.RabbitListenerHandlerManager
 import it.unimi.dsi.fastutil.objects.ObjectList
 import kotlinx.coroutines.CompletableDeferred
