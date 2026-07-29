@@ -60,6 +60,13 @@ dependencies {
     testImplementation(libs.testcontainers.core)
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.rabbitmq)
+
+    // surf-api-core/surf-api-standalone are compileOnly for main (real hosts provide them),
+    // but constructing a SurfRabbitApi in tests needs the real runtime - see the matching
+    // comment in surf-rabbitmq-api/build.gradle.kts.
+    testImplementation("dev.slne.surf.api:surf-api-core:+")
+    testRuntimeOnly("dev.slne.surf.api:surf-api-standalone:+")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.11.0")
 }
 
 tasks.test {
