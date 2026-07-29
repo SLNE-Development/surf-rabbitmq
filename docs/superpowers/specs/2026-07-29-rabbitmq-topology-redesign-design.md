@@ -10,6 +10,12 @@ Retry-Routing (Rückkehr über die Default-Exchange statt `surf.rpc`), Unroutabl
 Instanz-Adressierung (konfigurierbarer stabiler Name) und Overflow der Event-Queues
 (`drop-head` statt `reject-publish`). Details in den jeweiligen Abschnitten.
 
+**Implemented:** 2026-07-29 across plans
+`2026-07-29-surf-circuitbreaker.md`,
+`2026-07-29-rabbitmq-topology-foundation.md`,
+`2026-07-29-rabbitmq-events-and-send.md`,
+`2026-07-29-rabbitmq-reliability-and-migration.md`.
+
 ## Problemstellung
 
 Die Library implementiert ausschließlich Request/Response über die AMQP-Default-Exchange.
