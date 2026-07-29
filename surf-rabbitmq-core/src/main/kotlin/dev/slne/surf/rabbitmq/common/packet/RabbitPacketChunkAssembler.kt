@@ -18,7 +18,9 @@ class RabbitPacketChunkAssembler(
     private val cleanupIntervalNanos = minOf(timeoutNanos, 1.seconds.inWholeNanoseconds)
     private val lastCleanupNanos = AtomicLong(System.nanoTime())
 
-    private val partialPackets = ConcurrentHashMap<String, PartialPacket>()
+    private data class PartialKey(val correlationId: String, val seriesId: Long)
+
+    private val partialPackets = ConcurrentHashMap<PartialKey, PartialPacket>()
 
     fun accept(
         correlationId: String,
@@ -34,8 +36,10 @@ class RabbitPacketChunkAssembler(
             throw SurfRabbitProtocolChunkKindMismatchException(expectedKind.name, chunk.kind.name)
         }
 
+        val key = PartialKey(correlationId, chunk.seriesId)
+
         val partial = getOrCreatePartial(
-            correlationId = correlationId,
+            key = key,
             chunk = chunk,
             now = now
         )
@@ -60,27 +64,28 @@ class RabbitPacketChunkAssembler(
             return ChunkAcceptResult.Stored
         }
 
-        partialPackets.remove(correlationId, partial)
+        partialPackets.remove(key, partial)
 
         return ChunkAcceptResult.Complete(partial.assemble())
     }
 
+    /** Drops all partial series for [correlationId], whichever attempt they came from. */
     fun discard(correlationId: String) {
-        partialPackets.remove(correlationId)
+        partialPackets.keys.removeIf { it.correlationId == correlationId }
     }
 
     @Suppress("FoldInitializerAndIfToElvis")
     private fun getOrCreatePartial(
-        correlationId: String,
+        key: PartialKey,
         chunk: PacketChunk,
         now: Long
     ): PartialPacket {
         while (true) {
-            val existing = partialPackets[correlationId]
+            val existing = partialPackets[key]
 
             if (existing != null) {
                 if (existing.isExpired(now, timeoutNanos)) {
-                    partialPackets.remove(correlationId, existing)
+                    partialPackets.remove(key, existing)
                     continue
                 }
 
@@ -93,7 +98,7 @@ class RabbitPacketChunkAssembler(
                 originalSize = chunk.originalSize
             )
 
-            val previous = partialPackets.putIfAbsent(correlationId, created)
+            val previous = partialPackets.putIfAbsent(key, created)
             if (previous == null) {
                 return created
             }

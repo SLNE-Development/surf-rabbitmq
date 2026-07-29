@@ -6,10 +6,15 @@ import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking.PACKET_CHUNKING
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking.PACKET_CHUNK_SIZE_BYTES
 import io.netty.buffer.Unpooled
 import it.unimi.dsi.fastutil.objects.ObjectArrayList
+import java.util.concurrent.ThreadLocalRandom
 
 object RabbitPacketChunking {
     private const val MAGIC = 0x5352_4348 // "SRCH"
-    private const val VERSION: Byte = 1
+
+    // v2 adds seriesId to the header. A v1 chunk is rejected rather than misread: without a
+    // series id, chunks of a redelivered, aborted attempt could not be told apart from the
+    // series that dies with in-flight partial state.
+    private const val VERSION: Byte = 2
 
     private const val KIND_REQUEST: Byte = 1
     private const val KIND_RESPONSE: Byte = 2
@@ -43,6 +48,7 @@ object RabbitPacketChunking {
         Int.SIZE_BYTES + // magic
                 1 + // version
                 1 + // kind
+                Long.SIZE_BYTES + // seriesId
                 Int.SIZE_BYTES + // totalChunks
                 Int.SIZE_BYTES + // chunkIndex
                 Int.SIZE_BYTES // originalSize
@@ -90,6 +96,7 @@ object RabbitPacketChunking {
                 else -> throw SurfRabbitProtocolUnknownChunkKindException(rawKind)
             }
 
+            val seriesId = buf.readLong()
             val totalChunks = buf.readInt()
             val chunkIndex = buf.readInt()
             val originalSize = buf.readInt()
@@ -155,6 +162,7 @@ object RabbitPacketChunking {
 
             return PacketChunk(
                 kind = kind,
+                seriesId = seriesId,
                 totalChunks = totalChunks,
                 chunkIndex = chunkIndex,
                 originalSize = originalSize,
@@ -180,6 +188,10 @@ object RabbitPacketChunking {
         val totalChunks = (data.size + PACKET_CHUNK_SIZE_BYTES - 1) / PACKET_CHUNK_SIZE_BYTES
         val chunks = ObjectArrayList<ByteArray>(totalChunks)
 
+        // One id per split call. Chunks of two attempts at the same request share a
+        // correlationId, so without this the assembler cannot tell them apart.
+        val seriesId = ThreadLocalRandom.current().nextLong()
+
         var offset = 0
         var index = 0
 
@@ -188,6 +200,7 @@ object RabbitPacketChunking {
             chunks.add(
                 encodeChunk(
                     kind = kind,
+                    seriesId = seriesId,
                     totalChunks = totalChunks,
                     chunkIndex = index,
                     originalSize = data.size,
@@ -206,6 +219,7 @@ object RabbitPacketChunking {
 
     private fun encodeChunk(
         kind: PacketChunkKind,
+        seriesId: Long,
         totalChunks: Int,
         chunkIndex: Int,
         originalSize: Int,
@@ -217,6 +231,7 @@ object RabbitPacketChunking {
             Int.SIZE_BYTES + // magic
                     1 + // version
                     1 + // kind
+                    Long.SIZE_BYTES + // seriesId
                     Int.SIZE_BYTES + // totalChunks
                     Int.SIZE_BYTES + // chunkIndex
                     Int.SIZE_BYTES + // originalSize
@@ -232,6 +247,7 @@ object RabbitPacketChunking {
                     PacketChunkKind.RESPONSE -> KIND_RESPONSE.toInt()
                 }
             )
+            buf.writeLong(seriesId)
             buf.writeInt(totalChunks)
             buf.writeInt(chunkIndex)
             buf.writeInt(originalSize)
@@ -251,6 +267,7 @@ object RabbitPacketChunking {
 
 data class PacketChunk(
     val kind: RabbitPacketChunking.PacketChunkKind,
+    val seriesId: Long,
     val totalChunks: Int,
     val chunkIndex: Int,
     val originalSize: Int,
@@ -260,6 +277,7 @@ data class PacketChunk(
         if (this === other) return true
         if (other !is PacketChunk) return false
 
+        if (seriesId != other.seriesId) return false
         if (totalChunks != other.totalChunks) return false
         if (chunkIndex != other.chunkIndex) return false
         if (originalSize != other.originalSize) return false
@@ -270,7 +288,8 @@ data class PacketChunk(
     }
 
     override fun hashCode(): Int {
-        var result = totalChunks
+        var result = seriesId.hashCode()
+        result = 31 * result + totalChunks
         result = 31 * result + chunkIndex
         result = 31 * result + originalSize
         result = 31 * result + kind.hashCode()
