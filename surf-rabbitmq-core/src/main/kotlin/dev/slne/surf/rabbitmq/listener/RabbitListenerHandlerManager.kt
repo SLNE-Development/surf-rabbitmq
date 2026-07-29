@@ -25,6 +25,7 @@ import dev.slne.surf.rabbitmq.core.connection.RabbitConnectionImpl
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
 import kotlin.time.Duration.Companion.seconds
@@ -126,7 +127,7 @@ class RabbitListenerHandlerManager(
 
     suspend fun handleRequest(
         correlationId: String,
-        replyTo: String,
+        replyTo: String?,
         body: ByteArray,
         ack: RabbitAck,
         senderVersion: RabbitMqVersion = RabbitMqVersion.UNKNOWN
@@ -163,6 +164,36 @@ class RabbitListenerHandlerManager(
 
             val handlerJob = handlerScope.launch {
                 handler.handle(request)
+            }
+
+            if (replyTo == null) {
+                // Fire-and-forget: done when the handler is done. There is no response to
+                // wait for and nobody to send one to. Awaiting responseDeferred here (the
+                // RPC path below) would time out after requestTimeoutSeconds for every
+                // handler that never calls respond() - which a F&F handler naturally never
+                // does - nacking and eventually retrying work that already succeeded.
+                val failure = AtomicReference<Throwable?>(null)
+                handlerJob.invokeOnCompletion { cause ->
+                    if (cause != null && cause !is CancellationException) failure.set(cause)
+                }
+                handlerJob.join()
+
+                val cause = failure.get()
+                if (cause == null) {
+                    if (request.hasResponded()) {
+                        log.atFine().log(
+                            "Fire-and-forget handler for %s called respond(); the response is discarded",
+                            request.javaClass.name
+                        )
+                    }
+                    ack.ack()
+                } else {
+                    log.atSevere().withCause(cause)
+                        .log("Fire-and-forget handler for %s failed", request.javaClass.name)
+                    // Plan 4 replaces this nack with the retry ladder.
+                    ack.nack(requeue = false)
+                }
+                return
             }
 
             handlerJob.invokeOnCompletion { cause ->

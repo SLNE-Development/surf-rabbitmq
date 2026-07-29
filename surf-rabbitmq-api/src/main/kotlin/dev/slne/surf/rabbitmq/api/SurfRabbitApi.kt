@@ -3,11 +3,14 @@ package dev.slne.surf.rabbitmq.api
 import dev.slne.surf.api.core.serializer.SurfSerializerModule
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
+import dev.slne.surf.rabbitmq.api.event.RabbitEventPacket
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiAlreadyFrozenException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitApiNotFrozenException
 import dev.slne.surf.rabbitmq.api.identity.RabbitIdentity
 import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.api.internal.StandaloneLifecycleHook
+import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
+import dev.slne.surf.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.rabbitmq.api.packet.standard.response.StringResponsePacket
 import dev.slne.surf.rabbitmq.api.packet.standard.response.optional.OptionalStringResponsePacket
 import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.OptionalPrimitiveResponse
@@ -145,6 +148,35 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
     /** Creates a client proxy for an `@RpcService` interface. */
     inline fun <reified Service : Any> rpc(service: String? = null): Service =
         rpc(Service::class, service)
+
+    /**
+     * Publishes [event] to every matching subscriber.
+     *
+     * The publisher does not know who listens, and an event with no subscriber is discarded
+     * without error. That is the point: adding or removing a subscriber never touches the
+     * publisher.
+     */
+    suspend fun publish(event: RabbitEventPacket) {
+        connection.publishEvent(event)
+    }
+
+    /**
+     * Sends [packet] to one instance of [target] without waiting for a reply.
+     *
+     * Unlike an event, this is delivered to exactly one instance and waits in a durable queue
+     * if none is running, so the work is done once the service returns.
+     *
+     * Defaults to this process's own service when [target] is omitted.
+     */
+    suspend fun send(packet: RabbitRequestPacket<*>, target: RabbitTarget? = null) {
+        connection.send(packet, target ?: RabbitTarget.ServiceTarget(identity.serviceName))
+    }
+
+    /** Registers `@RabbitSubscribe` methods on [listener]. */
+    fun registerListener(listener: Any) {
+        if (frozen) throw SurfRabbitApiAlreadyFrozenException()
+        connection.registerListener(listener)
+    }
 
     companion object {
         private val log = logger()

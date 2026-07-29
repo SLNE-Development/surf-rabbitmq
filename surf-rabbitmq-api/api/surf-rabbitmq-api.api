@@ -10,10 +10,14 @@ public final class dev/slne/surf/rabbitmq/api/SurfRabbitApi {
 	public final fun getCbor ()Lkotlinx/serialization/cbor/Cbor;
 	public final fun getIdentity ()Ldev/slne/surf/rabbitmq/api/identity/RabbitIdentity;
 	public final fun isFrozen ()Z
+	public final fun publish (Ldev/slne/surf/rabbitmq/api/event/RabbitEventPacket;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun registerListener (Ljava/lang/Object;)V
 	public final fun registerRequestHandler (Ljava/lang/Object;)V
 	public final fun registerService (Lkotlin/reflect/KClass;Ljava/lang/Object;)V
 	public final fun rpc (Lkotlin/reflect/KClass;Ljava/lang/String;)Ljava/lang/Object;
 	public static synthetic fun rpc$default (Ldev/slne/surf/rabbitmq/api/SurfRabbitApi;Lkotlin/reflect/KClass;Ljava/lang/String;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun send (Ldev/slne/surf/rabbitmq/api/packet/RabbitRequestPacket;Ldev/slne/surf/rabbitmq/api/target/RabbitTarget;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun send$default (Ldev/slne/surf/rabbitmq/api/SurfRabbitApi;Ldev/slne/surf/rabbitmq/api/packet/RabbitRequestPacket;Ldev/slne/surf/rabbitmq/api/target/RabbitTarget;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class dev/slne/surf/rabbitmq/api/SurfRabbitApi$Companion {

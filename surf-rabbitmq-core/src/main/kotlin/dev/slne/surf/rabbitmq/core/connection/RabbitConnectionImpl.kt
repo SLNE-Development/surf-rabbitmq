@@ -9,6 +9,8 @@ import com.sksamuel.aedile.core.expireAfterWrite
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.SurfRabbitApi
 import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
+import dev.slne.surf.rabbitmq.api.event.RabbitEventPacket
+import dev.slne.surf.rabbitmq.api.event.SubscriptionMode
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestTimeoutException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundException
@@ -25,6 +27,9 @@ import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
 import dev.slne.surf.rabbitmq.common.topology.RabbitTopology
 import dev.slne.surf.rabbitmq.common.topology.RabbitTopologyDeclarer
+import dev.slne.surf.rabbitmq.core.event.EventDispatcher
+import dev.slne.surf.rabbitmq.core.event.EventSubscriptionRegistry
+import dev.slne.surf.rabbitmq.core.event.EventTopics
 import dev.slne.surf.rabbitmq.core.publish.MessageKind
 import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerNameCache
@@ -69,6 +74,15 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
 
     private var serviceConsumer: RabbitConsumer? = null
     private var instanceConsumer: RabbitConsumer? = null
+    private var eventConsumer: RabbitConsumer? = null
+
+    private val subscriptions = EventSubscriptionRegistry()
+    private val eventDispatcher by lazy { EventDispatcher(subscriptions) }
+
+    private val eventSerializerCache =
+        KotlinSerializerCache<RabbitEventPacket>(api.cbor.serializersModule)
+    private val eventNameCache =
+        KotlinSerializerNameCache<RabbitEventPacket>(api.cbor.serializersModule)
 
     private class ReceivedResponse(val body: ByteArray, val senderVersion: RabbitMqVersion)
 
@@ -178,6 +192,33 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
             this.instanceConsumer = instanceConsumer
         }
 
+        if (!subscriptions.isEmpty()) {
+            for (subscription in subscriptions.subscriptions()) {
+                eventNameCache.register(subscription.eventClass)
+            }
+
+            val eventConsumer = client.newConsumer("events")
+            this.eventConsumer = eventConsumer
+
+            val sharedPatterns = subscriptions.patternsFor(SubscriptionMode.SHARED)
+            if (sharedPatterns.isNotEmpty()) {
+                val queue = eventConsumer.withChannel { channel ->
+                    RabbitTopologyDeclarer(channel)
+                        .declareSharedEventQueue(api.identity.serviceName, sharedPatterns)
+                }
+                startConsumingEvents(eventConsumer, queue)
+            }
+
+            val instanceEventPatterns = subscriptions.patternsFor(SubscriptionMode.BROADCAST)
+            if (instanceEventPatterns.isNotEmpty()) {
+                val queue = eventConsumer.withChannel { channel ->
+                    RabbitTopologyDeclarer(channel)
+                        .declareInstanceEventQueue(api.identity.instanceId, instanceEventPatterns)
+                }
+                startConsumingEvents(eventConsumer, queue)
+            }
+        }
+
         replyEndpoint.value = ReplyEndpoint(
             queueName = replyQueueName,
             connectionGeneration = client.connectionGeneration
@@ -190,6 +231,55 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
 
     override fun registerRequestHandler(instance: Any) {
         listenerHandler.registerRequestHandler(instance)
+    }
+
+    override fun registerListener(listener: Any) {
+        subscriptions.register(listener)
+    }
+
+    override suspend fun publishEvent(event: RabbitEventPacket) {
+        val topic = EventTopics.topicOf(event.javaClass)
+        val serializer = eventSerializerCache.get(event.javaClass)
+            ?: throw SurfRabbitSerializerNotFoundException(event.javaClass.name)
+
+        val body = RabbitPacketSerializer.serializeEvent(api, serializer, event)
+
+        client.publish(
+            exchange = RabbitTopology.EVENTS_EXCHANGE,
+            routingKey = topic,
+            body = body,
+            properties = properties(MessageKind.EVENT),
+            // An event with no subscriber is normal, not an error. Requesting a return
+            // would make every unobserved event look like a failure.
+            mandatory = false
+        )
+    }
+
+    override suspend fun send(packet: RabbitRequestPacket<*>, target: RabbitTarget) {
+        val serializer = requestSerializerCache.get(packet.javaClass)
+            ?: throw SurfRabbitSerializerNotFoundException(packet.javaClass.name)
+
+        val body = RabbitPacketSerializer.serializeRequest(api, serializer, packet)
+        val correlationId = nextCorrelationId()
+
+        val bodies =
+            if (RabbitPacketChunking.shouldChunk(body, api.config.isOutgoingRequestChunkingEnabled())) {
+                RabbitPacketChunking.splitRequest(body)
+            } else {
+                ObjectList.of(body)
+            }
+
+        for (chunkBody in bodies) {
+            client.publish(
+                exchange = RabbitTopology.RPC_EXCHANGE,
+                routingKey = target.routingKey,
+                body = chunkBody,
+                // No replyTo: the receiver must not attempt to answer. correlationId is
+                // still required by the request chunk assembler, even for a single chunk.
+                properties = properties(MessageKind.FIRE_AND_FORGET, correlationId = correlationId),
+                mandatory = true
+            )
+        }
     }
 
     private fun markReplyConsumerUnavailable(cause: Throwable) {
@@ -299,7 +389,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
             val replyTo = property.replyTo
             val senderVersion = RabbitMqVersion.fromHeaders(property.headers)
 
-            if (correlationId == null || replyTo == null) {
+            if (correlationId == null) {
                 ack.nack(requeue = false)
                 return@consume
             }
@@ -340,6 +430,33 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
                 log.atWarning()
                     .withCause(t)
                     .log("Failed to handle RabbitMQ request chunk for correlationId $correlationId, discarding request")
+
+                ack.nack(requeue = false)
+            }
+        }
+    }
+
+    private suspend fun startConsumingEvents(consumer: RabbitConsumer, queue: String) {
+        consumer.consume(
+            queue = queue,
+            autoAck = false,
+            prefetchCount = prefetchCount,
+            // Requeueing would spin: the message returns to the queue head and fails again
+            // immediately. Plan 4 replaces this with delayed retry queues.
+            requeueOnHandlerError = false
+        ) { _, message, ack ->
+            val topic = message.envelope.routingKey
+
+            try {
+                val event = RabbitPacketSerializer.deserializeEvent(api, message.body, eventNameCache)
+                eventDispatcher.dispatch(event, topic)
+                ack.ack()
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
+
+                log.atWarning()
+                    .withCause(t)
+                    .log("Failed to handle event on topic %s", topic)
 
                 ack.nack(requeue = false)
             }

@@ -120,4 +120,49 @@ class RabbitTopologyDeclarer(private val channel: Channel) {
 
         return queue
     }
+
+    /**
+     * Declares the durable queue shared by all instances of [serviceName] and binds it to
+     * every pattern in [patterns].
+     *
+     * Because all instances consume this one queue, exactly one of them handles each event.
+     *
+     * Also declares the service's dead-letter queue: this queue dead-letters (with the
+     * routing key pinned to [serviceName]), and an event-only subscriber never calls
+     * [declareServiceQueue] — without the DLQ its dead-letters would enter `surf.dlx`,
+     * match no binding, and vanish.
+     *
+     * @return the queue name
+     */
+    fun declareSharedEventQueue(serviceName: String, patterns: Set<String>): String {
+        declareDeadLetterQueue(serviceName)
+
+        val queue = RabbitTopology.sharedEventQueue(serviceName)
+        channel.queueDeclare(queue, true, false, false, QueueArguments.sharedEventQueue(serviceName))
+
+        for (pattern in patterns) {
+            channel.queueBind(queue, RabbitTopology.EVENTS_EXCHANGE, pattern)
+        }
+
+        return queue
+    }
+
+    /**
+     * Declares this process's private event queue and binds it to every pattern in [patterns].
+     *
+     * Each instance owns one, so every instance receives its own copy of a matching event.
+     * Exclusive and auto-deleting: events sent while the process is down are not retained.
+     *
+     * @return the queue name
+     */
+    fun declareInstanceEventQueue(instanceId: String, patterns: Set<String>): String {
+        val queue = RabbitTopology.instanceEventQueue(instanceId)
+        channel.queueDeclare(queue, false, true, true, QueueArguments.ephemeralQueue())
+
+        for (pattern in patterns) {
+            channel.queueBind(queue, RabbitTopology.EVENTS_EXCHANGE, pattern)
+        }
+
+        return queue
+    }
 }
