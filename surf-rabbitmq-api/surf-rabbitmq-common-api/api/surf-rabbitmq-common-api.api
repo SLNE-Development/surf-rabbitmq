@@ -158,6 +158,19 @@ public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitSerializerNotF
 	public fun <init> (Ljava/lang/String;)V
 }
 
+public final class dev/slne/surf/rabbitmq/api/identity/RabbitIdentity {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/identity/RabbitIdentity$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun getInstanceId ()Ljava/lang/String;
+	public final fun getServiceName ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/slne/surf/rabbitmq/api/identity/RabbitIdentity$Companion {
+	public final fun create (Ljava/lang/String;Ljava/lang/String;)Ldev/slne/surf/rabbitmq/api/identity/RabbitIdentity;
+	public static synthetic fun create$default (Ldev/slne/surf/rabbitmq/api/identity/RabbitIdentity$Companion;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/slne/surf/rabbitmq/api/identity/RabbitIdentity;
+}
+
 public abstract class dev/slne/surf/rabbitmq/api/packet/RabbitPacket {
 	public static final field Companion Ldev/slne/surf/rabbitmq/api/packet/RabbitPacket$Companion;
 	public fun <init> ()V
@@ -997,6 +1010,34 @@ public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive
 }
 
 public abstract interface annotation class dev/slne/surf/rabbitmq/api/rpc/RpcService : java/lang/annotation/Annotation {
+}
+
+public abstract interface class dev/slne/surf/rabbitmq/api/target/RabbitTarget {
+	public abstract fun getRoutingKey ()Ljava/lang/String;
+}
+
+public final class dev/slne/surf/rabbitmq/api/target/RabbitTarget$InstanceTarget : dev/slne/surf/rabbitmq/api/target/RabbitTarget {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Ldev/slne/surf/rabbitmq/api/target/RabbitTarget$InstanceTarget;
+	public static synthetic fun copy$default (Ldev/slne/surf/rabbitmq/api/target/RabbitTarget$InstanceTarget;Ljava/lang/String;ILjava/lang/Object;)Ldev/slne/surf/rabbitmq/api/target/RabbitTarget$InstanceTarget;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getInstanceId ()Ljava/lang/String;
+	public fun getRoutingKey ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/slne/surf/rabbitmq/api/target/RabbitTarget$ServiceTarget : dev/slne/surf/rabbitmq/api/target/RabbitTarget {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Ldev/slne/surf/rabbitmq/api/target/RabbitTarget$ServiceTarget;
+	public static synthetic fun copy$default (Ldev/slne/surf/rabbitmq/api/target/RabbitTarget$ServiceTarget;Ljava/lang/String;ILjava/lang/Object;)Ldev/slne/surf/rabbitmq/api/target/RabbitTarget$ServiceTarget;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getRoutingKey ()Ljava/lang/String;
+	public final fun getServiceName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class dev/slne/surf/rabbitmq/api/version/RabbitMqVersion : java/lang/Comparable {
