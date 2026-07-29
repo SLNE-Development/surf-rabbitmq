@@ -17,4 +17,13 @@ interface CommonRabbitMQConfig {
     fun isPersistResponses(): Boolean
     fun isOutgoingRequestChunkingEnabled(): Boolean
     fun isOutgoingResponseChunkingEnabled(): Boolean
+
+    /**
+     * TTL per retry tier in milliseconds, index-aligned with `RetryTier.entries`.
+     *
+     * A default member rather than an abstract one: only test configs override it, to
+     * shrink the ladder to sub-second values. Queue arguments are part of a queue's
+     * identity, so all processes sharing a broker must agree on these values.
+     */
+    fun getRetryTtlMillis(): List<Long> = listOf(10_000L, 60_000L, 300_000L)
 }

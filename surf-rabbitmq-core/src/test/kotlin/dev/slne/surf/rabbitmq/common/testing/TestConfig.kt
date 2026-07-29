@@ -24,8 +24,5 @@ fun testConfig(
     override fun isPersistResponses() = false
     override fun isOutgoingRequestChunkingEnabled() = requestChunking
     override fun isOutgoingResponseChunkingEnabled() = responseChunking
-
-    // Plan 4 adds getRetryTtlMillis() to CommonRabbitMQConfig with a production default;
-    // this stub then overrides it with sub-second tiers so the retry-ladder integration
-    // tests run in seconds. Until then the interface default applies.
+    override fun getRetryTtlMillis() = listOf(500L, 1_000L, 1_500L)
 }
