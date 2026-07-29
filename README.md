@@ -86,3 +86,66 @@ SURF_RABBITMQ_OUTGOING_RESPONSE_CHUNKING_ENABLED=true
 
 Do not commit deployment credentials. The application container connects to RabbitMQ as an external
 service; it does not install or start RabbitMQ itself.
+
+## Events
+
+Events go to the `surf.events` topic exchange. The publisher does not know who listens, so
+adding or removing a subscriber never touches the publisher.
+
+```kotlin
+@Serializable
+@RabbitEvent("faction.disbanded")
+class FactionDisbandedEvent(val factionId: UUID) : RabbitEventPacket()
+
+rabbit.publish(FactionDisbandedEvent(id))
+```
+
+### Choosing a subscription mode
+
+This is the decision that matters. It controls whether a handler runs once or once per running
+instance.
+
+| Mode | Runs on | Survives downtime | Use for |
+|---|---|---|---|
+| `SHARED` (default) | exactly one instance | yes, durable queue | database writes, statistics, webhooks |
+| `BROADCAST` | every instance | no, ephemeral queue | cache invalidation, config reload, kicking a player |
+
+With eight instances of `surf-transaction` running:
+
+```kotlin
+// wrong - writes to the database eight times
+@RabbitSubscribe(mode = SubscriptionMode.BROADCAST)
+suspend fun onBanned(event: PlayerBannedEvent) {
+    database.freezeAccount(event.playerId)
+}
+
+// right - exactly one instance writes
+@RabbitSubscribe
+suspend fun onBanned(event: PlayerBannedEvent) {
+    database.freezeAccount(event.playerId)
+}
+```
+
+On Paper and Velocity, `BROADCAST` is usually what you want: every server has to invalidate its
+own local state.
+
+### Patterns
+
+`*` matches exactly one segment, `#` matches zero or more.
+
+```kotlin
+@RabbitSubscribe(topic = "faction.*.disbanded")   // faction.abc.disbanded
+@RabbitSubscribe(topic = "player.#")              // player.punish.ban, player.join, player
+```
+
+## Fire-and-forget
+
+Delivered to exactly one instance, with no reply awaited:
+
+```kotlin
+rabbit.send(PlayerKilledPacket(killer, victim))
+rabbit.send(TransferPlayerPacket(uuid), target = InstanceTarget("lobby-3"))
+```
+
+Unlike an event, this waits in a durable queue when no instance is running, so the work happens
+once the service comes back. Choose it over a broadcast whenever the message must not be lost.
