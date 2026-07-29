@@ -54,7 +54,7 @@ Creates the module and proves the test infrastructure actually executes. The rep
 - Consumes: nothing
 - Produces: a `:surf-circuitbreaker` Gradle module whose `test` task runs JUnit 5
 
-- [ ] **Step 1: Register the module**
+- [x] **Step 1: Register the module**
 
 In `settings.gradle.kts`, add after the `include("surf-rabbitmq-ksp")` line:
 
@@ -62,7 +62,7 @@ In `settings.gradle.kts`, add after the `include("surf-rabbitmq-ksp")` line:
 include("surf-circuitbreaker")
 ```
 
-- [ ] **Step 2: Add test dependency versions**
+- [x] **Step 2: Add test dependency versions**
 
 In `gradle/libs.versions.toml`, add to `[versions]`:
 
@@ -82,7 +82,7 @@ coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", ve
 
 `junit-jupiter` and `junit-platform-launcher` intentionally carry no version — the BOM supplies it.
 
-- [ ] **Step 3: Create the module build file**
+- [x] **Step 3: Create the module build file**
 
 Create `surf-circuitbreaker/build.gradle.kts`:
 
@@ -114,7 +114,7 @@ publishing {
 }
 ```
 
-- [ ] **Step 4: Write a scaffold test that must fail**
+- [x] **Step 4: Write a scaffold test that must fail**
 
 Create `surf-circuitbreaker/src/test/kotlin/dev/slne/surf/circuitbreaker/ScaffoldTest.kt`:
 
@@ -132,7 +132,7 @@ class ScaffoldTest {
 }
 ```
 
-- [ ] **Step 5: Run it and confirm it FAILS**
+- [x] **Step 5: Run it and confirm it FAILS**
 
 Run: `./gradlew :surf-circuitbreaker:test`
 Expected: build fails, output names `ScaffoldTest > test infrastructure runs and can fail FAILED`.
@@ -141,7 +141,7 @@ If instead the build reports `NO-SOURCE` or "no tests found", the test wiring is
 
 If `kotlin.test.assertEquals` does not resolve, add `testImplementation(kotlin("test"))` to the dependencies block and re-run.
 
-- [ ] **Step 6: Make it pass**
+- [x] **Step 6: Make it pass**
 
 Change the assertion to:
 
@@ -149,12 +149,12 @@ Change the assertion to:
         assertEquals(1, 1, "test infrastructure works")
 ```
 
-- [ ] **Step 7: Run and confirm it PASSES**
+- [x] **Step 7: Run and confirm it PASSES**
 
 Run: `./gradlew :surf-circuitbreaker:test`
 Expected: `BUILD SUCCESSFUL`, one test passed.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add settings.gradle.kts gradle/libs.versions.toml surf-circuitbreaker/
@@ -180,7 +180,7 @@ Three small types with no logic, plus the clock the later tests depend on. Kept 
   - `class CircuitOpenException(breakerName: String) : IllegalStateException`, property `breakerName: String`
   - `class MutableClock(instant: Instant, zone: ZoneId) : Clock` with `fun advance(duration: kotlin.time.Duration)`
 
-- [ ] **Step 1: Write the failing test for the clock**
+- [x] **Step 1: Write the failing test for the clock**
 
 Create `surf-circuitbreaker/src/test/kotlin/dev/slne/surf/circuitbreaker/MutableClockTest.kt`:
 
@@ -218,12 +218,12 @@ class MutableClockTest {
 }
 ```
 
-- [ ] **Step 2: Run and confirm it FAILS**
+- [x] **Step 2: Run and confirm it FAILS**
 
 Run: `./gradlew :surf-circuitbreaker:test --tests '*MutableClockTest*'`
 Expected: compilation error, `Unresolved reference: MutableClock`.
 
-- [ ] **Step 3: Implement the three types**
+- [x] **Step 3: Implement the three types**
 
 Create `surf-circuitbreaker/src/main/kotlin/dev/slne/surf/circuitbreaker/CircuitState.kt`:
 
@@ -307,12 +307,12 @@ class MutableClock(
 }
 ```
 
-- [ ] **Step 4: Run and confirm it PASSES**
+- [x] **Step 4: Run and confirm it PASSES**
 
 Run: `./gradlew :surf-circuitbreaker:test --tests '*MutableClockTest*'`
 Expected: `BUILD SUCCESSFUL`, 2 tests passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add surf-circuitbreaker/src
@@ -346,7 +346,7 @@ The core of the module. Written test-first, one behaviour at a time.
   }
   ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `surf-circuitbreaker/src/test/kotlin/dev/slne/surf/circuitbreaker/CircuitBreakerTest.kt`:
 
@@ -550,12 +550,12 @@ class CircuitBreakerTest {
 }
 ```
 
-- [ ] **Step 2: Run and confirm they FAIL**
+- [x] **Step 2: Run and confirm they FAIL**
 
 Run: `./gradlew :surf-circuitbreaker:test --tests '*CircuitBreakerTest*'`
 Expected: compilation error, `Unresolved reference: CircuitBreaker`.
 
-- [ ] **Step 3: Implement the breaker**
+- [x] **Step 3: Implement the breaker**
 
 Create `surf-circuitbreaker/src/main/kotlin/dev/slne/surf/circuitbreaker/CircuitBreaker.kt`:
 
@@ -723,7 +723,7 @@ class CircuitBreaker(
 }
 ```
 
-- [ ] **Step 4: Run and confirm they PASS**
+- [x] **Step 4: Run and confirm they PASS**
 
 Run: `./gradlew :surf-circuitbreaker:test --tests '*CircuitBreakerTest*'`
 Expected: `BUILD SUCCESSFUL`, 15 tests passed.
@@ -731,7 +731,7 @@ Expected: `BUILD SUCCESSFUL`, 15 tests passed.
 If `business failures do not reset counted failures` fails, the cause is `onFailure` clearing
 the counter for ignored throwables. It must only clear `probeInFlight` and return.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add surf-circuitbreaker/src
@@ -751,7 +751,7 @@ The single-probe guarantee is the one property a sequential test cannot prove, a
 - Consumes: `CircuitBreaker` from Task 3
 - Produces: nothing (test-only)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `surf-circuitbreaker/src/test/kotlin/dev/slne/surf/circuitbreaker/CircuitBreakerConcurrencyTest.kt`:
 
@@ -862,7 +862,7 @@ class CircuitBreakerConcurrencyTest {
 }
 ```
 
-- [ ] **Step 2: Run and confirm the behaviour**
+- [x] **Step 2: Run and confirm the behaviour**
 
 Run: `./gradlew :surf-circuitbreaker:test --tests '*CircuitBreakerConcurrencyTest*'`
 Expected: `BUILD SUCCESSFUL`, 2 tests passed.
@@ -876,7 +876,7 @@ If the spin-wait loop hangs, the breaker is admitting more than one caller: the 
 `rejected.get() < 63` never becomes false because some callers were admitted instead of
 rejected. That is the same defect.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add surf-circuitbreaker/src/test
@@ -911,7 +911,7 @@ One breaker per target name, plus the test that keeps the module extractable int
   ```
   Plan 4 uses `forName(serviceName)` to obtain one breaker per target service.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `surf-circuitbreaker/src/test/kotlin/dev/slne/surf/circuitbreaker/CircuitBreakerRegistryTest.kt`:
 
@@ -1053,12 +1053,12 @@ class NoRabbitMqDependencyTest {
 }
 ```
 
-- [ ] **Step 2: Run and confirm they FAIL**
+- [x] **Step 2: Run and confirm they FAIL**
 
 Run: `./gradlew :surf-circuitbreaker:test --tests '*Registry*'`
 Expected: compilation error, `Unresolved reference: CircuitBreakerRegistry`.
 
-- [ ] **Step 3: Implement the registry**
+- [x] **Step 3: Implement the registry**
 
 Create `surf-circuitbreaker/src/main/kotlin/dev/slne/surf/circuitbreaker/CircuitBreakerRegistry.kt`:
 
@@ -1111,7 +1111,7 @@ class CircuitBreakerRegistry(
 }
 ```
 
-- [ ] **Step 4: Run the whole module suite**
+- [x] **Step 4: Run the whole module suite**
 
 Run: `./gradlew :surf-circuitbreaker:test`
 Expected: `BUILD SUCCESSFUL`, all tests pass (2 clock + 15 breaker + 2 concurrency + 6 registry + 1 dependency = 26).
@@ -1124,7 +1124,7 @@ inside `tasks.test { }`:
     workingDir = projectDir
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add surf-circuitbreaker
@@ -1144,7 +1144,7 @@ The module is meant to be picked up by two other projects. Without a README, the
 - Consumes: everything from Tasks 2–5
 - Produces: nothing
 
-- [ ] **Step 1: Write the README**
+- [x] **Step 1: Write the README**
 
 Create `surf-circuitbreaker/README.md`:
 
@@ -1223,12 +1223,12 @@ clock.advance(30.seconds)   // breaker is now HALF_OPEN
 another module needs it.
 ````
 
-- [ ] **Step 2: Verify the full build still works**
+- [x] **Step 2: Verify the full build still works**
 
 Run: `./gradlew :surf-circuitbreaker:build`
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add surf-circuitbreaker/README.md
@@ -1239,10 +1239,10 @@ git commit -m "docs(circuitbreaker): document states, usage and failure predicat
 
 ## Done when
 
-- [ ] `./gradlew :surf-circuitbreaker:build` succeeds
-- [ ] 26 tests pass
-- [ ] `NoRabbitMqDependencyTest` passes, keeping the module extractable
-- [ ] No Docker required for any of it
+- [x] `./gradlew :surf-circuitbreaker:build` succeeds
+- [x] 26 tests pass (27, including the scaffold test)
+- [x] `NoRabbitMqDependencyTest` passes, keeping the module extractable
+- [x] No Docker required for any of it
 
 ## Deliberately out of scope
 
