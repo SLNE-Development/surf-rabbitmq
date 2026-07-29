@@ -4,6 +4,36 @@ RabbitMQ configuration is loaded from the existing YAML configuration and can be
 runtime with environment variables. This is useful for Coolify and other container platforms where
 connection details and secrets should be supplied at deployment time.
 
+## Migrating from 1.6.x
+
+`ClientRabbitMQApi` and `ServerRabbitMQApi` are replaced by a single `SurfRabbitApi`. Version
+2.0 is **not wire-compatible** with 1.6.x: all services must be deployed together.
+
+```kotlin
+// before
+val api = ServerRabbitMQApi.create("surf-factions", dataPath)
+api.registerRpcService<FactionService>(FactionServiceImpl)
+api.freezeAndConnect()
+
+// after
+val api = SurfRabbitApi.builder("surf-factions", dataPath).build()
+api.registerService<FactionService>(FactionServiceImpl)
+api.freezeAndConnect()
+```
+
+A client no longer needs one API instance per target service:
+
+```kotlin
+// before - two instances, two TCP connections
+val factions = ClientRabbitMQApi.create("surf-factions", dataPath)
+val punish   = ClientRabbitMQApi.create("surf-punish", dataPath)
+
+// after - one instance, one connection
+val rabbit = SurfRabbitApi.builder("lobby", dataPath).build()
+val factions = rabbit.rpc<FactionService>()
+val punish   = rabbit.rpc<PunishService>()
+```
+
 ## Runtime environment variables
 
 Environment variables take precedence over plugin-specific `rabbitmq.yml` values, which take
