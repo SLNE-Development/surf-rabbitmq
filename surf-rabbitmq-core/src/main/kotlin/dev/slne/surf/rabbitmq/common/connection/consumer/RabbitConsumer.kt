@@ -123,6 +123,17 @@ class RabbitConsumer(
         }
     }
 
+    /**
+     * Runs [block] on this consumer's channel, on the channel's own single-threaded
+     * dispatcher.
+     *
+     * AMQP channels are not thread-safe. Confining every channel operation to one thread is
+     * what makes concurrent declares safe.
+     */
+    suspend fun <T> withChannel(block: (Channel) -> T): T = withContext(channelDispatcher) {
+        block(getChannel())
+    }
+
     private suspend fun getChannel(): Channel {
         connectionProvider.awaitOpen()
 

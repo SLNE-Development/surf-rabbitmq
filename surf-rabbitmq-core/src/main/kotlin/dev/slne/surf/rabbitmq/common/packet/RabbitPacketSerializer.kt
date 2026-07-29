@@ -1,6 +1,6 @@
 package dev.slne.surf.rabbitmq.common.packet
 
-import dev.slne.surf.rabbitmq.api.RabbitMQApi
+import dev.slne.surf.rabbitmq.api.SurfRabbitApi
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitEnvelopeDeserializationException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitEnvelopeSerializationException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializationException
@@ -31,7 +31,7 @@ object RabbitPacketSerializer {
 
     @Suppress("UNCHECKED_CAST")
     fun serializeResponse(
-        api: RabbitMQApi,
+        api: SurfRabbitApi,
         serializerCache: KotlinSerializerCache<RabbitResponsePacket>,
         responsePacket: RabbitResponsePacket
     ): ByteArray {
@@ -42,7 +42,7 @@ object RabbitPacketSerializer {
     }
 
     fun serializeRequest(
-        api: RabbitMQApi,
+        api: SurfRabbitApi,
         serializer: KSerializer<RabbitRequestPacket<*>>,
         request: RabbitRequestPacket<*>
     ): ByteArray {
@@ -50,7 +50,7 @@ object RabbitPacketSerializer {
     }
 
     private fun <P : RabbitPacket> serialize(
-        api: RabbitMQApi,
+        api: SurfRabbitApi,
         serializer: KSerializer<P>,
         packet: P
     ): ByteArray {
@@ -67,7 +67,7 @@ object RabbitPacketSerializer {
     }
 
     private fun <R : RabbitPacket> deserialize(
-        api: RabbitMQApi,
+        api: SurfRabbitApi,
         data: ByteArray,
         serializerCache: KotlinSerializerNameCache<R>
     ): R {
@@ -88,7 +88,7 @@ object RabbitPacketSerializer {
 
     @Suppress("UNCHECKED_CAST")
     fun deserializeRequest(
-        api: RabbitMQApi,
+        api: SurfRabbitApi,
         data: ByteArray,
         serializerCache: KotlinSerializerNameCache<RabbitRequestPacket<*>>,
     ): RabbitRequestPacket<*> {
@@ -96,7 +96,7 @@ object RabbitPacketSerializer {
     }
 
     fun deserializeResponse(
-        api: RabbitMQApi,
+        api: SurfRabbitApi,
         data: ByteArray,
         serializerCache: KotlinSerializerNameCache<RabbitResponsePacket>
     ): RabbitResponsePacket {

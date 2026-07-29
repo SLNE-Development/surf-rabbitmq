@@ -27,4 +27,13 @@ interface RabbitRpcService {
 
     fun <Service : Any> registerService(serviceKClass: KClass<Service>, serviceInstance: Service)
     fun <Service : Any> unregisterService(serviceKClass: KClass<Service>)
+
+    /**
+     * Whether any `@RpcService` implementation is currently registered.
+     *
+     * The connection uses this at connect time to decide whether this process must consume
+     * its service queue at all: [registerService] never touches the connection directly, so
+     * without this the connection would have no way to know an RPC host exists.
+     */
+    fun hasRegisteredServices(): Boolean
 }

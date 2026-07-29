@@ -186,4 +186,6 @@ class RabbitRpcServiceImpl(private val api: SurfRabbitApi) : RabbitRpcService {
         val descriptor = serviceDescriptorOf(serviceKClass)
         rpcServices.invalidate(descriptor.fqName)
     }
+
+    override fun hasRegisteredServices(): Boolean = rpcServices.asMap().isNotEmpty()
 }

@@ -8,7 +8,7 @@ import dev.slne.surf.api.core.invoker.InvokerFactory
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.api.core.util.mutableObject2ObjectMapOf
 import dev.slne.surf.api.shared.api.util.InternalInvokerApi
-import dev.slne.surf.rabbitmq.api.RabbitMQApi
+import dev.slne.surf.rabbitmq.api.SurfRabbitApi
 import dev.slne.surf.rabbitmq.api.exception.*
 import dev.slne.surf.rabbitmq.api.handler.RabbitHandler
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
@@ -19,9 +19,10 @@ import dev.slne.surf.rabbitmq.common.packet.RabbitPacketPropertiesInjector
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
-import dev.slne.surf.rabbitmq.connection.ServerRabbitMQConnectionImpl
+import dev.slne.surf.rabbitmq.core.connection.RabbitConnectionImpl
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
 import kotlin.time.Duration.Companion.seconds
@@ -29,11 +30,17 @@ import kotlin.time.Duration.Companion.seconds
 @Suppress("UnstableApiUsage")
 @OptIn(InternalInvokerApi::class)
 class RabbitListenerHandlerManager(
-    private val api: RabbitMQApi,
-    private val connection: ServerRabbitMQConnectionImpl
+    private val api: SurfRabbitApi,
+    private val connection: RabbitConnectionImpl
 ) {
     private val handlers = mutableObject2ObjectMapOf<Class<*>, RabbitListenerHandler>()
     private val registrationLock = ReentrantReadWriteLock()
+
+    // The RPC dispatcher (registered below, in init) is always present so RpcCallRequestPacket
+    // has somewhere to go, but its presence alone must not make hasHandlers() report true for
+    // a process that registered nothing itself - registerService() never touches this manager,
+    // so hasRegisteredServices() is checked alongside this count.
+    private val explicitHandlerCount = AtomicInteger(0)
 
     private val requestSerializerCache =
         KotlinSerializerNameCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
@@ -51,12 +58,18 @@ class RabbitListenerHandlerManager(
     }
 
     init {
-        registerRequestHandler(api.rpcService)
+        registerHandler(api.rpcService, countAsExplicit = false)
     }
+
+    fun hasHandlers(): Boolean =
+        explicitHandlerCount.get() > 0 || api.rpcService.hasRegisteredServices()
 
     fun registerRequestHandler(instance: Any) {
         if (api.isFrozen()) throw SurfRabbitApiAlreadyFrozenException()
+        registerHandler(instance, countAsExplicit = true)
+    }
 
+    private fun registerHandler(instance: Any, countAsExplicit: Boolean) {
         for (method in instance.javaClass.declaredMethods) {
             if (!method.isAnnotationPresent(RabbitHandler::class.java)) continue
 
@@ -105,6 +118,8 @@ class RabbitListenerHandlerManager(
                 )
             }
         }
+
+        if (countAsExplicit) explicitHandlerCount.incrementAndGet()
     }
 
     suspend fun handleRequest(

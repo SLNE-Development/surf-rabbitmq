@@ -7,7 +7,6 @@ import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionListener
 import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionProvider
-import dev.slne.surf.rabbitmq.common.connection.RabbitQueueNames
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitConsumer
 import dev.slne.surf.rabbitmq.common.connection.publisher.RabbitPublisherOptions
 import dev.slne.surf.rabbitmq.common.connection.publisher.RabbitPublisherPool
@@ -160,19 +159,6 @@ class RabbitClient private constructor(
                         )
                 }
 
-                setRecoveredQueueNameSupplier { queue ->
-                    if (
-                        RabbitQueueNames.isCallbackQueue(
-                            connectionName = connectionName,
-                            queueName = queue.name
-                        )
-                    ) {
-                        RabbitQueueNames.newCallbackQueueName(connectionName)
-                    } else {
-                        queue.name
-                    }
-                }
-
                 requestedHeartbeat = 60
                 connectionTimeout = config.getTimeout().seconds.inWholeMilliseconds.toInt()
 
@@ -294,10 +280,6 @@ class RabbitClient private constructor(
         consumers.add(consumer)
 
         return consumer
-    }
-
-    fun newCallbackQueueName(): String {
-        return RabbitQueueNames.newCallbackQueueName(connectionProvider.connectionName)
     }
 
     fun addConnectionListener(listener: RabbitConnectionListener) {

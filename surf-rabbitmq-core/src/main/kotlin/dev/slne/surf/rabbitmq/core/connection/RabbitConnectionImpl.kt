@@ -1,28 +1,33 @@
 @file:OptIn(ExperimentalSerializationApi::class)
 
-package dev.slne.surf.rabbitmq.client.connection
+package dev.slne.surf.rabbitmq.core.connection
 
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.ShutdownSignalException
 import com.sksamuel.aedile.core.expireAfterWrite
 import dev.slne.surf.api.core.util.logger
-import dev.slne.surf.rabbitmq.api.RabbitMQApi
-import dev.slne.surf.rabbitmq.api.connection.ClientRabbitMQConnection
+import dev.slne.surf.rabbitmq.api.SurfRabbitApi
+import dev.slne.surf.rabbitmq.api.connection.RabbitMQConnection
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestTimeoutException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundException
-import dev.slne.surf.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
+import dev.slne.surf.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.rabbitmq.api.version.RabbitMqVersion
-import dev.slne.surf.rabbitmq.common.connection.AbstractRabbitMQConnectionImpl
 import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionListener
+import dev.slne.surf.rabbitmq.common.connection.client.RabbitClient
+import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitAck
+import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitConsumer
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunkAssembler
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
+import dev.slne.surf.rabbitmq.common.topology.RabbitTopology
+import dev.slne.surf.rabbitmq.common.topology.RabbitTopologyDeclarer
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.common.util.KotlinSerializerNameCache
+import dev.slne.surf.rabbitmq.listener.RabbitListenerHandlerManager
 import it.unimi.dsi.fastutil.objects.ObjectList
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
@@ -32,27 +37,46 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.ExperimentalSerializationApi
-import java.io.Serial
 import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
 
-class ClientRabbitMQConnectionImpl(
-    private val api: RabbitMQApi,
-    private val config: CommonRabbitMQConfig
-) : AbstractRabbitMQConnectionImpl(
-    api = api,
-    config = config,
-), ClientRabbitMQConnection {
+/**
+ * Merges the former `ClientRabbitMQConnectionImpl` and `ServerRabbitMQConnectionImpl`.
+ *
+ * Every process publishes requests to `surf.rpc` addressed by [RabbitTarget.routingKey] and
+ * consumes its own reply queue. A process additionally consumes its service and instance
+ * queues only if it registered a handler or an RPC service ([RabbitListenerHandlerManager.hasHandlers]).
+ */
+class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection {
+
     companion object {
         private val log = logger()
+        private val EMPTY_BYTE_ARRAY = ByteArray(0)
     }
 
-    private val requestTimeoutSeconds = config.getRequestTimeoutSeconds().seconds
-    private val persistRequests = config.isPersistRequests()
+    private val client = RabbitClient.create(api.config, api.identity.instanceId)
+    private val listenerHandler = RabbitListenerHandlerManager(api, this)
+
+    private val requestTimeoutSeconds = api.config.getRequestTimeoutSeconds().seconds
+    private val persistRequests = api.config.isPersistRequests()
+    private val persistResponses = api.config.isPersistResponses()
+    private val prefetchCount = api.config.getServerPrefetchCount()
+
+    private lateinit var replyConsumer: RabbitConsumer
+    private lateinit var replyQueueName: String
+
+    private var serviceConsumer: RabbitConsumer? = null
+    private var instanceConsumer: RabbitConsumer? = null
 
     private class ReceivedResponse(val body: ByteArray, val senderVersion: RabbitMqVersion)
+
+    private data class ReplyEndpoint(
+        val queueName: String,
+        val connectionGeneration: Long
+    )
+
+    private val replyEndpoint = MutableStateFlow<ReplyEndpoint?>(null)
 
     private val pendingRequests = Caffeine.newBuilder()
         .expireAfterWrite(requestTimeoutSeconds * 2)
@@ -76,39 +100,34 @@ class ClientRabbitMQConnectionImpl(
         timeout = requestTimeoutSeconds * 2
     )
 
+    private val requestChunkAssembler = RabbitPacketChunkAssembler(
+        expectedKind = RabbitPacketChunking.PacketChunkKind.REQUEST,
+        timeout = requestTimeoutSeconds
+    )
+
     private val requestSerializerCache =
         KotlinSerializerCache<RabbitRequestPacket<*>>(api.cbor.serializersModule)
     private val responseSerializerCache =
         KotlinSerializerNameCache<RabbitResponsePacket>(api.cbor.serializersModule)
 
     private val correlationIdSequence = AtomicLong()
-    private val correlationIdPrefix = "${api.pluginName}-${System.nanoTime()}"
-
-    private val callbackQueueName = AtomicReference<String?>(null)
-    private val recoveredCallbackQueueName = AtomicReference<String?>(null)
-    private val replyEndpoint = MutableStateFlow<ReplyEndpoint?>(null)
+    private val correlationIdPrefix = "${api.identity.instanceId}-${System.nanoTime()}"
 
     private val connectionListener = object : RabbitConnectionListener {
         override fun onConnectionLost(cause: ShutdownSignalException) {
-            markReplyConsumerUnavailable(SurfRabbitConnectionLostException(api.pluginName, cause))
+            markReplyConsumerUnavailable(SurfRabbitConnectionLostException(api.identity.instanceId, cause))
         }
 
         override fun onRecoveryStarted() {
             replyEndpoint.value = null
-            recoveredCallbackQueueName.set(null)
-        }
-
-        override fun onQueueRecovered(oldName: String, newName: String) {
-            if (callbackQueueName.compareAndSet(oldName, newName)) {
-                recoveredCallbackQueueName.set(newName)
-            }
         }
 
         override fun onRecoveryCompleted(generation: Long) {
-            val queueName = recoveredCallbackQueueName.get() ?: return
-
+            // The reply queue name is stable per instance. Topology recovery has already
+            // re-declared it and re-attached the consumer; the endpoint only needs the
+            // new connection generation.
             replyEndpoint.value = ReplyEndpoint(
-                queueName = queueName,
+                queueName = replyQueueName,
                 connectionGeneration = generation
             )
         }
@@ -119,24 +138,57 @@ class ClientRabbitMQConnectionImpl(
     }
 
     override suspend fun connect() {
-        super.connect()
+        val declareConsumer = client.newConsumer("declare")
 
-        val callbackQueueName = mainConsumer.declareQueue(
-            queue = client.newCallbackQueueName(),
-            durable = false,
-            exclusive = true,
-            autoDelete = true
-        ).queue
+        // Every process declares the exchanges and the unroutable audit queue; both are
+        // idempotent. The audit queue must exist before the first basic.return can be
+        // republished into it (Plan 4).
+        declareConsumer.withChannel { channel ->
+            val declarer = RabbitTopologyDeclarer(channel)
+            declarer.declareExchanges()
+            declarer.declareUnroutableQueue()
+        }
 
-        this.callbackQueueName.set(callbackQueueName)
-        recoveredCallbackQueueName.set(null)
+        // Reply and instance queues get their own consumer, and therefore their own channel.
+        // Sharing one channel meant a failed declare took the RPC reply path down with it.
+        replyConsumer = client.newConsumer("reply")
+        replyQueueName = replyConsumer.withChannel { channel ->
+            RabbitTopologyDeclarer(channel).declareReplyQueue(api.identity.instanceId)
+        }
+        startConsumingResponses(replyQueueName)
 
-        startConsumingResponses(callbackQueueName)
+        // Only a process that actually handles requests declares and consumes request
+        // queues. It consumes TWO of them: the shared service queue (competing consumers)
+        // and its own instance queue (InstanceTarget). Without the instance queue, every
+        // InstanceTarget send would be unroutable.
+        if (listenerHandler.hasHandlers()) {
+            val serviceConsumer = client.newConsumer("service")
+            val serviceQueue = serviceConsumer.withChannel { channel ->
+                RabbitTopologyDeclarer(channel).declareServiceQueue(api.identity.serviceName)
+            }
+            startConsumingRequests(serviceConsumer, serviceQueue)
+            this.serviceConsumer = serviceConsumer
+
+            val instanceConsumer = client.newConsumer("instance")
+            val instanceQueue = instanceConsumer.withChannel { channel ->
+                RabbitTopologyDeclarer(channel).declareInstanceQueue(api.identity.instanceId)
+            }
+            startConsumingRequests(instanceConsumer, instanceQueue)
+            this.instanceConsumer = instanceConsumer
+        }
 
         replyEndpoint.value = ReplyEndpoint(
-            queueName = callbackQueueName,
+            queueName = replyQueueName,
             connectionGeneration = client.connectionGeneration
         )
+    }
+
+    override suspend fun disconnect() {
+        client.close()
+    }
+
+    override fun registerRequestHandler(instance: Any) {
+        listenerHandler.registerRequestHandler(instance)
     }
 
     private fun markReplyConsumerUnavailable(cause: Throwable) {
@@ -158,9 +210,9 @@ class ClientRabbitMQConnectionImpl(
         }
     }
 
-    private suspend fun startConsumingResponses(callbackQueueName: String) {
-        mainConsumer.consume(
-            queue = callbackQueueName,
+    private suspend fun startConsumingResponses(queue: String) {
+        replyConsumer.consume(
+            queue = queue,
             autoAck = false,
             onCancelled = { consumerTag ->
                 markReplyConsumerUnavailable(SurfRabbitRequestException("RabbitMQ reply consumer '$consumerTag' was cancelled"))
@@ -233,14 +285,111 @@ class ClientRabbitMQConnectionImpl(
         }
     }
 
+    private suspend fun startConsumingRequests(consumer: RabbitConsumer, queue: String) {
+        consumer.consume(
+            queue = queue,
+            autoAck = false,
+            prefetchCount = prefetchCount,
+            requeueOnHandlerError = false
+        ) { _, message, ack ->
+            val property = message.properties
+            val body = message.body
+            val correlationId = property.correlationId
+            val replyTo = property.replyTo
+            val senderVersion = RabbitMqVersion.fromHeaders(property.headers)
+
+            if (correlationId == null || replyTo == null) {
+                ack.nack(requeue = false)
+                return@consume
+            }
+
+            try {
+                when (val result = requestChunkAssembler.accept(correlationId, body)) {
+                    RabbitPacketChunkAssembler.ChunkAcceptResult.NotChunk -> {
+                        listenerHandler.handleRequest(
+                            correlationId = correlationId,
+                            replyTo = replyTo,
+                            body = body,
+                            ack = ack,
+                            senderVersion = senderVersion,
+                        )
+                    }
+
+                    RabbitPacketChunkAssembler.ChunkAcceptResult.Stored -> {
+                        // Ack stored chunks immediately so a packet with more chunks than
+                        // the prefetch count cannot deadlock waiting for later chunks.
+                        ack.ack()
+                    }
+
+                    is RabbitPacketChunkAssembler.ChunkAcceptResult.Complete -> {
+                        listenerHandler.handleRequest(
+                            correlationId = correlationId,
+                            replyTo = replyTo,
+                            body = result.body,
+                            ack = ack,
+                            senderVersion = senderVersion,
+                        )
+                    }
+                }
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
+
+                requestChunkAssembler.discard(correlationId)
+
+                log.atWarning()
+                    .withCause(t)
+                    .log("Failed to handle RabbitMQ request chunk for correlationId $correlationId, discarding request")
+
+                ack.nack(requeue = false)
+            }
+        }
+    }
+
+    suspend fun replyToRequest(
+        correlationId: String,
+        replyTo: String,
+        ack: RabbitAck?,
+        body: ByteArray
+    ) {
+        val responseBodies =
+            if (
+                RabbitPacketChunking.supportsChunkedResponses(correlationId) &&
+                RabbitPacketChunking.shouldChunk(
+                    body,
+                    api.config.isOutgoingResponseChunkingEnabled()
+                )
+            ) {
+                RabbitPacketChunking.splitResponse(body)
+            } else {
+                ObjectList.of(body)
+            }
+
+        for (responseBody in responseBodies) {
+            client.publish(
+                exchange = "",
+                routingKey = replyTo,
+                body = responseBody,
+                properties = AMQP.BasicProperties.Builder()
+                    .correlationId(correlationId)
+                    .deliveryMode(if (persistResponses) 2 else 1)
+                    .headers(mapOf(RabbitMqVersion.AMQP_HEADER to RabbitMqVersion.CURRENT.toString()))
+                    .build()
+            )
+        }
+
+        ack?.ack()
+    }
+
     override suspend fun <R : RabbitResponsePacket> sendRequest(
         request: RabbitRequestPacket<R>,
-        responseClass: Class<R>
+        responseClass: Class<R>,
+        target: RabbitTarget
     ): R = withContext(api.scope.coroutineContext.minusKey(Job)) {
         val received = withTimeoutOrNull(requestTimeoutSeconds) {
             awaitResponse(
                 request = request,
-                responseClass = responseClass
+                responseClass = responseClass,
+                target = target
             )
         } ?: throw SurfRabbitRequestTimeoutException(
             request,
@@ -261,7 +410,8 @@ class ClientRabbitMQConnectionImpl(
 
     private suspend fun <R : RabbitResponsePacket> awaitResponse(
         request: RabbitRequestPacket<R>,
-        responseClass: Class<R>
+        responseClass: Class<R>,
+        target: RabbitTarget
     ): ReceivedResponse {
         val endpoint = replyEndpoint
             .filterNotNull()
@@ -282,13 +432,13 @@ class ClientRabbitMQConnectionImpl(
 
         try {
             if (replyEndpoint.value != endpoint) {
-                throw SurfRabbitConnectionLostException(api.pluginName)
+                throw SurfRabbitConnectionLostException(api.identity.instanceId)
             }
 
             val requestBodies =
                 if (RabbitPacketChunking.shouldChunk(
                         requestBytes,
-                        config.isOutgoingRequestChunkingEnabled()
+                        api.config.isOutgoingRequestChunkingEnabled()
                     )
                 ) {
                     RabbitPacketChunking.splitRequest(requestBytes)
@@ -298,9 +448,10 @@ class ClientRabbitMQConnectionImpl(
 
             for (requestBody in requestBodies) {
                 client.publish(
-                    exchange = "",
-                    routingKey = queueName,
+                    exchange = RabbitTopology.RPC_EXCHANGE,
+                    routingKey = target.routingKey,
                     body = requestBody,
+                    mandatory = true,
                     properties = AMQP.BasicProperties.Builder()
                         .deliveryMode(if (persistRequests) 2 else 1)
                         .correlationId(correlationId)
@@ -324,22 +475,4 @@ class ClientRabbitMQConnectionImpl(
 
     private fun nextCorrelationId(): String =
         RabbitPacketChunking.newCorrelationId("$correlationIdPrefix-${correlationIdSequence.incrementAndGet()}")
-
-    private data class ReplyEndpoint(
-        val queueName: String,
-        val connectionGeneration: Long
-    )
-
-    class SurfRabbitConnectionLostException(
-        connectionName: String,
-        cause: Throwable? = null
-    ) : SurfRabbitRequestException(
-        "RabbitMQ connection '$connectionName' was lost while waiting for a response",
-        cause
-    ) {
-        companion object {
-            @Serial
-            private const val serialVersionUID: Long = 4792814117769176767L
-        }
-    }
 }
