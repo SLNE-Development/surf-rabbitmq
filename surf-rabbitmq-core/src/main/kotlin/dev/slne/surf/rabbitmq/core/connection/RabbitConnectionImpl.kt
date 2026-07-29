@@ -25,6 +25,7 @@ import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
 import dev.slne.surf.rabbitmq.common.packet.RabbitPacketSerializer
 import dev.slne.surf.rabbitmq.common.topology.RabbitTopology
 import dev.slne.surf.rabbitmq.common.topology.RabbitTopologyDeclarer
+import dev.slne.surf.rabbitmq.core.publish.MessageKind
 import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerNameCache
 import dev.slne.surf.rabbitmq.listener.RabbitListenerHandlerManager
@@ -369,11 +370,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
                 exchange = "",
                 routingKey = replyTo,
                 body = responseBody,
-                properties = AMQP.BasicProperties.Builder()
-                    .correlationId(correlationId)
-                    .deliveryMode(if (persistResponses) 2 else 1)
-                    .headers(mapOf(RabbitMqVersion.AMQP_HEADER to RabbitMqVersion.CURRENT.toString()))
-                    .build()
+                properties = properties(MessageKind.RPC_RESPONSE, correlationId = correlationId)
             )
         }
 
@@ -452,16 +449,11 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
                     routingKey = target.routingKey,
                     body = requestBody,
                     mandatory = true,
-                    properties = AMQP.BasicProperties.Builder()
-                        .deliveryMode(if (persistRequests) 2 else 1)
-                        .correlationId(correlationId)
-                        .replyTo(endpoint.queueName)
-                        .headers(mapOf(RabbitMqVersion.AMQP_HEADER to RabbitMqVersion.CURRENT.toString()))
-
-                        // If the request is still in the queue and has not yet been sent to the
-                        // server, it should expire after the timeout.
-                        .expiration(requestTimeoutSeconds.inWholeMilliseconds.toString())
-                        .build(),
+                    properties = properties(
+                        MessageKind.RPC_REQUEST,
+                        correlationId = correlationId,
+                        replyTo = endpoint.queueName
+                    ),
                     expectedConnectionGeneration = endpoint.connectionGeneration
                 )
             }
@@ -475,4 +467,18 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
 
     private fun nextCorrelationId(): String =
         RabbitPacketChunking.newCorrelationId("$correlationIdPrefix-${correlationIdSequence.incrementAndGet()}")
+
+    private fun properties(
+        kind: MessageKind,
+        correlationId: String? = null,
+        replyTo: String? = null
+    ): AMQP.BasicProperties = AMQP.BasicProperties.Builder()
+        .deliveryMode(kind.deliveryMode(persistRequests, persistResponses))
+        .also { builder ->
+            correlationId?.let(builder::correlationId)
+            replyTo?.let(builder::replyTo)
+            kind.expirationMillis(requestTimeoutSeconds)?.let(builder::expiration)
+        }
+        .headers(mapOf(RabbitMqVersion.AMQP_HEADER to RabbitMqVersion.CURRENT.toString()))
+        .build()
 }

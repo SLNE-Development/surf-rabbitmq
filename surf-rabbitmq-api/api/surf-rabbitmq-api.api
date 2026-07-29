@@ -28,6 +28,35 @@ public final class dev/slne/surf/rabbitmq/api/SurfRabbitApiBuilder {
 	public final fun serializers (Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/rabbitmq/api/SurfRabbitApiBuilder;
 }
 
+public abstract interface annotation class dev/slne/surf/rabbitmq/api/event/RabbitEvent : java/lang/annotation/Annotation {
+	public abstract fun topic ()Ljava/lang/String;
+}
+
+public abstract class dev/slne/surf/rabbitmq/api/event/RabbitEventPacket : dev/slne/surf/rabbitmq/api/packet/RabbitPacket {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/event/RabbitEventPacket$Companion;
+	public fun <init> ()V
+	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
+	public static final synthetic fun write$Self (Ldev/slne/surf/rabbitmq/api/event/RabbitEventPacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/event/RabbitEventPacket$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public abstract interface annotation class dev/slne/surf/rabbitmq/api/event/RabbitSubscribe : java/lang/annotation/Annotation {
+	public abstract fun mode ()Ldev/slne/surf/rabbitmq/api/event/SubscriptionMode;
+	public abstract fun retry ()Z
+	public abstract fun topic ()Ljava/lang/String;
+}
+
+public final class dev/slne/surf/rabbitmq/api/event/SubscriptionMode : java/lang/Enum {
+	public static final field BROADCAST Ldev/slne/surf/rabbitmq/api/event/SubscriptionMode;
+	public static final field SHARED Ldev/slne/surf/rabbitmq/api/event/SubscriptionMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/slne/surf/rabbitmq/api/event/SubscriptionMode;
+	public static fun values ()[Ldev/slne/surf/rabbitmq/api/event/SubscriptionMode;
+}
+
 public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitApiAlreadyFrozenException : java/lang/IllegalStateException {
 	public fun <init> ()V
 }
