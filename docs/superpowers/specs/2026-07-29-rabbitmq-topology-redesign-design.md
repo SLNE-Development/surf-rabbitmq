@@ -24,10 +24,15 @@ Die einzige Sende-API ist `sendRequest(request, responseClass)` und wartet zwing
 Antwort. Jedes Event ist ein synchroner Round-Trip mit 60 s Timeout. `RabbitConsumer.declareExchange()`
 und `RabbitConsumer.bindQueue()` existieren, werden aber nirgends aufgerufen — toter Code.
 
-### P3 — Kein Service-zu-Service-Aufruf
+### P3 — Microservices können keine Events publizieren
 
-`ServerRabbitMQApi` besitzt kein `sendRequest`. Ein Microservice kann keinen anderen
-Microservice aufrufen.
+`ServerRabbitMQApi` besitzt keinerlei Sende-API. Ein Microservice kann nur auf Requests
+antworten, aber von sich aus nichts mitteilen. `surf-transaction` kann nicht bekanntgeben,
+dass eine Transaktion abgeschlossen wurde.
+
+**Abgrenzung:** Behoben wird ausschließlich das Publizieren von Events. Synchroner
+RPC-Aufruf zwischen Microservices bleibt ein Anti-Pattern und wird nicht als Anwendungsfall
+unterstützt — siehe Abschnitt "Architekturrichtlinie".
 
 ### P4 — Der Client deklariert fremde Queues
 
@@ -92,7 +97,8 @@ wird nicht benötigt.
 |---|---|---|---|
 | `surf.service.<service>` | quorum, durable | nur dem Service-Host | `surf.rpc`, Key `<service>` |
 | `surf.instance.<instanceId>` | exclusive, autoDelete, transient | jedem Prozess | `surf.rpc`, Key `<instanceId>` |
-| `surf.events.<instanceId>` | exclusive, autoDelete, transient | jedem Abonnenten | `surf.events`, Keys = Patterns |
+| `surf.events.<instanceId>` | exclusive, autoDelete, transient | jedem `BROADCAST`-Abonnenten | `surf.events`, Keys = Patterns |
+| `surf.events.<service>` | quorum, durable | dem `SHARED`-Abonnenten | `surf.events`, Keys = Patterns |
 | `surf.reply.<instanceId>` | exclusive, autoDelete, transient | jedem Prozess | Default-Exchange |
 | `surf.dlq.<service>` | quorum, durable | dem Service-Host | `surf.dlx`, Key `<service>` |
 | `surf.unroutable` | quorum, durable | beim Verbinden | `surf.unroutable` (fanout) |
@@ -175,10 +181,74 @@ TTL wird pro Nachrichtenart gesetzt, nicht global:
 | Broker nicht erreichbar | Bestehende Auto-Recovery mit Backoff und Jitter (`RabbitClient.kt:148`) bleibt unverändert |
 | Service-Queue voll | `reject-publish` → Absender erhält Fehler |
 
-Die `autoDelete`-Event-Queues bedeuten: Ein Prozess verpasst Broadcasts, die während seiner
-Ausfallzeit gesendet wurden. Für Cache-Invalidierung, Kick und Reload ist das korrekt, da ein
-frisch gestarteter Prozess ohnehin leeren Zustand hat. Für garantierte Zustellung ist
-Fire-and-Forget an die durable Service-Queue das vorgesehene Mittel, nicht Broadcast.
+Die `autoDelete`-Event-Queues des `BROADCAST`-Modus bedeuten: Ein Prozess verpasst Events,
+die während seiner Ausfallzeit gesendet wurden. Für Cache-Invalidierung, Kick und Reload ist
+das korrekt, da ein frisch gestarteter Prozess ohnehin leeren Zustand hat. Für garantierte
+Zustellung dienen der `SHARED`-Modus oder Fire-and-Forget an die durable Service-Queue.
+
+## Abonnement-Modi
+
+Ein Event-Abonnement wählt zwischen zwei Zustellarten. Der Unterschied wird bei mehreren
+Instanzen desselben Service relevant.
+
+| Modus | Queue | Verarbeitet von | Überlebt Ausfall | Anwendungsfall |
+|---|---|---|---|---|
+| `SHARED` | `surf.events.<service>`, quorum, durable | **genau einer** Instanz | ja | DB-Schreibzugriff, Statistik, Webhook, alles mit Seiteneffekt |
+| `BROADCAST` | `surf.events.<instanceId>`, ephemer | **jeder** Instanz | nein | Cache-Invalidierung, Config-Reload, Spieler kicken |
+
+Der Fallstrick, den die Modi auflösen: Laufen acht Instanzen von `surf-transaction` und
+abonniert ein Handler im `BROADCAST`-Modus, führen ihn alle acht aus. Bei einem Handler, der
+in die Datenbank schreibt, entstehen acht Schreibzugriffe.
+
+```kotlin
+// Falsch bei 8 Instanzen — schreibt achtmal:
+@RabbitSubscribe(mode = BROADCAST)
+suspend fun onPlayerBanned(event: PlayerBannedEvent) {
+    database.freezeAccount(event.playerId)
+}
+
+// Richtig — genau eine Instanz schreibt:
+@RabbitSubscribe(mode = SHARED)
+suspend fun onPlayerBanned(event: PlayerBannedEvent) {
+    database.freezeAccount(event.playerId)
+}
+```
+
+**`SHARED` ist der Default.** Begründung: Der Fehlerfall bei versehentlichem `SHARED` ist
+harmlos (Event wird von einer statt allen Instanzen verarbeitet, meist gewünscht), der bei
+versehentlichem `BROADCAST` teuer (n-fache Ausführung mit Seiteneffekten). `BROADCAST` muss
+daher bewusst angefordert werden.
+
+Auf Paper- und Velocity-Prozessen ist typischerweise `BROADCAST` korrekt, da dort jede
+Instanz ihren eigenen lokalen Zustand invalidieren muss.
+
+## Architekturrichtlinie: keine Microservice-Ketten
+
+Ein Microservice ruft keinen anderen Microservice synchron per RPC auf. Die vorgesehene
+Struktur:
+
+```
+Paper-Plugin surf-punish  ──RPC──▶  Microservice surf-punish
+Paper-Plugin surf-factions ──RPC──▶ Microservice surf-factions
+
+Microservice surf-transaction ──publish──▶ surf.events ──▶ beliebige Abonnenten
+```
+
+Jedes Plugin stellt eine lokale API bereit (`Faction.create()`), die intern den zugehörigen
+Microservice aufruft. Ein Microservice kennt keine anderen Microservices.
+
+Begründung: Synchrone Ketten zwischen Services koppeln deren Verfügbarkeit aneinander. Fällt
+ein Glied aus, fällt die gesamte Kette aus, und die Latenzen addieren sich. Das Ergebnis ist
+ein verteilter Monolith.
+
+Erlaubt und vorgesehen ist das **Publizieren von Events**: Der Publisher kennt seine
+Abonnenten nicht, es entsteht keine Verfügbarkeitskopplung, und ohne Abonnenten passiert
+schlicht nichts.
+
+Technisch verhindert die vereinheitlichte `SurfRabbitApi` einen Service-zu-Service-RPC nicht.
+In der bestehenden Projektstruktur ist er praktisch ausgeschlossen, da ein Microservice keinen
+Zugriff auf das Service-Interface eines anderen Projekts hat. Die Richtlinie wird daher
+dokumentiert, nicht erzwungen.
 
 ## Öffentliche API
 
@@ -253,13 +323,36 @@ val staging = rabbit.rpc<FactionService>(service = "surf-factions-staging")
 
 ### Circuit Breaker
 
-Pro Ziel-Service, nicht global. Ist `surf-punish` nicht erreichbar, öffnet dessen Breaker und
-Aufrufe dorthin scheitern sofort, statt in Timeouts zu laufen. Aufrufe an `surf-factions`
-bleiben unbeeinflusst. Ohne diese Trennung würde ein einzelner ausgefallener Service den
-gesamten Prozess ausbremsen.
+Liegt als **eigenständiges Modul `surf-circuitbreaker`** vor, ohne Abhängigkeit zu RabbitMQ
+oder zum Rest der Library. Damit ist es in `surf-broker` und `surf-redis` unverändert
+wiederverwendbar.
+
+```kotlin
+// Modul surf-circuitbreaker, keine RabbitMQ-Typen in der Signatur
+class CircuitBreaker(
+    val name: String,
+    val failureThreshold: Int = 5,
+    val openDuration: Duration = 30.seconds,
+    val clock: Clock = Clock.systemUTC()
+) {
+    suspend fun <T> withBreaker(block: suspend () -> T): T
+}
+```
+
+Die injizierbare `Clock` ist bewusst Teil der öffentlichen Signatur: Sie erlaubt, das
+Zeitverhalten der Zustandsmaschine deterministisch und ohne Wartezeiten zu testen.
+
+Verwendung in surf-rabbitmq: **ein Breaker pro Ziel-Service, nicht global.** Ist `surf-punish`
+nicht erreichbar, öffnet dessen Breaker und Aufrufe dorthin scheitern sofort, statt in Timeouts
+zu laufen. Aufrufe an `surf-factions` bleiben unbeeinflusst. Ohne diese Trennung würde ein
+einzelner ausgefallener Service den gesamten Prozess ausbremsen.
 
 Zustände: `CLOSED` → nach 5 aufeinanderfolgenden Transportfehlern `OPEN` (30 s) → `HALF_OPEN`
 (ein Probeaufruf) → bei Erfolg `CLOSED`, bei Fehler zurück nach `OPEN`.
+
+Nur Transportfehler zählen auf den Schwellwert ein. Fachliche Exceptions aus einem Handler
+lassen den Breaker unberührt — ein Service, der zuverlässig fachliche Fehler liefert, ist
+erreichbar und darf nicht abgeschaltet werden.
 
 Client-Retry greift ausschließlich bei Transportfehlern (unroutable, Verbindungsverlust):
 2 Versuche mit 250 ms und 1 s Abstand. Fachliche Exceptions aus dem Handler werden unverändert
@@ -274,6 +367,37 @@ erhalten. Sie bilden die Low-Level-Schicht, auf der auch die RPC-Interfaces aufs
 Entfallen: `ClientRabbitMQApi`, `ServerRabbitMQApi`, `ClientRabbitMQConnection`,
 `ServerRabbitMQConnection`, `RabbitMQConnectionFactory`.
 
+## Horizontale Skalierung
+
+Mehrere Instanzen desselben Service konsumieren dieselbe `surf.service.<service>`. RabbitMQ
+verteilt die Nachrichten als Competing Consumers. Acht Instanzen von `surf-transaction`
+laufen ohne Zusatzkonfiguration; eine weitere Instanz zu starten erhöht den Durchsatz.
+
+Dieses Verhalten funktioniert bereits in Version 1.6.2 und bleibt unverändert. Kaputt war
+nicht die Skalierung der Microservices, sondern die Aufruferseite (P1) und das Fehlen von
+Events (P2, P3).
+
+Was sich bei mehreren Instanzen ändert:
+
+| Aspekt | Verhalten |
+|---|---|
+| RPC | Eine beliebige Instanz antwortet, lastverteilt |
+| Fire-and-Forget | Eine beliebige Instanz verarbeitet |
+| `SHARED`-Abonnement | Eine beliebige Instanz verarbeitet |
+| `BROADCAST`-Abonnement | **Alle** Instanzen verarbeiten |
+| In-flight-Nachrichten | `serverPrefetchCount` × Instanzanzahl |
+
+**Keine Reihenfolgegarantie.** Zwei Nachrichten, die denselben Spieler betreffen, können
+gleichzeitig auf unterschiedlichen Instanzen verarbeitet werden. Bei zustandsverändernden
+Services — insbesondere `surf-transaction` — muss die Konsistenz im Service selbst
+sichergestellt werden, etwa über Datenbanktransaktionen oder ein Lock pro Entität. Kein
+Messaging-System löst das an dieser Stelle.
+
+Sollte eine Reihenfolge pro Entität später zwingend erforderlich werden, wäre eine
+Consistent-Hash-Exchange (Broker-Plugin `rabbitmq_consistent_hash_exchange`) das Mittel der
+Wahl, um alle Nachrichten einer Spieler-UUID stets derselben Instanz zuzuleiten. Nicht
+Bestandteil dieses Vorhabens.
+
 ## Modulstruktur
 
 | heute | danach |
@@ -286,6 +410,7 @@ Entfallen: `ClientRabbitMQApi`, `ServerRabbitMQApi`, `ClientRabbitMQConnection`,
 | `surf-rabbitmq-server` | ↑ |
 | `surf-rabbitmq-ksp` | unverändert, `@RpcService(service = ...)` ergänzt |
 | `surf-rabbitmq-paper`, `-velocity` | unverändert |
+| — | `surf-circuitbreaker` (neu, ohne RabbitMQ-Abhängigkeit) |
 
 ### Vorbereitung auf surf-broker
 
@@ -329,7 +454,9 @@ gegen Mocks nicht prüfbar.
 | 1 | Topologie nach `connect()` | Exchanges, Queues, Bindings, Argumente wie spezifiziert |
 | 2 | RPC-Round-Trip | Grundfunktion |
 | 3 | 3 Instanzen, 100 Nachrichten | Competing Consumers: jede Nachricht genau einmal |
-| 4 | 3 Abonnenten, 1 Broadcast | Alle drei erhalten das Event |
+| 4 | 3 Instanzen, `BROADCAST`, 1 Event | **Alle drei** erhalten das Event |
+| 4b | 3 Instanzen, `SHARED`, 1 Event | **Genau eine** erhält das Event |
+| 4c | `SHARED`, alle Instanzen offline, dann Neustart | Event überlebt in der durablen Queue |
 | 5 | Topic-Pattern | Nur passende Abonnenten erhalten das Event |
 | 6 | Handler wirft Exception | Retry über 10 s / 60 s / 300 s, danach DLQ |
 | 7 | `retry = false` | Direkt DLQ ohne Wiederholung |
@@ -349,11 +476,15 @@ Testkonfiguration.
 Ohne Broker lauffähig:
 
 - Namensbildung für Queues, Exchanges und Routing-Keys
-- Versuchszähler-Auswertung aus `x-death`
-- Circuit-Breaker-Zustandsmaschine
+- Versuchszähler-Auswertung aus `x-death`, inklusive der Grenzfälle `n = 0` und `n = 3`
+- Circuit-Breaker-Zustandsmaschine über die gesamte Zustandsfolge
+  `CLOSED → OPEN → HALF_OPEN → CLOSED` und `HALF_OPEN → OPEN`, mit injizierter `Clock`
+  statt realer Wartezeit
+- Circuit Breaker: fachliche Exceptions zählen nicht auf den Schwellwert ein
 - Config-Layering `env > plugin YAML > global YAML > Default`
 - TTL-Zuordnung pro Nachrichtenart
 - Import-Regel für `shared.*` und `platform.*`
+- `surf-circuitbreaker` enthält keine Referenz auf RabbitMQ-Typen
 
 ### Bekannte Einschränkung
 
@@ -370,10 +501,10 @@ Jede Etappe endet in einem übersetzbaren Zustand mit lauffähigen Tests.
 | 1 | Topologie | `RabbitTopology`, Namensbildung, Deklaration, Integrationstest 1 |
 | 2 | Modul-Zusammenführung | 6 Module → 2, `shared.*`-Schnitt, Import-Regel-Test |
 | 3 | `SurfRabbitApi` | Vereinheitlichte API, Zieladressierung, Tests 2, 3, 14 |
-| 4 | Events | `@RabbitEvent`, `@RabbitSubscribe`, Topic-Bindings, Tests 4, 5 |
+| 4 | Events | `@RabbitEvent`, `@RabbitSubscribe`, `SHARED`/`BROADCAST`, Tests 4, 4b, 4c, 5 |
 | 5 | Fire-and-Forget und TTL | `send()`, TTL pro Nachrichtenart, Test 10 |
 | 6 | Zuverlässigkeit | DLQ, Retry-Queues, `mandatory`, `reject-publish`, Tests 6, 7, 8, 12 |
-| 7 | Circuit Breaker | Zustandsmaschine, Client-Retry, Test 9 |
+| 7 | `surf-circuitbreaker` | Eigenständiges Modul, Zustandsmaschine, Client-Retry, Test 9 |
 | 8 | KSP | `@RpcService(service = ...)`, Codegen-Anpassung |
 | 9 | Migration | `surf-rabbitmq-test` auf neue API, Tests 11, 13, README |
 
