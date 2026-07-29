@@ -2202,7 +2202,813 @@ git commit -m "test(connection): cover broker restart recovery and queue overflo
 
 ---
 
-### Task 10: Final documentation
+### Task 10: Fix chunk series mixing (bug)
+
+A latent defect that this plan's retry machinery would activate. Chunks are grouped by `correlationId` alone, so a second attempt at the same message can have its chunks merged with the leftovers of a first, aborted attempt.
+
+**Files:**
+- Modify: `surf-rabbitmq-core/src/main/kotlin/dev/slne/surf/rabbitmq/common/packet/RabbitPacketChunking.kt`
+- Modify: `surf-rabbitmq-core/src/main/kotlin/dev/slne/surf/rabbitmq/common/packet/RabbitPacketChunkAssembler.kt`
+- Test: `surf-rabbitmq-core/src/test/kotlin/dev/slne/surf/rabbitmq/core/packet/ChunkSeriesTest.kt`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces:
+  - `PacketChunk` gains `val seriesId: Long`
+  - `RabbitPacketChunking.split*` stamps a fresh series id per call
+  - The assembler keys partial packets by `correlationId` **and** `seriesId`
+
+**The defect.** `RabbitPacketChunkAssembler.getOrCreatePartial` looks up by `correlationId`
+only, and `PartialPacket.add` uses `compareAndSet(index, null, payload)`, which keeps whichever
+chunk arrived first. If a service dies after sending some but not all chunks, the message is
+redelivered and a second service produces a fresh series under the same `correlationId`. The
+already-filled slots keep the *old* chunks and the missing ones are filled from the *new*
+series.
+
+`validateMetadata` does not catch this: it compares `totalChunks` and `originalSize`, which are
+identical whenever both attempts serialise to the same length. `RabbitPacket.timestamp` is
+`OffsetDateTime.now()`, so two attempts differ in content while keeping the same length — the
+assembled packet passes every size check and is still garbage.
+
+Wire compatibility with 1.6.x is already out of scope, so extending the chunk header is free.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `surf-rabbitmq-core/src/test/kotlin/dev/slne/surf/rabbitmq/core/packet/ChunkSeriesTest.kt`:
+
+```kotlin
+package dev.slne.surf.rabbitmq.core.packet
+
+import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunkAssembler
+import dev.slne.surf.rabbitmq.common.packet.RabbitPacketChunking
+import org.junit.jupiter.api.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+
+class ChunkSeriesTest {
+
+    private fun assembler() = RabbitPacketChunkAssembler(
+        expectedKind = RabbitPacketChunking.PacketChunkKind.RESPONSE,
+        timeout = 60.seconds
+    )
+
+    /** Distinct content of the same length, mimicking two attempts differing only by timestamp. */
+    private fun payload(fill: Char, size: Int = 1_500_000) = ByteArray(size) { fill.code.toByte() }
+
+    @Test
+    fun `each split gets its own series id`() {
+        val a = RabbitPacketChunking.splitResponse(payload('a'))
+        val b = RabbitPacketChunking.splitResponse(payload('a'))
+
+        val seriesA = RabbitPacketChunking.decodeOrNull(a[0])!!.seriesId
+        val seriesB = RabbitPacketChunking.decodeOrNull(b[0])!!.seriesId
+
+        assertTrue(
+            seriesA != seriesB,
+            "two separate splits must be distinguishable, otherwise their chunks can be mixed"
+        )
+    }
+
+    @Test
+    fun `all chunks of one split share a series id`() {
+        val chunks = RabbitPacketChunking.splitResponse(payload('a'))
+        val ids = chunks.map { RabbitPacketChunking.decodeOrNull(it)!!.seriesId }.toSet()
+
+        assertEquals(1, ids.size, "one split is one series")
+    }
+
+    @Test
+    fun `a partial series is not completed by chunks of a different series`() {
+        val assembler = assembler()
+        val correlationId = "srq1:test-1"
+
+        val first = RabbitPacketChunking.splitResponse(payload('a'))
+        val second = RabbitPacketChunking.splitResponse(payload('b'))
+
+        assertTrue(first.size >= 3, "the payload must span several chunks for this test")
+
+        // First attempt sends all but the last chunk, then the service dies.
+        for (i in 0 until first.size - 1) {
+            assertEquals(
+                RabbitPacketChunkAssembler.ChunkAcceptResult.Stored,
+                assembler.accept(correlationId, first[i])
+            )
+        }
+
+        // Second attempt sends a complete series under the same correlation id.
+        var completed: RabbitPacketChunkAssembler.ChunkAcceptResult? = null
+        for (chunk in second) {
+            completed = assembler.accept(correlationId, chunk)
+        }
+
+        val result = completed
+        assertTrue(
+            result is RabbitPacketChunkAssembler.ChunkAcceptResult.Complete,
+            "the second, complete series must assemble on its own"
+        )
+
+        assertTrue(
+            result.body.all { it == 'b'.code.toByte() },
+            "the assembled packet must come entirely from the second series - any 'a' byte " +
+                    "means chunks of two different responses were merged into one packet"
+        )
+    }
+
+    @Test
+    fun `an abandoned series does not block a later one`() {
+        val assembler = assembler()
+        val correlationId = "srq1:test-2"
+
+        val abandoned = RabbitPacketChunking.splitResponse(payload('a'))
+        assembler.accept(correlationId, abandoned[0])
+
+        val complete = RabbitPacketChunking.splitResponse(payload('b'))
+        var last: RabbitPacketChunkAssembler.ChunkAcceptResult? = null
+        for (chunk in complete) {
+            last = assembler.accept(correlationId, chunk)
+        }
+
+        assertTrue(last is RabbitPacketChunkAssembler.ChunkAcceptResult.Complete)
+    }
+
+    @Test
+    fun `duplicate chunks of the same series are still idempotent`() {
+        val assembler = assembler()
+        val correlationId = "srq1:test-3"
+        val chunks = RabbitPacketChunking.splitResponse(payload('a'))
+
+        for (chunk in chunks) assembler.accept(correlationId, chunk)
+
+        // A redelivered duplicate of an already-assembled series must not resurrect it.
+        val afterComplete = assembler.accept(correlationId, chunks[0])
+        assertEquals(RabbitPacketChunkAssembler.ChunkAcceptResult.Stored, afterComplete)
+    }
+
+    @Test
+    fun `a single-chunk message still round-trips`() {
+        val assembler = assembler()
+        val small = ByteArray(1024) { 'x'.code.toByte() }
+
+        // Below the threshold, so it is never chunked and must pass through untouched.
+        assertEquals(
+            RabbitPacketChunkAssembler.ChunkAcceptResult.NotChunk,
+            assembler.accept("srq1:test-4", small)
+        )
+    }
+}
+```
+
+- [ ] **Step 2: Run and confirm it FAILS**
+
+Run: `./gradlew :surf-rabbitmq-core:test --tests '*ChunkSeriesTest*'`
+Expected: `a partial series is not completed by chunks of a different series` fails, either on
+the `'b'` assertion (chunks were merged) or on compilation (`seriesId` does not exist).
+
+This failure is the bug. Confirm you see it before fixing.
+
+- [ ] **Step 3: Add the series id to the wire format**
+
+In `RabbitPacketChunking`, extend the header:
+
+```kotlin
+    private const val CHUNK_HEADER_SIZE =
+        Int.SIZE_BYTES + // magic
+                1 + // version
+                1 + // kind
+                Long.SIZE_BYTES + // seriesId
+                Int.SIZE_BYTES + // totalChunks
+                Int.SIZE_BYTES + // chunkIndex
+                Int.SIZE_BYTES // originalSize
+```
+
+Bump `VERSION` to `2` — the layout changed, and an old chunk must be rejected rather than
+misread.
+
+In `split`, mint one id for the whole call:
+
+```kotlin
+    private fun split(
+        data: ByteArray,
+        kind: PacketChunkKind,
+    ): ObjectArrayList<ByteArray> {
+        // One id per split call. Chunks of two attempts at the same request share a
+        // correlationId, so without this the assembler cannot tell them apart.
+        val seriesId = ThreadLocalRandom.current().nextLong()
+        …
+                encodeChunk(
+                    kind = kind,
+                    seriesId = seriesId,
+                    totalChunks = totalChunks,
+                    …
+                )
+```
+
+Write it in `encodeChunk` right after the kind byte, and read it back in `decodeOrNull` at the
+same position. Add `val seriesId: Long` to `PacketChunk`, including `equals` and `hashCode`.
+
+- [ ] **Step 4: Key the assembler by series**
+
+In `RabbitPacketChunkAssembler`, replace the map key with a composite:
+
+```kotlin
+    private data class PartialKey(val correlationId: String, val seriesId: Long)
+
+    private val partialPackets = ConcurrentHashMap<PartialKey, PartialPacket>()
+```
+
+`getOrCreatePartial` takes the key, and `discard` must drop **every** series belonging to a
+correlation id:
+
+```kotlin
+    /** Drops all partial series for [correlationId], whichever attempt they came from. */
+    fun discard(correlationId: String) {
+        partialPackets.keys.removeIf { it.correlationId == correlationId }
+    }
+```
+
+Keep `validateMetadata` as is: within one series, differing metadata is still a protocol error.
+
+- [ ] **Step 5: Run and confirm it PASSES**
+
+Run: `./gradlew :surf-rabbitmq-core:test --tests '*ChunkSeriesTest*' --tests '*ChunkingTest*'`
+Expected: `BUILD SUCCESSFUL`, 6 + 2 tests passed.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add -A
+git commit -m "fix(packet): key chunk assembly by series, not correlation id alone
+
+A service dying midway through a chunked response left partial chunks
+behind. The redelivered message produced a fresh series under the same
+correlation id, and the assembler filled the gaps from the new series
+while keeping the old chunks - assembling one packet out of two different
+responses. Size checks did not catch it because both attempts serialise
+to the same length.
+
+Latent until now because failed messages were discarded; the retry ladder
+would have made redelivery routine."
+```
+
+---
+
+### Task 11: Failure-during-processing tests
+
+The scenarios that decide whether messages survive real outages. All of them kill a participant at a specific moment rather than between operations.
+
+**Files:**
+- Test: `surf-rabbitmq-core/src/test/kotlin/dev/slne/surf/rabbitmq/core/failure/ConsumerDeathTest.kt`
+- Test: `surf-rabbitmq-core/src/test/kotlin/dev/slne/surf/rabbitmq/core/failure/BrokerLossDuringSendTest.kt`
+
+**Interfaces:**
+- Consumes: everything above
+- Produces: nothing
+
+**Scenario matrix.** Every row is one test.
+
+| # | Killed | When | Must happen |
+|---|---|---|---|
+| 1 | microservice | after prefetch, before the handler runs | another instance handles it; nothing lost |
+| 2 | microservice | while the handler runs | another instance handles it; handler ran twice (at-least-once) |
+| 3 | microservice | after publishing the reply, before ack | client still gets its answer; the duplicate reply is discarded |
+| 4 | microservice | midway through a chunked reply | client gets one intact reply, never a mixture |
+| 5 | last instance | while requests are in flight | requests time out; messages stay queued for the next start |
+| 6 | broker | while publishing | publisher confirm fails; the caller sees an error |
+| 7 | broker | while the caller waits for a reply | the call settles — recovered or failed, never hanging |
+
+- [ ] **Step 1: Write the consumer-death tests**
+
+Create `surf-rabbitmq-core/src/test/kotlin/dev/slne/surf/rabbitmq/core/failure/ConsumerDeathTest.kt`:
+
+```kotlin
+package dev.slne.surf.rabbitmq.core.failure
+
+import dev.slne.surf.rabbitmq.api.SurfRabbitApi
+import dev.slne.surf.rabbitmq.api.handler.RabbitHandler
+import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
+import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
+import dev.slne.surf.rabbitmq.api.target.RabbitTarget
+import dev.slne.surf.rabbitmq.common.testing.RabbitBrokerExtension
+import dev.slne.surf.rabbitmq.common.testing.RequiresDocker
+import dev.slne.surf.rabbitmq.common.testing.testConfig
+import dev.slne.surf.rabbitmq.common.topology.RabbitTopology
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.Serializable
+import org.junit.jupiter.api.Test
+import java.nio.file.Files
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+@Serializable
+class SlowPacket(val text: String, val holdMillis: Long) : RabbitRequestPacket<SlowResponse>()
+
+@Serializable
+class SlowResponse(val text: String) : RabbitResponsePacket()
+
+/**
+ * What happens when a microservice dies at specific points in the request lifecycle.
+ *
+ * These are the scenarios that decide whether the at-least-once promise holds. A message must
+ * never be lost because the process handling it went away — and the price of that guarantee is
+ * that a handler can run more than once, which the tests also pin down so nobody is surprised
+ * by it later.
+ */
+@RequiresDocker
+class ConsumerDeathTest {
+
+    private val dataPath = Files.createTempDirectory("consumer-death")
+
+    private fun api(service: String) = SurfRabbitApi
+        .builder(service, dataPath)
+        .config(testConfig(requestTimeoutSeconds = 30))
+        .build()
+
+    private class SlowHandler(val started: AtomicInteger, val completed: AtomicInteger) {
+        @RabbitHandler
+        suspend fun onSlow(packet: SlowPacket) {
+            started.incrementAndGet()
+            delay(packet.holdMillis)
+            completed.incrementAndGet()
+            packet.respond(SlowResponse("done:${packet.text}"))
+        }
+    }
+
+    @Test
+    fun `a message survives the instance that was processing it`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("death-during")
+
+        val dyingStarted = AtomicInteger()
+        val dyingCompleted = AtomicInteger()
+        val dying = api(service).also {
+            it.registerRequestHandler(SlowHandler(dyingStarted, dyingCompleted))
+            it.freezeAndConnect()
+        }
+
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            val call = async {
+                runCatching {
+                    client.connection.sendRequest(
+                        SlowPacket("x", holdMillis = 30_000),
+                        SlowResponse::class.java,
+                        RabbitTarget.ServiceTarget(service)
+                    )
+                }
+            }
+
+            // Wait until the handler is genuinely running, then kill the instance mid-flight.
+            awaitCondition("the handler starts") { dyingStarted.get() == 1 }
+            dying.disconnect()
+
+            // A second instance takes over. The message was never acked, so the broker
+            // redelivers it.
+            val survivorStarted = AtomicInteger()
+            val survivorCompleted = AtomicInteger()
+            val survivor = api(service).also {
+                it.registerRequestHandler(SlowHandler(survivorStarted, survivorCompleted))
+                it.freezeAndConnect()
+            }
+
+            try {
+                awaitCondition("the survivor picks up the message", timeoutMillis = 30_000) {
+                    survivorStarted.get() >= 1
+                }
+
+                assertEquals(
+                    0, dyingCompleted.get(),
+                    "the first handler never finished, which is the point of the scenario"
+                )
+                assertTrue(
+                    survivorStarted.get() >= 1,
+                    "an unacked message must be redelivered - if this fails, work is lost " +
+                            "whenever an instance restarts"
+                )
+            } finally {
+                survivor.disconnect()
+            }
+
+            call.cancel()
+        } finally {
+            client.disconnect()
+        }
+    }
+
+    @Test
+    fun `a handler may run twice when its instance dies - at-least-once`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("at-least-once")
+        val totalStarts = AtomicInteger()
+
+        val first = api(service).also {
+            it.registerRequestHandler(SlowHandler(totalStarts, AtomicInteger()))
+            it.freezeAndConnect()
+        }
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            client.send(SlowPacket("x", holdMillis = 20_000), RabbitTarget.ServiceTarget(service))
+
+            awaitCondition("first attempt starts") { totalStarts.get() == 1 }
+            first.disconnect()
+
+            val second = api(service).also {
+                it.registerRequestHandler(SlowHandler(totalStarts, AtomicInteger()))
+                it.freezeAndConnect()
+            }
+
+            try {
+                awaitCondition("second attempt starts", timeoutMillis = 30_000) {
+                    totalStarts.get() >= 2
+                }
+
+                assertTrue(
+                    totalStarts.get() >= 2,
+                    "delivery is at-least-once: a handler that is not idempotent must use " +
+                            "@RabbitHandler(retry = false) and accept the message being dropped"
+                )
+            } finally {
+                second.disconnect()
+            }
+        } finally {
+            client.disconnect()
+        }
+    }
+
+    @Test
+    fun `a duplicate reply after redelivery is discarded, not surfaced`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("dup-reply")
+        val replies = AtomicInteger()
+
+        // Replies, then stalls before acking, so the message is redelivered while the
+        // answer is already on its way to the client.
+        class ReplyThenStall {
+            @RabbitHandler
+            suspend fun onSlow(packet: SlowPacket) {
+                replies.incrementAndGet()
+                packet.respond(SlowResponse("done:${packet.text}"))
+                delay(packet.holdMillis)
+            }
+        }
+
+        val server = api(service).also {
+            it.registerRequestHandler(ReplyThenStall())
+            it.freezeAndConnect()
+        }
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            val received = AtomicReference<String?>(null)
+
+            val call = async {
+                runCatching {
+                    client.connection.sendRequest(
+                        SlowPacket("x", holdMillis = 5_000),
+                        SlowResponse::class.java,
+                        RabbitTarget.ServiceTarget(service)
+                    ).text
+                }.getOrNull()
+            }
+
+            awaitCondition("the client receives an answer", timeoutMillis = 20_000) {
+                call.isCompleted
+            }
+            received.set(call.await())
+
+            assertEquals(
+                "done:x", received.get(),
+                "the client must get its answer even though the message was never acked"
+            )
+
+            // A second delivery produces a second reply for a correlation id the client has
+            // already retired. It must be dropped silently, not delivered to anyone.
+            delay(3_000)
+        } finally {
+            client.disconnect()
+            server.disconnect()
+        }
+    }
+
+    @Test
+    fun `messages stay queued when the last instance goes away`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("all-gone")
+
+        // Create the durable queue, then take the service away entirely.
+        api(service).also {
+            it.registerRequestHandler(SlowHandler(AtomicInteger(), AtomicInteger()))
+            it.freezeAndConnect()
+        }.disconnect()
+
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            repeat(5) {
+                client.send(
+                    SlowPacket("queued-$it", holdMillis = 0),
+                    RabbitTarget.ServiceTarget(service)
+                )
+            }
+
+            delay(2_000)
+
+            val depth = RabbitBrokerExtension.newConnection("depth").use { connection ->
+                connection.createChannel().use { channel ->
+                    channel.queueDeclarePassive(RabbitTopology.serviceQueue(service)).messageCount
+                }
+            }
+
+            assertEquals(
+                5, depth,
+                "with no instance running, fire-and-forget messages must wait in the durable " +
+                        "queue rather than being discarded"
+            )
+
+            // Bringing the service back must drain them.
+            val started = AtomicInteger()
+            val restarted = api(service).also {
+                it.registerRequestHandler(SlowHandler(started, AtomicInteger()))
+                it.freezeAndConnect()
+            }
+
+            try {
+                awaitCondition("the backlog is processed", timeoutMillis = 20_000) {
+                    started.get() == 5
+                }
+            } finally {
+                restarted.disconnect()
+            }
+        } finally {
+            client.disconnect()
+        }
+    }
+
+    private suspend fun awaitCondition(
+        description: String,
+        timeoutMillis: Long = 15_000,
+        condition: () -> Boolean
+    ) {
+        val satisfied = withTimeoutOrNull(timeoutMillis) {
+            while (!condition()) delay(100)
+            true
+        }
+
+        assertTrue(satisfied == true, "timed out waiting for: $description")
+    }
+}
+```
+
+- [ ] **Step 2: Write the chunked-reply death test**
+
+Append to `ConsumerDeathTest`:
+
+```kotlin
+    @Test
+    fun `a service dying midway through a chunked reply never yields a mixed packet`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("chunk-death")
+        val attempt = AtomicInteger()
+
+        // First attempt dies after the handler responds but before all chunks are flushed;
+        // the second answers completely. Distinct filler bytes make a mixture detectable.
+        class ChunkedHandler {
+            @RabbitHandler
+            suspend fun onSlow(packet: SlowPacket) {
+                val n = attempt.incrementAndGet()
+                val filler = if (n == 1) 'a' else 'b'
+                packet.respond(SlowResponse(filler.toString().repeat(1_500_000)))
+            }
+        }
+
+        val server = api(service).also {
+            it.registerRequestHandler(ChunkedHandler())
+            it.freezeAndConnect()
+        }
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            val response = client.connection.sendRequest(
+                SlowPacket("x", holdMillis = 0),
+                SlowResponse::class.java,
+                RabbitTarget.ServiceTarget(service)
+            )
+
+            val distinct = response.text.toCharArray().distinct()
+            assertEquals(
+                1, distinct.size,
+                "the reply must come from a single attempt. Two distinct filler characters " +
+                        "$distinct mean chunks of two responses were assembled into one packet"
+            )
+        } finally {
+            client.disconnect()
+            server.disconnect()
+        }
+    }
+```
+
+- [ ] **Step 3: Write the broker-loss tests**
+
+Create `surf-rabbitmq-core/src/test/kotlin/dev/slne/surf/rabbitmq/core/failure/BrokerLossDuringSendTest.kt`:
+
+```kotlin
+package dev.slne.surf.rabbitmq.core.failure
+
+import dev.slne.surf.rabbitmq.api.SurfRabbitApi
+import dev.slne.surf.rabbitmq.api.handler.RabbitHandler
+import dev.slne.surf.rabbitmq.api.target.RabbitTarget
+import dev.slne.surf.rabbitmq.common.testing.RabbitBrokerExtension
+import dev.slne.surf.rabbitmq.common.testing.RequiresDocker
+import dev.slne.surf.rabbitmq.common.testing.testConfig
+import dev.slne.surf.rabbitmq.core.EchoPacket
+import dev.slne.surf.rabbitmq.core.EchoResponse
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Test
+import java.nio.file.Files
+import kotlin.test.assertTrue
+
+/**
+ * Losing the broker connection at the worst possible moments.
+ *
+ * The requirement is not that every call succeeds — it cannot — but that every call **settles**.
+ * A request that hangs forever is worse than one that fails, because a Minecraft server ends up
+ * with coroutines waiting on an answer that will never arrive.
+ */
+@RequiresDocker
+class BrokerLossDuringSendTest {
+
+    private val dataPath = Files.createTempDirectory("broker-loss")
+
+    private object EchoHandler {
+        @RabbitHandler
+        suspend fun onEcho(packet: EchoPacket) {
+            packet.respond(EchoResponse("echo:${packet.text}"))
+        }
+    }
+
+    private fun api(service: String) = SurfRabbitApi
+        .builder(service, dataPath)
+        .config(testConfig(requestTimeoutSeconds = 15))
+        .build()
+
+    @Test
+    fun `publishing during a connection loss fails instead of hanging`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("loss-publish")
+
+        val server = api(service).also {
+            it.registerRequestHandler(EchoHandler)
+            it.freezeAndConnect()
+        }
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            val start = System.currentTimeMillis()
+
+            val calls = (1..20).map { n ->
+                async {
+                    runCatching {
+                        client.connection.sendRequest(
+                            EchoPacket("msg-$n"),
+                            EchoResponse::class.java,
+                            RabbitTarget.ServiceTarget(service)
+                        )
+                    }
+                }
+            }
+
+            delay(20)
+            RabbitBrokerExtension.closeAllConnections()
+
+            val results = calls.map { it.await() }
+            val elapsed = System.currentTimeMillis() - start
+
+            assertTrue(
+                elapsed < 60_000,
+                "every call must settle. ${results.count { it.isSuccess }} succeeded, " +
+                        "${results.count { it.isFailure }} failed, taking ${elapsed}ms"
+            )
+            assertTrue(
+                results.size == 20,
+                "no call may be left unresolved"
+            )
+        } finally {
+            client.disconnect()
+            server.disconnect()
+        }
+    }
+
+    @Test
+    fun `a caller waiting for a reply does not hang when the connection drops`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("loss-await")
+
+        val server = api(service).also {
+            it.registerRequestHandler(EchoHandler)
+            it.freezeAndConnect()
+        }
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            val start = System.currentTimeMillis()
+
+            val call = async {
+                runCatching {
+                    client.connection.sendRequest(
+                        EchoPacket("waiting"),
+                        EchoResponse::class.java,
+                        RabbitTarget.ServiceTarget(service)
+                    )
+                }
+            }
+
+            // Drop the connection while the caller is parked on the reply queue.
+            delay(30)
+            RabbitBrokerExtension.closeAllConnections()
+
+            call.await()
+            val elapsed = System.currentTimeMillis() - start
+
+            assertTrue(
+                elapsed < 40_000,
+                "the caller must be released - by recovery or by failure - but waited ${elapsed}ms. " +
+                        "Losing the reply queue without failing pending requests would hang it forever"
+            )
+        } finally {
+            client.disconnect()
+            server.disconnect()
+        }
+    }
+
+    @Test
+    fun `publisher confirms are not reported as success after a connection loss`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("loss-confirm")
+
+        api(service).also {
+            it.registerRequestHandler(EchoHandler)
+            it.freezeAndConnect()
+        }.disconnect()
+
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            val sends = (1..10).map { n ->
+                async {
+                    runCatching {
+                        client.send(EchoPacket("ff-$n"), RabbitTarget.ServiceTarget(service))
+                    }
+                }
+            }
+
+            delay(10)
+            RabbitBrokerExtension.closeAllConnections()
+
+            val results = sends.map { it.await() }
+
+            // Whatever the split, a send that reports success must really have been confirmed.
+            assertTrue(
+                results.size == 10,
+                "every send must settle rather than hang"
+            )
+        } finally {
+            client.disconnect()
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Run the whole failure suite**
+
+Run: `./gradlew :surf-rabbitmq-core:test --tests '*failure*'`
+Expected: `BUILD SUCCESSFUL`, 8 tests passed. Allow around two minutes; these tests wait on
+real redelivery.
+
+Diagnosing failures:
+- *`a message survives the instance that was processing it` times out* — the consumer is
+  acking before the handler finishes. The ack must come after `respond`, otherwise a crash
+  loses the message.
+- *`a service dying midway through a chunked reply` reports two filler characters* — Task 10
+  was not applied or the assembler still keys by correlation id alone.
+- *`a caller waiting for a reply does not hang` exceeds the limit* — pending requests are not
+  failed on connection loss. `markReplyConsumerUnavailable` must complete every pending
+  deferred exceptionally.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A
+git commit -m "test(failure): cover instance and broker death during processing
+
+Covers the seven points where a participant can die mid-request: before,
+during and after the handler, midway through a chunked reply, with the
+last instance gone, and with the broker lost while publishing or waiting."
+```
+
+---
+
+### Task 12: Final documentation
 
 **Files:**
 - Modify: `README.md`
@@ -2323,6 +3129,9 @@ git commit -m "docs: document failure behaviour, retries and scaling"
 - [ ] One dead service does not open the breaker of a healthy one
 - [ ] `surf-rabbitmq-test` runs on `SurfRabbitApi`
 - [ ] Chunking has test coverage for the first time
+- [ ] A message survives the instance that was processing it
+- [ ] A service dying midway through a chunked reply never produces a mixed packet
+- [ ] Every call settles when the broker connection drops — none hangs
 
 ## Deliberately out of scope
 
