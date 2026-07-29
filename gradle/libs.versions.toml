@@ -4,6 +4,7 @@ netty = "4.2.16.Final" # Keep in sync with https://github.com/rabbitmq/rabbitmq-
 surf-microservice = "2.+"
 junit = "5.11.4"
 coroutines = "1.10.2"
+testcontainers = "1.21.3"
 
 [libraries]
 amqp-client = { module = "com.rabbitmq:amqp-client", version.ref = "amqp-client" }
@@ -13,3 +14,7 @@ junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
+testcontainers-core = { module = "org.testcontainers:testcontainers" }
+testcontainers-junit = { module = "org.testcontainers:junit-jupiter" }
+testcontainers-rabbitmq = { module = "org.testcontainers:rabbitmq" }

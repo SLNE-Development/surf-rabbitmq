@@ -48,6 +48,32 @@ dependencies {
     }
 }
 
+dependencies {
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.coroutines.test)
+    testImplementation(kotlin("test"))
+
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.core)
+    testImplementation(libs.testcontainers.junit)
+    testImplementation(libs.testcontainers.rabbitmq)
+}
+
+tasks.test {
+    useJUnitPlatform {
+        // Integration tests need a Docker daemon. Excluding the tag keeps the
+        // remaining suite usable on machines without one.
+        if (providers.gradleProperty("skipIntegration").isPresent) {
+            excludeTags("integration")
+        }
+    }
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
+}
+
 publishing {
     repositories {
         slneReleases()
