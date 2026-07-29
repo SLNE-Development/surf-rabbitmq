@@ -49,6 +49,13 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
         val descriptorClassName = serviceClassName.peerClass("${simpleName}Descriptor")
         val clientImplClassName = serviceClassName.peerClass("${simpleName}ClientImpl")
 
+        val defaultService = declaration.annotations
+            .firstOrNull { it.shortName.asString() == "RpcService" }
+            ?.arguments
+            ?.firstOrNull { it.name?.asString() == "service" }
+            ?.value as? String
+            ?: ""
+
         val classTypeParameterResolver = declaration.typeParameters.toTypeParameterResolver()
         val seenFunctionNames = mutableSetOf<String>()
         val functions = mutableListOf<RpcFunctionModel>()
@@ -118,6 +125,7 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
             descriptorClassName = descriptorClassName,
             clientImplClassName = clientImplClassName,
             functions = functions,
+            defaultService = defaultService,
         )
     }
 

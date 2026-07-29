@@ -68,6 +68,10 @@ dependencies {
     testImplementation("dev.slne.surf.api:surf-api-core:+")
     testRuntimeOnly("dev.slne.surf.api:surf-api-standalone:+")
     testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.11.0")
+
+    // Only the test sources use @RpcService - no automated test anywhere else exercises
+    // the generated proxy end to end against a real broker.
+    "kspTest"(projects.surfRabbitmqKsp)
 }
 
 tasks.test {

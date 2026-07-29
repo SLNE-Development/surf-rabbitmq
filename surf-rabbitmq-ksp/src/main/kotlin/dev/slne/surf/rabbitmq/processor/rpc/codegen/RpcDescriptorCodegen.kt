@@ -30,6 +30,12 @@ class RpcDescriptorCodegen(private val codeGenerator: CodeGenerator) {
                     .initializer("%S", service.fqName)
                     .build()
             )
+            .addProperty(
+                PropertySpec.builder("defaultService", String::class)
+                    .addModifiers(KModifier.OVERRIDE)
+                    .initializer("%S", service.defaultService)
+                    .build()
+            )
             .apply {
                 service.functions.forEach { function ->
                     addProperty(invokerCodegen.createInvokerProperty(service, function))

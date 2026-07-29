@@ -9,7 +9,7 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
-@RpcService
+@RpcService(service = "surf-rabbitmq-test")
 interface RabbitMqTestRpcService {
 
     suspend fun getRandomNumber(): Int

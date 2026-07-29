@@ -91,7 +91,31 @@ package dev.slne.surf.rabbitmq.api.rpc
  * Both sides must use compatible serializers. If the client and server use
  * different serializers for the same RPC type, calls may fail during encoding,
  * decoding, or produce incompatible payloads.
+ *
+ * The target service can be declared on the interface itself rather than at every call site,
+ * so a typo is a single fix and a client can hold proxies for many services without repeating
+ * names:
+ *
+ * ```kotlin
+ * @RpcService(service = "surf-factions")
+ * interface FactionService {
+ *     suspend fun findFaction(player: UUID): Faction?
+ * }
+ *
+ * val factions = rabbit.rpc<FactionService>()
+ * val staging  = rabbit.rpc<FactionService>(service = "surf-factions-staging")
+ * ```
  */
 @Retention(AnnotationRetention.BINARY)
 @Target(AnnotationTarget.CLASS)
-annotation class RpcService
+annotation class RpcService(
+    /**
+     * The service that hosts this contract, e.g. `surf-factions`.
+     *
+     * Declaring it here rather than at each call site means a typo is a single fix, and a
+     * client can hold proxies for many services without repeating names.
+     *
+     * Leave empty to require an explicit service argument at `rpc(...)`.
+     */
+    val service: String = ""
+)

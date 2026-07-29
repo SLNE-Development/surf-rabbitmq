@@ -14,4 +14,5 @@ data class RpcServiceModel(
     val descriptorClassName: ClassName,
     val clientImplClassName: ClassName,
     val functions: List<RpcFunctionModel>,
+    val defaultService: String,
 )

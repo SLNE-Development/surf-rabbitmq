@@ -1078,6 +1078,7 @@ public final class dev/slne/surf/rabbitmq/api/packet/standard/response/primitive
 }
 
 public abstract interface annotation class dev/slne/surf/rabbitmq/api/rpc/RpcService : java/lang/annotation/Annotation {
+	public abstract fun service ()Ljava/lang/String;
 }
 
 public abstract interface class dev/slne/surf/rabbitmq/api/target/RabbitTarget {

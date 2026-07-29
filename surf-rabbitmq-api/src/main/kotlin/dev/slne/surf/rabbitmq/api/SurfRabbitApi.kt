@@ -18,6 +18,7 @@ import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.PrimitiveRe
 import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.array.ArrayResponse
 import dev.slne.surf.rabbitmq.api.packet.standard.response.primitive.array.OptionalArrayResponse
 import dev.slne.surf.rabbitmq.api.rpc.RabbitRpcServiceFactory
+import dev.slne.surf.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
@@ -148,6 +149,10 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
     /** Creates a client proxy for an `@RpcService` interface. */
     inline fun <reified Service : Any> rpc(service: String? = null): Service =
         rpc(Service::class, service)
+
+    /** The generated descriptor for an `@RpcService` interface, e.g. to read its `defaultService`. */
+    inline fun <reified Service : Any> serviceDescriptorOf(): RabbitRpcServiceDescriptor<Service> =
+        rpcService.serviceDescriptorOf(Service::class)
 
     /**
      * Publishes [event] to every matching subscriber.

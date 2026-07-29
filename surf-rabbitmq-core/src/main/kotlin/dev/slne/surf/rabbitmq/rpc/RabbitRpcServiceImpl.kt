@@ -85,10 +85,13 @@ class RabbitRpcServiceImpl(private val api: SurfRabbitApi) : RabbitRpcService {
         val descriptor = serviceDescriptorOf(serviceKClass)
         val id = serviceIdCounter.incrementAndGet()
 
-        // @RpcService(service = ...) lands in Plan 4; until then the override is mandatory.
-        val target = service ?: error(
-            "No target service for ${descriptor.fqName}. Pass rpc(service = \"...\")."
-        )
+        val target = service
+            ?: descriptor.defaultService.ifBlank {
+                error(
+                    "No target service for ${descriptor.fqName}. Either annotate the interface " +
+                            "with @RpcService(service = \"...\") or pass rpc(service = \"...\")."
+                )
+            }
 
         return descriptor.createInstance(id, api, RabbitTarget.ServiceTarget(target))
     }
