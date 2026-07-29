@@ -75,8 +75,9 @@ class RpcDescriptorCodegen(private val codeGenerator: CodeGenerator) {
             .addModifiers(KModifier.OVERRIDE)
             .addParameter("serviceId", Long::class)
             .addParameter("api", ClassNames.rabbitMqApi)
+            .addParameter("target", ClassNames.rabbitTarget)
             .returns(service.serviceClassName)
-            .addStatement("return %T(serviceId, api, this)", service.clientImplClassName)
+            .addStatement("return %T(serviceId, api, this, target)", service.clientImplClassName)
             .build()
     }
 }

@@ -24,8 +24,9 @@ object ClassNames {
     val rpcParameterDefault = ClassName("dev.slne.surf.rabbitmq.api.rpc.type", "RabbitRpcParameterDefault")
     val rpcRabbitCall = ClassName("dev.slne.surf.rabbitmq.api.rpc", "RabbitRpcCall")
 
-    val rabbitMqApi = ClassName("dev.slne.surf.rabbitmq.api", "RabbitMQApi")
+    val rabbitMqApi = ClassName("dev.slne.surf.rabbitmq.api", "SurfRabbitApi")
     val internalRabbitMqApi = ClassName("dev.slne.surf.rabbitmq.api", "InternalRabbitMQ")
+    val rabbitTarget = ClassName("dev.slne.surf.rabbitmq.api.target", "RabbitTarget")
 
     val kotlinKClass = ClassName("kotlin.reflect", "KClass")
     val kotlinxKSerializer = ClassName("kotlinx.serialization", "KSerializer")

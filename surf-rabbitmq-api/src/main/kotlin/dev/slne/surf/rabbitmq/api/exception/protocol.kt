@@ -25,5 +25,12 @@ class SurfRabbitHandlerNotAccessibleException(methodName: String, className: Str
                 "Cannot register as request handler."
     )
 
+/**
+ * Thrown when a frozen-state precondition is violated: freezing twice, or registering a
+ * handler/service after [dev.slne.surf.rabbitmq.api.SurfRabbitApi.freeze] was called.
+ *
+ * Extends [IllegalStateException] directly rather than [SurfRabbitException] — this is a
+ * state precondition violation, not a wire-protocol or handler-shape error.
+ */
 class SurfRabbitApiAlreadyFrozenException :
-    SurfRabbitHandlerRegistrationException("Cannot register request handlers after the API has been frozen")
+    IllegalStateException("Cannot register request handlers after the API has been frozen")

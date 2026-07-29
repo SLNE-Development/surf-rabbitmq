@@ -12,6 +12,7 @@ import dev.slne.surf.rabbitmq.api.InternalRabbitMQ
 import org.spongepowered.configurate.objectmapping.ConfigSerializable
 import org.spongepowered.configurate.objectmapping.meta.Comment
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
 
 @InternalRabbitMQ
@@ -173,33 +174,28 @@ data class GlobalRabbitMQConfig(
 
     @InternalRabbitMQ
     companion object {
+        // Keyed by (path, fileName) rather than a single instance: the first load used to win
+        // and every later (path, fileName) was silently ignored, which made configFileName()
+        // a no-op and forced every SurfRabbitApi in one JVM (a Paper server full of plugins)
+        // to share whichever file loaded first.
+        private val cache = ConcurrentHashMap<Pair<Path, String>, GlobalRabbitMQConfig>()
+
         @Volatile
-        private var config: GlobalRabbitMQConfig? = null
+        private var lastLoaded: GlobalRabbitMQConfig? = null
 
         fun getOrLoad(path: Path, fileName: String): GlobalRabbitMQConfig {
-            val config = this.config
-            if (config != null) {
-                return config
-            }
+            val key = path.toAbsolutePath().normalize() to fileName
 
-            synchronized(this) {
-                val config = this.config
-                if (config != null) {
-                    return config
-                }
-
-                val newConfig = surfConfigApi.createSpongeYmlConfig<GlobalRabbitMQConfig>(
+            return cache.computeIfAbsent(key) {
+                surfConfigApi.createSpongeYmlConfig<GlobalRabbitMQConfig>(
                     configFolder = path,
                     configFileName = fileName
                 )
-                this.config = newConfig
-
-                return newConfig
-            }
+            }.also { lastLoaded = it }
         }
 
         fun getConfig(): GlobalRabbitMQConfig {
-            return config ?: error("RabbitMQ config not initialized.")
+            return lastLoaded ?: error("RabbitMQ config not initialized.")
         }
 
         private fun systemBoolean(name: String, default: Boolean): Boolean {

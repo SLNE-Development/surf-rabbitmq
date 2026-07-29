@@ -21,6 +21,7 @@ class RpcClientImplCodegen(
         private const val SERVICE_ID_NAME = "__serviceId__"
         private const val API_NAME = "__api__"
         private const val DESCRIPTOR_NAME = "__descriptor__"
+        private const val TARGET_NAME = "__target__"
         private const val EMPTY_ARRAY_NAME = "__emptyArray__"
     }
 
@@ -34,6 +35,7 @@ class RpcClientImplCodegen(
             .addProperty(createServiceIdProperty())
             .addProperty(createApiProperty())
             .addProperty(createDescriptorProperty(service))
+            .addProperty(createTargetProperty())
             .addProperty(createEmptyArrayProperty())
             .apply {
                 service.functions.forEach { function ->
@@ -57,6 +59,7 @@ class RpcClientImplCodegen(
             .addParameter(SERVICE_ID_NAME, Long::class)
             .addParameter(API_NAME, ClassNames.rabbitMqApi)
             .addParameter(DESCRIPTOR_NAME, service.descriptorClassName)
+            .addParameter(TARGET_NAME, ClassNames.rabbitTarget)
             .build()
     }
 
@@ -77,6 +80,13 @@ class RpcClientImplCodegen(
     private fun createDescriptorProperty(service: RpcServiceModel): PropertySpec {
         return PropertySpec.builder(DESCRIPTOR_NAME, service.descriptorClassName)
             .initializer(DESCRIPTOR_NAME)
+            .addModifiers(KModifier.PRIVATE)
+            .build()
+    }
+
+    private fun createTargetProperty(): PropertySpec {
+        return PropertySpec.builder(TARGET_NAME, ClassNames.rabbitTarget)
+            .initializer(TARGET_NAME)
             .addModifiers(KModifier.PRIVATE)
             .build()
     }
@@ -135,7 +145,8 @@ class RpcClientImplCodegen(
                 add("descriptor = %L,\n", DESCRIPTOR_NAME)
                 add("callableName = %S,\n", function.name)
                 add("serviceId = %L,\n", SERVICE_ID_NAME)
-                add("arguments = %L\n", createArgumentsArray(function))
+                add("arguments = %L,\n", createArgumentsArray(function))
+                add("target = %L\n", TARGET_NAME)
             }
             .add(")")
             .build()

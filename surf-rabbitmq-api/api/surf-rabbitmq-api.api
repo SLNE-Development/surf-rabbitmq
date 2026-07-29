@@ -1,59 +1,38 @@
-public final class dev/slne/surf/rabbitmq/api/ClientRabbitMQApi : dev/slne/surf/rabbitmq/api/RabbitMQApi {
-	public static final field Companion Ldev/slne/surf/rabbitmq/api/ClientRabbitMQApi$Companion;
-	public final fun createRpcService (Lkotlin/reflect/KClass;)Ljava/lang/Object;
-	public synthetic fun getConnection ()Ldev/slne/surf/rabbitmq/api/connection/RabbitMQConnection;
-	public synthetic fun getRpcService ()Ldev/slne/surf/rabbitmq/api/rpc/RabbitRpcService;
-	public final fun sendRequest (Ldev/slne/surf/rabbitmq/api/packet/RabbitRequestPacket;Ljava/lang/Class;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-}
-
-public final class dev/slne/surf/rabbitmq/api/ClientRabbitMQApi$Companion {
-	public final fun create (Ljava/lang/String;Ljava/nio/file/Path;Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/rabbitmq/api/ClientRabbitMQApi;
-	public static synthetic fun create$default (Ldev/slne/surf/rabbitmq/api/ClientRabbitMQApi$Companion;Ljava/lang/String;Ljava/nio/file/Path;Lkotlinx/serialization/modules/SerializersModule;ILjava/lang/Object;)Ldev/slne/surf/rabbitmq/api/ClientRabbitMQApi;
-}
-
 public abstract interface annotation class dev/slne/surf/rabbitmq/api/InternalRabbitMQ : java/lang/annotation/Annotation {
 }
 
-public abstract class dev/slne/surf/rabbitmq/api/RabbitMQApi {
-	public static final field Companion Ldev/slne/surf/rabbitmq/api/RabbitMQApi$Companion;
-	public fun connect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+public final class dev/slne/surf/rabbitmq/api/SurfRabbitApi {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/SurfRabbitApi$Companion;
+	public final fun connect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun freeze ()V
 	public final fun freezeAndConnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getCbor ()Lkotlinx/serialization/cbor/Cbor;
-	public fun getConnection ()Ldev/slne/surf/rabbitmq/api/connection/RabbitMQConnection;
+	public final fun getIdentity ()Ldev/slne/surf/rabbitmq/api/identity/RabbitIdentity;
 	public final fun isFrozen ()Z
-	public final fun serviceDescriptorOf (Lkotlin/reflect/KClass;)Ldev/slne/surf/rabbitmq/api/rpc/descriptor/RabbitRpcServiceDescriptor;
-}
-
-public final class dev/slne/surf/rabbitmq/api/RabbitMQApi$Companion {
-}
-
-public final class dev/slne/surf/rabbitmq/api/ServerRabbitMQApi : dev/slne/surf/rabbitmq/api/RabbitMQApi {
-	public static final field Companion Ldev/slne/surf/rabbitmq/api/ServerRabbitMQApi$Companion;
-	public fun connect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public synthetic fun getConnection ()Ldev/slne/surf/rabbitmq/api/connection/RabbitMQConnection;
-	public synthetic fun getRpcService ()Ldev/slne/surf/rabbitmq/api/rpc/RabbitRpcService;
 	public final fun registerRequestHandler (Ljava/lang/Object;)V
-	public final fun registerRpcService (Lkotlin/reflect/KClass;Ljava/lang/Object;)V
-	public final fun unregisterRpcService (Lkotlin/reflect/KClass;)V
+	public final fun registerService (Lkotlin/reflect/KClass;Ljava/lang/Object;)V
+	public final fun rpc (Lkotlin/reflect/KClass;Ljava/lang/String;)Ljava/lang/Object;
+	public static synthetic fun rpc$default (Ldev/slne/surf/rabbitmq/api/SurfRabbitApi;Lkotlin/reflect/KClass;Ljava/lang/String;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
-public final class dev/slne/surf/rabbitmq/api/ServerRabbitMQApi$Companion {
-	public final fun create (Ljava/lang/String;Ljava/nio/file/Path;Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/rabbitmq/api/ServerRabbitMQApi;
-	public static synthetic fun create$default (Ldev/slne/surf/rabbitmq/api/ServerRabbitMQApi$Companion;Ljava/lang/String;Ljava/nio/file/Path;Lkotlinx/serialization/modules/SerializersModule;ILjava/lang/Object;)Ldev/slne/surf/rabbitmq/api/ServerRabbitMQApi;
+public final class dev/slne/surf/rabbitmq/api/SurfRabbitApi$Companion {
+	public final fun builder (Ljava/lang/String;Ljava/nio/file/Path;)Ldev/slne/surf/rabbitmq/api/SurfRabbitApiBuilder;
 }
 
-public abstract interface class dev/slne/surf/rabbitmq/api/connection/ServerRabbitMQConnection : dev/slne/surf/rabbitmq/api/connection/RabbitMQConnection {
-	public abstract fun registerRequestHandler (Ljava/lang/Object;)V
+public final class dev/slne/surf/rabbitmq/api/SurfRabbitApiBuilder {
+	public final fun build ()Ldev/slne/surf/rabbitmq/api/SurfRabbitApi;
+	public final fun config (Ldev/slne/surf/rabbitmq/api/internal/config/CommonRabbitMQConfig;)Ldev/slne/surf/rabbitmq/api/SurfRabbitApiBuilder;
+	public final fun configFileName (Ljava/lang/String;)Ldev/slne/surf/rabbitmq/api/SurfRabbitApiBuilder;
+	public final fun instanceName (Ljava/lang/String;)Ldev/slne/surf/rabbitmq/api/SurfRabbitApiBuilder;
+	public final fun serializers (Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/rabbitmq/api/SurfRabbitApiBuilder;
 }
 
-public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitApiAlreadyFrozenException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitHandlerRegistrationException {
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitApiAlreadyFrozenException : java/lang/IllegalStateException {
 	public fun <init> ()V
 }
 
-public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitApiNotFrozenException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitException {
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitApiNotFrozenException : java/lang/IllegalStateException {
 	public fun <init> ()V
 }
 
