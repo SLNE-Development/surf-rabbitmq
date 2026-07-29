@@ -3,6 +3,7 @@
 
 package dev.slne.surf.rabbitmq.listener
 
+import com.rabbitmq.client.AMQP
 import dev.slne.surf.api.core.invoker.HiddenInvokerUtil
 import dev.slne.surf.api.core.invoker.InvokerFactory
 import dev.slne.surf.api.core.util.logger
@@ -24,6 +25,7 @@ import dev.slne.surf.rabbitmq.shared.dispatch.HandlerTemplate
 import dev.slne.surf.rabbitmq.core.connection.RabbitConnectionImpl
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -37,6 +39,7 @@ class RabbitListenerHandlerManager(
     private val connection: RabbitConnectionImpl
 ) {
     private val handlers = mutableObject2ObjectMapOf<Class<*>, RabbitListenerHandler>()
+    private val retryFlags = ConcurrentHashMap<Class<*>, Boolean>()
     private val registrationLock = ReentrantReadWriteLock()
 
     // The RPC dispatcher (registered below, in init) is always present so RpcCallRequestPacket
@@ -74,7 +77,7 @@ class RabbitListenerHandlerManager(
 
     private fun registerHandler(instance: Any, countAsExplicit: Boolean) {
         for (method in instance.javaClass.declaredMethods) {
-            if (!method.isAnnotationPresent(RabbitHandler::class.java)) continue
+            val annotation = method.getAnnotation(RabbitHandler::class.java) ?: continue
 
             val validParamCount = when {
                 HiddenInvokerUtil.isSuspendFunction(method) -> 2
@@ -120,9 +123,48 @@ class RabbitListenerHandlerManager(
                     handler.javaClass.name
                 )
             }
+
+            retryFlags[parameterType] = annotation.retry
         }
 
         if (countAsExplicit) explicitHandlerCount.incrementAndGet()
+    }
+
+    /** Whether a failed [requestClass] invocation is retried before being dead-lettered. */
+    fun retryEnabledFor(requestClass: Class<*>): Boolean = retryFlags[requestClass] ?: true
+
+    /**
+     * Moves a message whose handler failed onto the retry ladder (or the dead-letter queue),
+     * then acks the original delivery.
+     *
+     * Falls back to `nack(requeue = false)` if the republish itself throws (for instance the
+     * broker went away mid-republish): the origin queue's own dead-letter exchange preserves
+     * the message, so losing a retry rung is acceptable, losing the message is not.
+     */
+    private suspend fun retryOrDeadLetter(
+        requestClass: Class<*>,
+        body: ByteArray,
+        properties: AMQP.BasicProperties,
+        originQueue: String,
+        ack: RabbitAck
+    ) {
+        try {
+            connection.retryPublisher.handleFailure(
+                body = body,
+                properties = properties,
+                originQueue = originQueue,
+                serviceName = api.identity.serviceName,
+                retryEnabled = retryEnabledFor(requestClass),
+                rechunkAsRequest = true
+            )
+            ack.ack()
+        } catch (t: Throwable) {
+            if (t is CancellationException) throw t
+            log.atSevere()
+                .withCause(t)
+                .log("Failed to republish failed request of type ${requestClass.name} to the retry ladder, falling back to nack")
+            ack.nack(requeue = false)
+        }
     }
 
     suspend fun handleRequest(
@@ -130,6 +172,8 @@ class RabbitListenerHandlerManager(
         replyTo: String?,
         body: ByteArray,
         ack: RabbitAck,
+        properties: AMQP.BasicProperties,
+        originQueue: String,
         senderVersion: RabbitMqVersion = RabbitMqVersion.UNKNOWN
     ) {
         val request = try {
@@ -190,8 +234,7 @@ class RabbitListenerHandlerManager(
                 } else {
                     log.atSevere().withCause(cause)
                         .log("Fire-and-forget handler for %s failed", request.javaClass.name)
-                    // Plan 4 replaces this nack with the retry ladder.
-                    ack.nack(requeue = false)
+                    retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack)
                 }
                 return
             }
@@ -204,7 +247,7 @@ class RabbitListenerHandlerManager(
                     request.responseDeferred.cancel("Error in handler", cause)
 
                     api.scope.launch {
-                        ack.nack(requeue = false)
+                        retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack)
                     }
                 }
             }
@@ -223,20 +266,20 @@ class RabbitListenerHandlerManager(
                         "Handler for ${request.javaClass.name} did not respond within ${requestTimeoutSeconds}, discarding message"
                     )
                 requestJob.cancel("Handler timed out")
-                ack.nack(requeue = false)
+                retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack)
             } catch (e: Throwable) {
                 if (e is CancellationException) throw e
                 log.atSevere()
                     .withCause(e)
                     .log("Error handling request of type ${request.javaClass.name}, discarding message")
-                ack.nack(requeue = false)
+                retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack)
             }
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
             log.atSevere()
                 .withCause(e)
                 .log("Error handling request of type ${request.javaClass.name}, discarding message")
-            ack.nack(requeue = false)
+            retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack)
         } finally {
             requestJob.cancel("Request handler finished")
             request.responseDeferred.cancel()

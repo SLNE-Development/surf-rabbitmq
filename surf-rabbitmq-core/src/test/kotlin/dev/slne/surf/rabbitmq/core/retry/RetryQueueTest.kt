@@ -90,23 +90,32 @@ class RetryQueueTest {
     }
 
     @Test
-    fun `a returned message carries an incremented attempt count`() {
+    fun `the attempt-count header survives the tier round trip untouched`() {
+        // RabbitMQ's own x-death only accumulates across a dead-letter chain the broker
+        // drives entirely itself; the moment application code republishes a message (which
+        // deciding retry-vs-dead-letter inherently requires), RabbitMQ rebuilds x-death from
+        // scratch on the next expiry. RetryPublisher therefore tracks attempts itself via
+        // RetryPolicy.ATTEMPTS_HEADER - an ordinary application header, which the tier's TTL
+        // and dead-lettering must leave untouched for the ladder to advance correctly.
         val service = RabbitBrokerExtension.uniqueServiceName("retry-count")
         val serviceQueue = declarer.declareServiceQueue(service)
 
         channel.basicPublish(
             RetryTier.TEN_SECONDS.queueName,
             serviceQueue,
-            AMQP.BasicProperties.Builder().deliveryMode(2).build(),
+            AMQP.BasicProperties.Builder()
+                .deliveryMode(2)
+                .headers(mapOf(RetryPolicy.ATTEMPTS_HEADER to 1))
+                .build(),
             "counted".toByteArray()
         )
 
         val response = awaitDelivery(serviceQueue, timeoutMillis = 10_000)
         val attempts = RetryPolicy.attemptsFrom(response.props.headers)
 
-        assertTrue(
-            attempts >= 1,
-            "x-death must record the expiry so the ladder can advance, but attempts=$attempts"
+        assertEquals(
+            1, attempts,
+            "the tier must preserve an application header across its TTL/dead-letter hop"
         )
     }
 

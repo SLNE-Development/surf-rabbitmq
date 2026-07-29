@@ -5,8 +5,8 @@ import kotlin.test.assertEquals
 
 class RetryPolicyTest {
 
-    private fun deathHeader(count: Long): Map<String, Any?> =
-        mapOf("x-death" to listOf(mapOf("count" to count, "queue" to "surf.service.x")))
+    private fun attemptsHeader(count: Any?): Map<String, Any?> =
+        mapOf(RetryPolicy.ATTEMPTS_HEADER to count)
 
     @Test
     fun `a first delivery has no attempts`() {
@@ -15,29 +15,16 @@ class RetryPolicyTest {
     }
 
     @Test
-    fun `the attempt count comes from x-death`() {
-        assertEquals(1, RetryPolicy.attemptsFrom(deathHeader(1)))
-        assertEquals(3, RetryPolicy.attemptsFrom(deathHeader(3)))
+    fun `the attempt count comes from the custom header`() {
+        assertEquals(1, RetryPolicy.attemptsFrom(attemptsHeader(1)))
+        assertEquals(3, RetryPolicy.attemptsFrom(attemptsHeader(3)))
     }
 
     @Test
-    fun `multiple x-death entries are summed`() {
-        // A message dead-lettered through several queues carries one entry per queue.
-        val headers = mapOf(
-            "x-death" to listOf(
-                mapOf("count" to 2L, "queue" to "surf.retry.10s"),
-                mapOf("count" to 1L, "queue" to "surf.retry.60s")
-            )
-        )
-
-        assertEquals(3, RetryPolicy.attemptsFrom(headers))
-    }
-
-    @Test
-    fun `a malformed x-death is treated as no attempts`() {
+    fun `a malformed attempt header is treated as no attempts`() {
         // Better to retry a message once too often than to crash the consumer on a header.
-        assertEquals(0, RetryPolicy.attemptsFrom(mapOf("x-death" to "nonsense")))
-        assertEquals(0, RetryPolicy.attemptsFrom(mapOf("x-death" to listOf("nonsense"))))
+        assertEquals(0, RetryPolicy.attemptsFrom(attemptsHeader("nonsense")))
+        assertEquals(0, RetryPolicy.attemptsFrom(attemptsHeader(null)))
     }
 
     @Test

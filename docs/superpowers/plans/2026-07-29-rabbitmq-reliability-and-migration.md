@@ -43,6 +43,22 @@
   missing genuine publish failures. Business exceptions never count.
 - Commit after every task.
 
+> **Deviation recorded during implementation (Task 1-3):** this plan originally specified
+> reading attempt counts from RabbitMQ's own `x-death` header. That does not work: `x-death`
+> only accumulates across a dead-letter chain the broker drives entirely on its own (queue ->
+> DLX -> queue -> DLX -> ... with no client in between). Retrying inherently requires
+> application code to consume the message and decide retry-vs-dead-letter, and the moment it
+> republishes, RabbitMQ treats that as a brand-new message and rebuilds `x-death` from scratch
+> on the next expiry - verified empirically: a message bounced through two queues by pure
+> broker-driven DLX chaining carries two `x-death` entries; the same message round-tripped
+> through even one manual republish carries exactly one, forever, regardless of how many
+> cycles follow. Left uncorrected this makes the ladder retry the `ONE_MINUTE` tier forever
+> and never reach the dead-letter queue. The fix: `RetryPublisher` stamps and increments its
+> own header, `RetryPolicy.ATTEMPTS_HEADER` (`x-surf-retry-attempts`), which is an ordinary
+> application header the tier's TTL/dead-letter hop leaves untouched. `RetryPolicy.decide`'s
+> ladder logic is unaffected; only where the attempt count comes from changed. Everywhere
+> below that says "reads x-death" or "x-death header" means this counter instead.
+
 ## File Structure
 
 | File | Responsibility |

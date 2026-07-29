@@ -204,6 +204,7 @@ public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitSerializerNotF
 }
 
 public abstract interface annotation class dev/slne/surf/rabbitmq/api/handler/RabbitHandler : java/lang/annotation/Annotation {
+	public abstract fun retry ()Z
 }
 
 public final class dev/slne/surf/rabbitmq/api/identity/RabbitIdentity {

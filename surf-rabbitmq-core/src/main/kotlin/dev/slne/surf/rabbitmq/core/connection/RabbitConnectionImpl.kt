@@ -31,6 +31,7 @@ import dev.slne.surf.rabbitmq.core.event.EventDispatcher
 import dev.slne.surf.rabbitmq.core.event.EventSubscriptionRegistry
 import dev.slne.surf.rabbitmq.core.event.EventTopics
 import dev.slne.surf.rabbitmq.core.publish.MessageKind
+import dev.slne.surf.rabbitmq.core.retry.RetryPublisher
 import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerNameCache
 import dev.slne.surf.rabbitmq.listener.RabbitListenerHandlerManager
@@ -62,6 +63,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
     }
 
     private val client = RabbitClient.create(api.config, api.identity.instanceId)
+    val retryPublisher = RetryPublisher(client)
     private val listenerHandler = RabbitListenerHandlerManager(api, this)
 
     private val requestTimeoutSeconds = api.config.getRequestTimeoutSeconds().seconds
@@ -403,6 +405,8 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
                             replyTo = replyTo,
                             body = body,
                             ack = ack,
+                            properties = property,
+                            originQueue = queue,
                             senderVersion = senderVersion,
                         )
                     }
@@ -419,6 +423,8 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
                             replyTo = replyTo,
                             body = result.body,
                             ack = ack,
+                            properties = property,
+                            originQueue = queue,
                             senderVersion = senderVersion,
                         )
                     }
@@ -442,14 +448,24 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
             queue = queue,
             autoAck = false,
             prefetchCount = prefetchCount,
-            // Requeueing would spin: the message returns to the queue head and fails again
-            // immediately. Plan 4 replaces this with delayed retry queues.
             requeueOnHandlerError = false
         ) { _, message, ack ->
             val topic = message.envelope.routingKey
 
+            val event = try {
+                RabbitPacketSerializer.deserializeEvent(api, message.body, eventNameCache)
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
+
+                log.atWarning()
+                    .withCause(t)
+                    .log("Failed to deserialize event on topic %s, discarding message", topic)
+
+                ack.nack(requeue = false)
+                return@consume
+            }
+
             try {
-                val event = RabbitPacketSerializer.deserializeEvent(api, message.body, eventNameCache)
                 eventDispatcher.dispatch(event, topic)
                 ack.ack()
             } catch (t: Throwable) {
@@ -459,7 +475,31 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
                     .withCause(t)
                     .log("Failed to handle event on topic %s", topic)
 
-                ack.nack(requeue = false)
+                // A non-idempotent subscription among the matches vetoes retry for all of
+                // them: they are delivered as one message, and re-running the idempotent
+                // handler alongside the non-idempotent one is not an option.
+                val matching = subscriptions.subscriptionsFor(event.javaClass, topic)
+                val retryEnabled = matching.isNotEmpty() && matching.all { it.retry }
+
+                try {
+                    retryPublisher.handleFailure(
+                        body = message.body,
+                        properties = message.properties,
+                        originQueue = queue,
+                        serviceName = api.identity.serviceName,
+                        retryEnabled = retryEnabled,
+                        rechunkAsRequest = false
+                    )
+                    ack.ack()
+                } catch (republishFailure: Throwable) {
+                    if (republishFailure is CancellationException) throw republishFailure
+
+                    log.atSevere()
+                        .withCause(republishFailure)
+                        .log("Failed to republish event on topic %s to the retry ladder, falling back to nack", topic)
+
+                    ack.nack(requeue = false)
+                }
             }
         }
     }

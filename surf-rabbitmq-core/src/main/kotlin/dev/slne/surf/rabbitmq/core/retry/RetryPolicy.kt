@@ -32,27 +32,34 @@ sealed interface RetryDecision {
 /**
  * Decides how many times a message has been tried and what happens next.
  *
- * Attempt counting reads RabbitMQ's own `x-death` header rather than a custom one, so the
- * count survives even when a message travels through queues this library did not publish to.
+ * Attempt counting reads a header [RetryPolicy.ATTEMPTS_HEADER] that [dev.slne.surf.rabbitmq.core.retry.RetryPublisher]
+ * stamps itself, rather than RabbitMQ's own `x-death`. `x-death` only accumulates across a
+ * dead-letter chain the broker drives entirely on its own (queue -> DLX -> queue -> DLX -> ...
+ * with no client in between); the moment application code consumes a message and republishes
+ * it - which retrying inherently requires, since only the application knows whether to retry
+ * or dead-letter - RabbitMQ treats that republish as a brand-new message and rebuilds `x-death`
+ * from scratch on the next expiry. Verified empirically: a message bounced through two queues
+ * purely by broker-driven DLX chaining carries two `x-death` entries; the same message
+ * round-tripped through one manual republish carries exactly one, no matter how many cycles
+ * follow. A self-maintained counter has no such dependency on who republished last.
  */
 object RetryPolicy {
 
     /** Retries after the first delivery. Four deliveries in total. */
     const val MAX_RETRIES = 3
 
+    /** Header [RetryPublisher] stamps with the number of attempts made so far. */
+    const val ATTEMPTS_HEADER = "x-surf-retry-attempts"
+
     /**
-     * How often this message has already been dead-lettered.
+     * How often this message has already been retried, per [ATTEMPTS_HEADER].
      *
-     * A malformed header yields `0`. Retrying once too often is recoverable; throwing while
-     * handling a failure is not.
+     * A missing or malformed header yields `0`. Retrying once too often is recoverable;
+     * throwing while handling a failure is not.
      */
     fun attemptsFrom(headers: Map<String, Any?>?): Int {
-        val deaths = headers?.get("x-death") as? List<*> ?: return 0
-
-        return deaths.sumOf { entry ->
-            val map = entry as? Map<*, *> ?: return@sumOf 0L
-            (map["count"] as? Number)?.toLong() ?: 0L
-        }.toInt()
+        val raw = headers?.get(ATTEMPTS_HEADER) ?: return 0
+        return (raw as? Number)?.toInt() ?: 0
     }
 
     /**
