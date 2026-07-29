@@ -2,6 +2,7 @@ package dev.slne.surf.rabbitmq.common.topology
 
 import com.rabbitmq.client.BuiltinExchangeType
 import com.rabbitmq.client.Channel
+import dev.slne.surf.rabbitmq.core.retry.RetryTier
 
 /**
  * Declares exchanges, queues and bindings on a channel.
@@ -164,5 +165,38 @@ class RabbitTopologyDeclarer(private val channel: Channel) {
         }
 
         return queue
+    }
+
+    /**
+     * Declares the three shared retry tiers: a fanout exchange and a queue per tier,
+     * bound together.
+     *
+     * The fanout exchange exists because the republish must carry the origin queue's
+     * name as routing key *without* that key affecting insertion. Publishing into the
+     * tier queue via the default exchange instead would stamp the tier queue's own name
+     * as routing key — and expiry would then route the message back into the tier queue
+     * itself, looping it forever.
+     *
+     * Nothing ever consumes these queues; messages leave by TTL expiry only.
+     *
+     * @param ttlMillis per-tier TTLs, index-aligned with [RetryTier.entries]; from
+     *   `CommonRabbitMQConfig.getRetryTtlMillis()`, so every process on a broker agrees
+     */
+    fun declareRetryTiers(ttlMillis: List<Long>) {
+        require(ttlMillis.size == RetryTier.entries.size) {
+            "expected one TTL per retry tier"
+        }
+
+        RetryTier.entries.forEachIndexed { index, tier ->
+            channel.exchangeDeclare(tier.queueName, BuiltinExchangeType.FANOUT, true)
+            channel.queueDeclare(
+                tier.queueName,
+                /* durable = */ true,
+                /* exclusive = */ false,
+                /* autoDelete = */ false,
+                QueueArguments.retryQueue(ttlMillis[index])
+            )
+            channel.queueBind(tier.queueName, tier.queueName, "")
+        }
     }
 }

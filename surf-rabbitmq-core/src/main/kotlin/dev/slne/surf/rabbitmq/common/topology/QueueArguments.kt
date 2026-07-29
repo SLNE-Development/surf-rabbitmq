@@ -72,4 +72,22 @@ object QueueArguments {
      * quorum queues do not support. They die with their process, which is the intent.
      */
     fun ephemeralQueue(): Map<String, Any> = emptyMap()
+
+    /**
+     * A holding queue whose TTL expiry returns the message to its origin.
+     *
+     * `x-dead-letter-exchange: ""` is the default exchange, which routes by queue name.
+     * The republish into the tier carries the origin queue's name as routing key, so
+     * expiry delivers the message straight back into that queue — no per-service tiers,
+     * no re-broadcast through a topic exchange.
+     *
+     * `x-dead-letter-routing-key` is deliberately **absent**: the preserved per-message
+     * key IS the routing mechanism. Pinning it would send every retried message of the
+     * whole fleet to one queue.
+     */
+    fun retryQueue(ttlMillis: Long): Map<String, Any> = mapOf(
+        "x-queue-type" to "quorum",
+        "x-message-ttl" to ttlMillis,
+        "x-dead-letter-exchange" to ""
+    )
 }

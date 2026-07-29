@@ -161,6 +161,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
         declareConsumer.withChannel { channel ->
             val declarer = RabbitTopologyDeclarer(channel)
             declarer.declareExchanges()
+            declarer.declareRetryTiers(api.config.getRetryTtlMillis())
             declarer.declareUnroutableQueue()
         }
 
