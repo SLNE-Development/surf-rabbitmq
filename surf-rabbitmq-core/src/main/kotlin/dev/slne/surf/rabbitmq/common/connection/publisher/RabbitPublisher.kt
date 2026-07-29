@@ -67,7 +67,9 @@ class RabbitPublisher(
                     }
                 } catch (cause: Throwable) {
                     resetChannel()
-                    throw cause
+
+                    if (cause is CancellationException) throw cause
+                    throw SurfRabbitPublishException("RabbitMQ publish was not confirmed", cause)
                 }
             }
 

@@ -14,6 +14,8 @@ import dev.slne.surf.rabbitmq.api.event.SubscriptionMode
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestTimeoutException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundException
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitConnectionException
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitConnectionLostException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitServiceUnavailableException
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
@@ -33,6 +35,8 @@ import dev.slne.surf.rabbitmq.core.event.EventSubscriptionRegistry
 import dev.slne.surf.rabbitmq.core.event.EventTopics
 import dev.slne.surf.rabbitmq.core.publish.MessageKind
 import dev.slne.surf.rabbitmq.core.retry.RetryPublisher
+import dev.slne.surf.rabbitmq.core.rpc.BreakerGuardedRpc
+import dev.slne.surf.circuitbreaker.CircuitBreakerRegistry
 import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerCache
 import dev.slne.surf.rabbitmq.shared.serialization.KotlinSerializerNameCache
 import dev.slne.surf.rabbitmq.listener.RabbitListenerHandlerManager
@@ -65,6 +69,20 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
 
     private val client = RabbitClient.create(api.config, api.identity.instanceId)
     val retryPublisher = RetryPublisher(client)
+
+    /**
+     * The registry's predicate is the same closed transport list [BreakerGuardedRpc] retries
+     * on, so the breaker and the retry agree on what counts as a transport failure.
+     */
+    private val breakerRegistry = CircuitBreakerRegistry(
+        failureThreshold = 5,
+        openDuration = 30.seconds,
+        isFailure = {
+            it is SurfRabbitServiceUnavailableException || it is SurfRabbitConnectionException
+        }
+    )
+
+    private val guardedRpc = BreakerGuardedRpc(breakerRegistry)
 
     /**
      * Fails a pending RPC request the moment the broker returns it as unroutable, instead of
@@ -576,27 +594,29 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
         responseClass: Class<R>,
         target: RabbitTarget
     ): R = withContext(api.scope.coroutineContext.minusKey(Job)) {
-        val received = withTimeoutOrNull(requestTimeoutSeconds) {
-            awaitResponse(
-                request = request,
-                responseClass = responseClass,
-                target = target
+        guardedRpc.call(target) {
+            val received = withTimeoutOrNull(requestTimeoutSeconds) {
+                awaitResponse(
+                    request = request,
+                    responseClass = responseClass,
+                    target = target
+                )
+            } ?: throw SurfRabbitRequestTimeoutException(
+                request,
+                requestTimeoutSeconds
             )
-        } ?: throw SurfRabbitRequestTimeoutException(
-            request,
-            requestTimeoutSeconds
-        )
 
-        val response = RabbitPacketSerializer.deserializeResponse(
-            api,
-            received.body,
-            responseSerializerCache
-        )
+            val response = RabbitPacketSerializer.deserializeResponse(
+                api,
+                received.body,
+                responseSerializerCache
+            )
 
-        response.senderVersion = received.senderVersion
+            response.senderVersion = received.senderVersion
 
-        @Suppress("UNCHECKED_CAST")
-        response as R
+            @Suppress("UNCHECKED_CAST")
+            response as R
+        }
     }
 
     private suspend fun <R : RabbitResponsePacket> awaitResponse(

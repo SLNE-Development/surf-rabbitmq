@@ -6,6 +6,7 @@ plugins {
 
 dependencies {
     api(projects.surfRabbitmqApi)
+    api(projects.surfCircuitbreaker)
     api(libs.amqp.client)
 
     compileOnly(libs.surf.microservice)

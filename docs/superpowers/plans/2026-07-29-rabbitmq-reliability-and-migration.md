@@ -59,6 +59,21 @@
 > ladder logic is unaffected; only where the attempt count comes from changed. Everywhere
 > below that says "reads x-death" or "x-death header" means this counter instead.
 
+> **Deviation recorded during implementation (Task 5):** the plan's own `BreakerGuardedRpcTest`
+> contained two tests that cannot both pass under any single design: "a transport failure is
+> retried" needs the breaker to treat a whole call's retry loop as **one** pass/fail verdict
+> (so 2 failed attempts inside one call, with `failureThreshold = 2`, must not alone open the
+> breaker - the 3rd attempt still has to run and can still succeed). "a publish failure is
+> retried and counted" assumed the opposite: that the same one call, after exhausting all 3
+> attempts, would already show the breaker `OPEN`. Verified empirically both ways: wrapping the
+> whole retry loop in one `breaker.withBreaker` (the plan's own reference implementation) passes
+> every test except that one; wrapping each attempt individually flips it but then fails three
+> others, including the first. Resolved in favor of the per-call model - it matches the plan's
+> reference implementation and how circuit breakers are conventionally used (gating whole
+> operations, not their internal retries) - and the one test was changed to assert `CLOSED`
+> after a single call, relying on "repeated transport failures open the breaker" (two separate
+> failing calls) to cover reaching `OPEN`.
+
 ## File Structure
 
 | File | Responsibility |

@@ -95,6 +95,15 @@ public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionFail
 public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionFailedException$Companion {
 }
 
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionLostException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionException {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionLostException$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitConnectionLostException$Companion {
+}
+
 public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitDuplicateHandlerException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitHandlerRegistrationException {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 }
