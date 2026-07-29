@@ -2,6 +2,7 @@ package dev.slne.surf.rabbitmq.common.connection.publisher
 
 import com.rabbitmq.client.AMQP
 import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionProvider
+import dev.slne.surf.rabbitmq.core.connection.ReturnListenerBridge
 import java.util.concurrent.atomic.AtomicInteger
 
 class RabbitPublisherPool(
@@ -35,6 +36,11 @@ class RabbitPublisherPool(
 
     private fun selectPublisher(): RabbitPublisher {
         return publishers[Math.floorMod(nextPublisher.getAndIncrement(), publishers.size)]
+    }
+
+    /** Forwards [listener] to every publisher in the pool. */
+    fun setReturnListener(listener: ReturnListenerBridge) {
+        publishers.forEach { it.setReturnListener(listener) }
     }
 
     override fun close() {

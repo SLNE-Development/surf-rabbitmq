@@ -10,6 +10,7 @@ import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionProvider
 import dev.slne.surf.rabbitmq.common.connection.consumer.RabbitConsumer
 import dev.slne.surf.rabbitmq.common.connection.publisher.RabbitPublisherOptions
 import dev.slne.surf.rabbitmq.common.connection.publisher.RabbitPublisherPool
+import dev.slne.surf.rabbitmq.core.connection.ReturnListenerBridge
 import io.netty.channel.Channel
 import io.netty.channel.IoHandlerFactory
 import io.netty.channel.MultiThreadIoEventLoopGroup
@@ -270,6 +271,11 @@ class RabbitClient private constructor(
             mandatory = mandatory,
             expectedConnectionGeneration = expectedConnectionGeneration
         )
+    }
+
+    /** Installs [listener] on every publisher channel: the current ones and future ones alike. */
+    fun setReturnListener(listener: ReturnListenerBridge) {
+        publisherPool.setReturnListener(listener)
     }
 
     fun newConsumer(name: String): RabbitConsumer {

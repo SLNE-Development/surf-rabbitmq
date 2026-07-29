@@ -95,7 +95,6 @@ class RpcRoundTripTest {
     }
 
     @Test
-    @org.junit.jupiter.api.Disabled("return listener lands in Plan 4 Task 4 - re-enable there")
     fun `a request to an unknown service fails fast instead of timing out`() = runBlocking {
         val client = api("caller")
         client.freezeAndConnect()

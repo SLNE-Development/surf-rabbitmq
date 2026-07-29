@@ -4,6 +4,7 @@ import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.Channel
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitPublishException
 import dev.slne.surf.rabbitmq.common.connection.RabbitConnectionProvider
+import dev.slne.surf.rabbitmq.core.connection.ReturnListenerBridge
 import kotlinx.coroutines.*
 import java.lang.AutoCloseable
 import java.util.concurrent.Executors
@@ -24,6 +25,14 @@ class RabbitPublisher(
         .asCoroutineDispatcher()
 
     private var channel: Channel? = null
+
+    @Volatile
+    private var returnListener: ReturnListenerBridge? = null
+
+    /** Installs [listener] on this publisher's current channel, and every channel after it. */
+    fun setReturnListener(listener: ReturnListenerBridge) {
+        returnListener = listener
+    }
 
     /**
      * @see Channel.basicPublish
@@ -112,6 +121,7 @@ class RabbitPublisher(
                 if (options.confirmPublishes) {
                     created.confirmSelect()
                 }
+                returnListener?.install(created)
 
                 channel = created
             }

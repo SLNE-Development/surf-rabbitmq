@@ -14,6 +14,7 @@ import dev.slne.surf.rabbitmq.api.event.SubscriptionMode
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitRequestTimeoutException
 import dev.slne.surf.rabbitmq.api.exception.SurfRabbitSerializerNotFoundException
+import dev.slne.surf.rabbitmq.api.exception.SurfRabbitServiceUnavailableException
 import dev.slne.surf.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.rabbitmq.api.packet.RabbitResponsePacket
 import dev.slne.surf.rabbitmq.api.target.RabbitTarget
@@ -64,6 +65,18 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
 
     private val client = RabbitClient.create(api.config, api.identity.instanceId)
     val retryPublisher = RetryPublisher(client)
+
+    /**
+     * Fails a pending RPC request the moment the broker returns it as unroutable, instead of
+     * waiting out the full request timeout. `messageId == correlationId` for the RPC path;
+     * `send()` (fire-and-forget) mints its own.
+     */
+    private val returnListener = ReturnListenerBridge(api.scope, client) { messageId, routingKey, reason ->
+        val pending = pendingRequests.asMap().remove(messageId) ?: return@ReturnListenerBridge
+        pending.second?.completeExceptionally(
+            SurfRabbitServiceUnavailableException(routingKey, reason)
+        )
+    }
     private val listenerHandler = RabbitListenerHandlerManager(api, this)
 
     private val requestTimeoutSeconds = api.config.getRequestTimeoutSeconds().seconds
@@ -152,6 +165,10 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
 
     init {
         client.addConnectionListener(connectionListener)
+        // Before connect(): publisher channels are created lazily on first publish, so a
+        // listener installed here reaches every channel that will ever exist, including
+        // ones created after a reconnect.
+        client.setReturnListener(returnListener)
     }
 
     override suspend fun connect() {
@@ -272,16 +289,35 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
                 ObjectList.of(body)
             }
 
-        for (chunkBody in bodies) {
-            client.publish(
-                exchange = RabbitTopology.RPC_EXCHANGE,
-                routingKey = target.routingKey,
-                body = chunkBody,
-                // No replyTo: the receiver must not attempt to answer. correlationId is
-                // still required by the request chunk assembler, even for a single chunk.
-                properties = properties(MessageKind.FIRE_AND_FORGET, correlationId = correlationId),
-                mandatory = true
-            )
+        // Fire-and-forget has no pending deferred to fail, so it needs its own messageId
+        // rather than reusing correlationId. The confirm ordering (basic.return arrives
+        // before the confirm ack of the same message) makes a single post-publish check
+        // race-free: by the time publish() returns, any return has already been recorded.
+        val messageId = java.util.UUID.randomUUID().toString()
+        returnListener.register(messageId)
+
+        try {
+            for (chunkBody in bodies) {
+                client.publish(
+                    exchange = RabbitTopology.RPC_EXCHANGE,
+                    routingKey = target.routingKey,
+                    body = chunkBody,
+                    // No replyTo: the receiver must not attempt to answer. correlationId is
+                    // still required by the request chunk assembler, even for a single chunk.
+                    properties = properties(
+                        MessageKind.FIRE_AND_FORGET,
+                        correlationId = correlationId,
+                        messageId = messageId
+                    ),
+                    mandatory = true
+                )
+            }
+
+            returnListener.returnedReason(messageId)?.let { reason ->
+                throw SurfRabbitServiceUnavailableException(target.routingKey, reason)
+            }
+        } finally {
+            returnListener.unregister(messageId)
         }
     }
 
@@ -584,6 +620,9 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
 
         val pending = request to deferred
         pendingRequests.put(correlationId, pending)
+        // messageId == correlationId on the RPC path: a broker return fails this exact
+        // pending deferred the moment it arrives, instead of waiting out the request timeout.
+        returnListener.register(correlationId)
 
         try {
             if (replyEndpoint.value != endpoint) {
@@ -610,7 +649,8 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
                     properties = properties(
                         MessageKind.RPC_REQUEST,
                         correlationId = correlationId,
-                        replyTo = endpoint.queueName
+                        replyTo = endpoint.queueName,
+                        messageId = correlationId
                     ),
                     expectedConnectionGeneration = endpoint.connectionGeneration
                 )
@@ -620,6 +660,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
         } finally {
             pendingRequests.asMap().remove(correlationId, pending)
             responseChunkAssembler.discard(correlationId)
+            returnListener.unregister(correlationId)
         }
     }
 
@@ -629,12 +670,14 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
     private fun properties(
         kind: MessageKind,
         correlationId: String? = null,
-        replyTo: String? = null
+        replyTo: String? = null,
+        messageId: String? = null
     ): AMQP.BasicProperties = AMQP.BasicProperties.Builder()
         .deliveryMode(kind.deliveryMode(persistRequests, persistResponses))
         .also { builder ->
             correlationId?.let(builder::correlationId)
             replyTo?.let(builder::replyTo)
+            messageId?.let(builder::messageId)
             kind.expirationMillis(requestTimeoutSeconds)?.let(builder::expiration)
         }
         .headers(mapOf(RabbitMqVersion.AMQP_HEADER to RabbitMqVersion.CURRENT.toString()))

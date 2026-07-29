@@ -203,6 +203,16 @@ public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitSerializerNotF
 	public fun <init> (Ljava/lang/String;)V
 }
 
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitServiceUnavailableException : dev/slne/surf/rabbitmq/api/exception/SurfRabbitRequestException {
+	public static final field Companion Ldev/slne/surf/rabbitmq/api/exception/SurfRabbitServiceUnavailableException$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun getReplyText ()Ljava/lang/String;
+	public final fun getTarget ()Ljava/lang/String;
+}
+
+public final class dev/slne/surf/rabbitmq/api/exception/SurfRabbitServiceUnavailableException$Companion {
+}
+
 public abstract interface annotation class dev/slne/surf/rabbitmq/api/handler/RabbitHandler : java/lang/annotation/Annotation {
 	public abstract fun retry ()Z
 }
