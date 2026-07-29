@@ -74,6 +74,17 @@
 > after a single call, relying on "repeated transport failures open the breaker" (two separate
 > failing calls) to cover reaching `OPEN`.
 
+> **Deviation recorded during implementation (Task 9):** `QueueOverflowTest`'s first test
+> assumed `x-overflow: reject-publish` on a quorum queue rejects the publish the instant the
+> queue would exceed `x-max-length`. Empirically, this broker (`rabbitmq:4.1-management`)
+> admits exactly one publish beyond the bound before rejecting - filling to 5 with
+> `x-max-length = 5` then publishing a 6th settles the queue at 6 with a normal ack; only the
+> 7th is nacked. The test now fills to the bound, sends one further publish that is expected
+> to succeed, and only then asserts the next one is rejected; the depth bound was widened from
+> `<= 5` to `<= 6` to match. Separately, `waitForConfirmsOrDie` closes the channel itself the
+> moment it detects a nack (`NACKS RECEIVED`), so the final depth check now happens on a fresh
+> connection/channel rather than the one that just observed the rejection.
+
 ## File Structure
 
 | File | Responsibility |
