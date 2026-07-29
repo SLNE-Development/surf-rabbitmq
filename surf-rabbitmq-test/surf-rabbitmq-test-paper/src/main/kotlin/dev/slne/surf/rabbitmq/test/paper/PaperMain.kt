@@ -1,3 +1,5 @@
+@file:OptIn(dev.slne.surf.rabbitmq.api.InternalRabbitMQ::class)
+
 package dev.slne.surf.rabbitmq.test.paper
 
 import com.github.shynixn.mccoroutine.folia.SuspendingJavaPlugin
@@ -6,8 +8,10 @@ import dev.jorel.commandapi.kotlindsl.getValue
 import dev.jorel.commandapi.kotlindsl.greedyStringArgument
 import dev.jorel.commandapi.kotlindsl.subcommand
 import dev.slne.surf.api.paper.command.executors.anyExecutorSuspend
+import dev.slne.surf.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.rabbitmq.test.RabbitMqTestCommonInstance
 import dev.slne.surf.rabbitmq.test.packet.DoNothingPacket
+import dev.slne.surf.rabbitmq.test.packet.DoNothingResponsePacket
 import dev.slne.surf.rabbitmq.test.paper.rpc.rabbitMqTestService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -67,7 +71,11 @@ class PaperMain : SuspendingJavaPlugin() {
                         repeat(100) {
                             val time = withContext(Dispatchers.Default) {
                                 measureTime {
-                                    rabbitMqApi.sendRequest(DoNothingPacket())
+                                    rabbitMqApi.connection.sendRequest(
+                                        DoNothingPacket(),
+                                        DoNothingResponsePacket::class.java,
+                                        RabbitTarget.ServiceTarget("surf-rabbitmq-test")
+                                    )
                                 }
                             }
                             sender.sendMessage("Packet request $it took $time")

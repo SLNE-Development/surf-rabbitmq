@@ -1,26 +1,20 @@
 package dev.slne.surf.rabbitmq.test
 
 import dev.slne.surf.api.core.util.requiredService
-import dev.slne.surf.rabbitmq.api.RabbitMQApi
+import dev.slne.surf.rabbitmq.api.SurfRabbitApi
 import org.jetbrains.annotations.MustBeInvokedByOverriders
 
 abstract class RabbitMqTestCommonInstance {
-    lateinit var api: RabbitMQApi
+    lateinit var api: SurfRabbitApi
 
     @MustBeInvokedByOverriders
-    open suspend fun onLoad() {
-
-    }
+    open suspend fun onLoad() = Unit
 
     @MustBeInvokedByOverriders
-    open suspend fun onEnable() {
-
-    }
+    open suspend fun onEnable() = Unit
 
     @MustBeInvokedByOverriders
-    open suspend fun onDisable() {
-
-    }
+    open suspend fun onDisable() = Unit
 
     companion object {
         val instance = requiredService<RabbitMqTestCommonInstance>()
