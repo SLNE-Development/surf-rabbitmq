@@ -37,7 +37,7 @@ import dev.slne.surf.eventbus.rabbitmq.core.publish.MessageKind
 import dev.slne.surf.eventbus.rabbitmq.core.retry.RetryPublisher
 import dev.slne.surf.eventbus.rabbitmq.core.rpc.BreakerGuardedRpc
 import dev.slne.surf.eventbus.common.circuitbreaker.CircuitBreakerRegistry
-import dev.slne.surf.eventbus.rabbitmq.shared.serialization.KotlinSerializerCache
+import dev.slne.surf.eventbus.common.serialization.KotlinSerializerCache
 import dev.slne.surf.eventbus.rabbitmq.shared.serialization.KotlinSerializerNameCache
 import dev.slne.surf.eventbus.rabbitmq.listener.RabbitListenerHandlerManager
 import it.unimi.dsi.fastutil.objects.ObjectList

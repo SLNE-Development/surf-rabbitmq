@@ -9,7 +9,7 @@ import dev.slne.surf.eventbus.rabbitmq.api.event.RabbitEventPacket
 import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitPacket
 import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitResponsePacket
-import dev.slne.surf.eventbus.rabbitmq.shared.serialization.KotlinSerializerCache
+import dev.slne.surf.eventbus.common.serialization.KotlinSerializerCache
 import dev.slne.surf.eventbus.rabbitmq.shared.serialization.KotlinSerializerNameCache
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled

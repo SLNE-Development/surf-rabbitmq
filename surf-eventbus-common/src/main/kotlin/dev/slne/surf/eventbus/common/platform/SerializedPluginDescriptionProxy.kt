@@ -1,4 +1,4 @@
-package dev.slne.surf.eventbus.rabbitmq.velocity.reflection
+package dev.slne.surf.eventbus.common.platform
 
 import dev.slne.surf.api.core.reflection.Name
 import dev.slne.surf.api.core.reflection.SurfProxy

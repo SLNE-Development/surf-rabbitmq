@@ -18,7 +18,7 @@ import dev.slne.surf.eventbus.rabbitmq.api.version.RabbitMqVersion
 import dev.slne.surf.eventbus.rabbitmq.common.connection.consumer.RabbitAck
 import dev.slne.surf.eventbus.rabbitmq.common.packet.RabbitPacketPropertiesInjector
 import dev.slne.surf.eventbus.rabbitmq.common.packet.RabbitPacketSerializer
-import dev.slne.surf.eventbus.rabbitmq.shared.serialization.KotlinSerializerCache
+import dev.slne.surf.eventbus.common.serialization.KotlinSerializerCache
 import dev.slne.surf.eventbus.rabbitmq.shared.serialization.KotlinSerializerNameCache
 import dev.slne.surf.eventbus.rabbitmq.shared.dispatch.HandlerMethodHandleProvider
 import dev.slne.surf.eventbus.rabbitmq.shared.dispatch.HandlerTemplate

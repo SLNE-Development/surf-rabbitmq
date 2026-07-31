@@ -5,9 +5,12 @@ plugins {
 }
 
 dependencies {
+    compileOnly("com.velocitypowered:velocity-api:3.5.0-SNAPSHOT")
+
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.coroutines.test)
     testImplementation(kotlin("test"))
     testImplementation("dev.slne.surf.api:surf-api-core:+")
     testRuntimeOnly("dev.slne.surf.api:surf-api-standalone:+")

@@ -1,4 +1,4 @@
-package dev.slne.surf.eventbus.rabbitmq.velocity.reflection
+package dev.slne.surf.eventbus.common.platform
 
 import com.velocitypowered.api.proxy.ProxyServer
 import dev.slne.surf.api.core.reflection.*

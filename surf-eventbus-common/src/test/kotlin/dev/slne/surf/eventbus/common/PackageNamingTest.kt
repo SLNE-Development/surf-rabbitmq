@@ -1,4 +1,4 @@
-package dev.slne.surf.eventbus.rabbitmq
+package dev.slne.surf.eventbus.common
 
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
