@@ -12,9 +12,6 @@ import dev.slne.surf.eventbus.redis.cache.SimpleRedisCache
 import dev.slne.surf.eventbus.redis.cache.SimpleSetRedisCache
 import dev.slne.surf.eventbus.redis.codec.RedisCodec
 import dev.slne.surf.eventbus.redis.credentials.RedisCredentialsProvider
-import dev.slne.surf.eventbus.redis.event.RedisEvent
-import dev.slne.surf.eventbus.redis.event.RedisEventCodec
-import dev.slne.surf.eventbus.redis.event.RedisEventCodecRegistrar
 import dev.slne.surf.eventbus.redis.internal.RedissonConfigDetails
 import dev.slne.surf.eventbus.redis.request.*
 import dev.slne.surf.eventbus.redis.sync.SyncStructure
@@ -54,7 +51,6 @@ import kotlin.time.Duration
  * Central entry point for surf-redis.
  *
  * `RedisApi` owns the underlying Redisson clients and wires up the higher-level surf-redis features:
- * - event distribution via [eventBus]
  * - request/response messaging via [requestResponseBus]
  * - replicated in-memory data structures ([SyncList], [SyncSet], [SyncMap], [SyncValue])
  * - simple cache helpers ([SimpleRedisCache], [SimpleSetRedisCache])
@@ -91,7 +87,6 @@ import kotlin.time.Duration
  *     @ApiStatus.OverrideOnly
  *     protected open fun register() {
  *         // Register listeners / request handlers here
- *         // redisApi.subscribeToEvents(SomeListener())
  *         // redisApi.registerRequestHandler(SomeHandler())
  *         //
  *         // Can be overridden by platform implementations to register platform-specific listeners.
@@ -104,8 +99,6 @@ import kotlin.time.Duration
  *     companion object {
  *         val instance = requiredService<RedisService>()
  *         fun get() = instance
- *
- *         fun publish(event: RedisEvent) = instance.redisApi.publishEvent(event)
  *
  *         fun namespaced(suffix: String) = "example-namespace:$suffix"
  *     }
@@ -161,13 +154,6 @@ class RedisApi private constructor(
      */
     var redisOsType: BaseEventCodec.OSType? = null
         private set
-
-    /**
-     * Event bus instance for publishing and subscribing to [RedisEvent]s.
-     *
-     * The bus is initialized during [connect] and closed during [disconnect].
-     */
-    val eventBus = RedisComponentProvider.createEventBus(this)
 
     /**
      * Request/response bus used for sending [RedisRequest]s and receiving [RedisResponse]s.
@@ -230,7 +216,6 @@ class RedisApi private constructor(
     private var disconnected = false
 
     init {
-        initializables.put(eventBus, Unit)
         initializables.put(requestResponseBus, Unit)
     }
 
@@ -356,7 +341,7 @@ class RedisApi private constructor(
      * During connection:
      * - [redisson] / [redissonReactive] are created
      * - [redisOsType] may be detected
-     * - [eventBus] and [requestResponseBus] are initialized
+     * - [requestResponseBus] is initialized
      * - all previously created sync structures are initialized
      *
      * @throws IllegalArgumentException if the API is not frozen
@@ -461,7 +446,6 @@ class RedisApi private constructor(
     fun freeze() {
         require(!isFrozen()) { "Redis client already frozen" }
 
-        (eventBus as RedisEventCodecRegistrar).freezeEventCodecs()
         frozen = true
     }
 
@@ -477,7 +461,7 @@ class RedisApi private constructor(
      * terminal for this instance.
      *
      * On disconnect:
-     * - request/response and event buses are closed
+     * - the request/response bus is closed
      * - all sync structures are disposed
      * - internal coroutine scopes (`syncStructureScope`, `redisListenerScope`) are cancelled
      * - reactive disposables are disposed
@@ -513,7 +497,6 @@ class RedisApi private constructor(
         cleanup { syncStructureScope.cancel("RedisApi disconnected") }
         cleanup { redisListenerScope.cancel("RedisApi disconnected") }
         cleanup(requestResponseBus::close)
-        cleanup(eventBus::close)
 
         cleanupFailure?.let { throw it }
     }
@@ -539,62 +522,6 @@ class RedisApi private constructor(
     } catch (_: Exception) {
         false
     }
-
-    /**
-     * Publishes a [RedisEvent] via the internal event bus.
-     *
-     * @see dev.slne.surf.eventbus.redis.event.RedisEventBus.publish
-     */
-    fun publishEvent(event: RedisEvent) = eventBus.publish(event)
-
-    /**
-     * Registers event handlers on the given listener instance.
-     *
-     * The listener is processed by the event bus; handler method requirements are defined
-     * by the event bus annotations/contract.
-     *
-     * @see dev.slne.surf.eventbus.redis.event.RedisEventBus.registerListener
-     * @see dev.slne.surf.eventbus.redis.event.OnRedisEvent
-     */
-    fun subscribeToEvents(listener: Any) = eventBus.registerListener(listener)
-
-    /**
-     * Explicitly registers [codec] for [eventType].
-     *
-     * Registration must happen before [freeze]. Explicit registration is useful when the event
-     * companion object does not implement [RedisEventCodec]. It takes precedence over a codec that
-     * was discovered from the companion object. Duplicate registrations and event-ID collisions
-     * fail immediately.
-     */
-    fun <E : RedisEvent> registerEventCodec(
-        eventType: Class<E>,
-        codec: RedisEventCodec<E>
-    ) {
-        require(!isFrozen()) { "Cannot register an event codec after RedisApi has been frozen" }
-        (eventBus as RedisEventCodecRegistrar).registerEventCodec(eventType, codec)
-    }
-
-    /**
-     * Reified convenience overload for [registerEventCodec].
-     */
-    inline fun <reified E : RedisEvent> registerEventCodec(codec: RedisEventCodec<E>) {
-        registerEventCodec(E::class.java, codec)
-    }
-
-    /**
-     * Registers an event type and discovers a companion-object codec, if present.
-     *
-     * Listener registration already performs this step automatically. Use this method for
-     * publish-only event types so discovery and validation happen during startup rather than on
-     * the first publish.
-     */
-    fun registerEventType(eventType: Class<out RedisEvent>) {
-        require(!isFrozen()) { "Cannot register an event type after RedisApi has been frozen" }
-        (eventBus as RedisEventCodecRegistrar).registerEventType(eventType)
-    }
-
-    /** Reified convenience overload for [registerEventType]. */
-    inline fun <reified E : RedisEvent> registerEventType() = registerEventType(E::class.java)
 
     /**
      * Sends a [RedisRequest] and awaits a [RedisResponse] of type [T].

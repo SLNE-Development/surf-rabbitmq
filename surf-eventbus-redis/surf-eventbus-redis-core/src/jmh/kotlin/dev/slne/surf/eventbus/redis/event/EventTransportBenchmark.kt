@@ -1,5 +1,10 @@
 package dev.slne.surf.eventbus.redis.event
 
+import dev.slne.surf.eventbus.core.envelope.EventEnvelope
+import dev.slne.surf.eventbus.event.BusEvent
+import dev.slne.surf.eventbus.event.BusEventCodec
+import dev.slne.surf.eventbus.event.SurfBusEvent
+import dev.slne.surf.eventbus.redis.bus.BinaryFrame
 import dev.slne.surf.eventbus.redis.codec.readString
 import dev.slne.surf.eventbus.redis.codec.readVarInt
 import dev.slne.surf.eventbus.redis.codec.writeString
@@ -11,20 +16,21 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNamingStrategy
 import org.openjdk.jmh.annotations.*
 import org.openjdk.jmh.infra.Blackhole
-import org.redisson.client.codec.Codec
+import org.redisson.client.codec.ByteArrayCodec
 import org.redisson.client.codec.StringCodec
 import java.util.*
 
 /**
- * Compares the complete legacy JSON event wire format with the custom binary event packet.
+ * Compares the JSON event envelope with a `BusEventCodec` on the binary channel.
  *
- * Every benchmark uses the same logical event and includes the transport envelope. Encode, decode,
- * and round-trip costs are separated so regressions are easier to attribute. Payloads contain only
- * ASCII characters so [payloadBytes] is also the UTF-8 payload size for both transports.
+ * Every benchmark uses the same logical event and includes the transport envelope, mirroring
+ * exactly what [dev.slne.surf.eventbus.redis.bus.RedisEventTransport] puts on the wire. Encode,
+ * decode, and round-trip costs are separated so regressions are easier to attribute. Payloads
+ * contain only ASCII characters so [payloadBytes] is also the UTF-8 payload size for both
+ * transports.
  */
 open class EventTransportBenchmark {
     @Benchmark
@@ -58,18 +64,15 @@ open class EventTransportBenchmarkState {
     var payloadBytes: Int = 0
 
     private lateinit var event: BenchmarkEvent
+    private lateinit var jsonEnvelopeMessage: String
     private lateinit var jsonPacket: ByteArray
     private lateinit var binaryPacket: ByteArray
-    private lateinit var registration: EventCodecRegistration
-    private lateinit var binaryCodec: Codec
 
     private val json = Json {
         namingStrategy = JsonNamingStrategy.SnakeCase
         encodeDefaults = true
     }
     private val eventSerializer: KSerializer<BenchmarkEvent> = BenchmarkEvent.serializer()
-    private val envelopeSerializer: KSerializer<BenchmarkEventEnvelope> =
-        BenchmarkEventEnvelope.serializer()
 
     val jsonWireBytes: Int
         get() = jsonPacket.size
@@ -89,19 +92,7 @@ open class EventTransportBenchmarkState {
             payload = payload,
         )
 
-        @Suppress("UNCHECKED_CAST")
-        val codec = BenchmarkEventCodec as RedisEventCodec<RedisEvent>
-        registration = EventCodecRegistration(
-            eventType = BenchmarkEvent::class.java,
-            codec = codec,
-            eventId = BenchmarkEventCodec.eventId,
-            version = BenchmarkEventCodec.version,
-            explicit = true,
-        )
-        binaryCodec = CustomEventPacketCodec.redisCodec { eventId ->
-            registration.takeIf { it.eventId == eventId }
-        }
-
+        jsonEnvelopeMessage = jsonEnvelope().encodeToString(json)
         jsonPacket = encodeJsonWireBytes()
         binaryPacket = encodeBinaryWireBytes()
 
@@ -110,7 +101,7 @@ open class EventTransportBenchmarkState {
     }
 
     fun encodeJson(blackhole: Blackhole): Int {
-        val wire = StringCodec.INSTANCE.valueEncoder.encode(encodeJsonMessage())
+        val wire = StringCodec.INSTANCE.valueEncoder.encode(jsonEnvelope().encodeToString(json))
         try {
             blackhole.consume(wire)
             return wire.readableBytes()
@@ -120,8 +111,8 @@ open class EventTransportBenchmarkState {
     }
 
     fun encodeBinary(blackhole: Blackhole): Int {
-        val wire = binaryCodec.valueEncoder.encode(
-            CustomEventPacketCodec.outbound(event, registration)
+        val wire = ByteArrayCodec.INSTANCE.valueEncoder.encode(
+            BinaryFrame.encode(binaryEnvelope(), BenchmarkEventCodec.encodeToByteArray(event), json)
         )
         try {
             blackhole.consume(wire)
@@ -143,16 +134,17 @@ open class EventTransportBenchmarkState {
 
     fun decodeBinary(): BenchmarkEvent {
         val wire = Unpooled.wrappedBuffer(binaryPacket)
-        val result = try {
-            binaryCodec.valueDecoder.decode(wire, null) as CustomEventPacketCodec.DecodeResult
+        val frame = try {
+            ByteArrayCodec.INSTANCE.valueDecoder.decode(wire, null) as ByteArray
         } finally {
             wire.release()
         }
-        return decodedEvent(result)
+        val (_, payload) = BinaryFrame.decode(frame, json)
+        return BenchmarkEventCodec.decodeFromByteArray(payload)
     }
 
     fun roundTripJson(): BenchmarkEvent {
-        val wire = StringCodec.INSTANCE.valueEncoder.encode(encodeJsonMessage())
+        val wire = StringCodec.INSTANCE.valueEncoder.encode(jsonEnvelope().encodeToString(json))
         val message = try {
             StringCodec.INSTANCE.valueDecoder.decode(wire, null) as String
         } finally {
@@ -162,42 +154,51 @@ open class EventTransportBenchmarkState {
     }
 
     fun roundTripBinary(): BenchmarkEvent {
-        val wire = binaryCodec.valueEncoder.encode(
-            CustomEventPacketCodec.outbound(event, registration)
+        val wire = ByteArrayCodec.INSTANCE.valueEncoder.encode(
+            BinaryFrame.encode(binaryEnvelope(), BenchmarkEventCodec.encodeToByteArray(event), json)
         )
-        val result = try {
-            binaryCodec.valueDecoder.decode(wire, null) as CustomEventPacketCodec.DecodeResult
+        val frame = try {
+            ByteArrayCodec.INSTANCE.valueDecoder.decode(wire, null) as ByteArray
         } finally {
             wire.release()
         }
-        return decodedEvent(result)
+        val (_, payload) = BinaryFrame.decode(frame, json)
+        return BenchmarkEventCodec.decodeFromByteArray(payload)
     }
 
+    private fun jsonEnvelope() = EventEnvelope(
+        topic = "benchmark.event",
+        type = BenchmarkEvent::class.java.name,
+        originInstanceId = "bench",
+        publishedAtEpochMs = 0L,
+        payload = json.encodeToString(eventSerializer, event),
+    )
+
+    private fun binaryEnvelope() = EventEnvelope(
+        topic = "benchmark.event",
+        type = BenchmarkEvent::class.java.name,
+        originInstanceId = "bench",
+        publishedAtEpochMs = 0L,
+        payload = null,
+    )
+
     private fun encodeJsonWireBytes(): ByteArray {
-        val wire = StringCodec.INSTANCE.valueEncoder.encode(encodeJsonMessage())
+        val wire = StringCodec.INSTANCE.valueEncoder.encode(jsonEnvelopeMessage)
         try {
             return ByteBufUtil.getBytes(wire, wire.readerIndex(), wire.readableBytes(), false)
         } finally {
             wire.release()
         }
-    }
-
-    private fun encodeJsonMessage(): String {
-        val eventData = json.encodeToJsonElement(eventSerializer, event)
-        return json.encodeToString(
-            envelopeSerializer,
-            BenchmarkEventEnvelope(BenchmarkEvent::class.java.name, eventData),
-        )
     }
 
     private fun decodeJsonMessage(message: String): BenchmarkEvent {
-        val envelope = json.decodeFromString(envelopeSerializer, message)
-        return json.decodeFromJsonElement(eventSerializer, envelope.eventData)
+        val envelope = EventEnvelope.decodeFromString(json, message)
+        return json.decodeFromString(eventSerializer, envelope.payload!!)
     }
 
     private fun encodeBinaryWireBytes(): ByteArray {
-        val wire = binaryCodec.valueEncoder.encode(
-            CustomEventPacketCodec.outbound(event, registration)
+        val wire = ByteArrayCodec.INSTANCE.valueEncoder.encode(
+            BinaryFrame.encode(binaryEnvelope(), BenchmarkEventCodec.encodeToByteArray(event), json)
         )
         try {
             return ByteBufUtil.getBytes(wire, wire.readerIndex(), wire.readableBytes(), false)
@@ -205,13 +206,9 @@ open class EventTransportBenchmarkState {
             wire.release()
         }
     }
-
-    private fun decodedEvent(result: CustomEventPacketCodec.DecodeResult): BenchmarkEvent {
-        return (result as CustomEventPacketCodec.DecodeResult.Event).event as BenchmarkEvent
-    }
 }
 
-/** Exercises the adaptive capacity estimate with payload sizes that change between operations. */
+/** Exercises the codec with payload sizes that change between operations. */
 open class VariableEventPacketBenchmark {
     @Benchmark
     open fun binaryVariableEncode(
@@ -227,8 +224,6 @@ open class VariableEventPacketBenchmarkState {
     var payloadPattern: String = "alternating"
 
     private lateinit var events: Array<BenchmarkEvent>
-    private lateinit var registration: EventCodecRegistration
-    private lateinit var binaryCodec: Codec
     private var index = 0
 
     @Setup(Level.Trial)
@@ -251,27 +246,12 @@ open class VariableEventPacketBenchmarkState {
                 payload = benchmarkPayload(payloadSizes[eventIndex]),
             )
         }
-
-        @Suppress("UNCHECKED_CAST")
-        val codec = BenchmarkEventCodec as RedisEventCodec<RedisEvent>
-        registration = EventCodecRegistration(
-            eventType = BenchmarkEvent::class.java,
-            codec = codec,
-            eventId = BenchmarkEventCodec.eventId,
-            version = BenchmarkEventCodec.version,
-            explicit = true,
-        )
-        binaryCodec = CustomEventPacketCodec.redisCodec { eventId ->
-            registration.takeIf { it.eventId == eventId }
-        }
     }
 
     fun encodeNext(blackhole: Blackhole): Int {
         val event = events[index]
         index = (index + 1) and (events.size - 1)
-        val wire = binaryCodec.valueEncoder.encode(
-            CustomEventPacketCodec.outbound(event, registration)
-        )
+        val wire = ByteArrayCodec.INSTANCE.valueEncoder.encode(BenchmarkEventCodec.encodeToByteArray(event))
         try {
             blackhole.consume(wire)
             return wire.readableBytes()
@@ -282,24 +262,16 @@ open class VariableEventPacketBenchmarkState {
 }
 
 @Serializable
+@BusEvent("benchmark.event")
 data class BenchmarkEvent(
     val aggregateId: Long,
     val sequence: Int,
     val active: Boolean,
     val payload: String,
-) : RedisEvent()
+) : SurfBusEvent()
 
-@Serializable
-private data class BenchmarkEventEnvelope(
-    val eventClass: String,
-    val eventData: JsonElement,
-)
-
-private object BenchmarkEventCodec : RedisEventCodec<BenchmarkEvent> {
+private object BenchmarkEventCodec : BusEventCodec<BenchmarkEvent> {
     private const val MAX_PAYLOAD_BYTES = 1024 * 1024
-
-    override val eventId: String = "benchmark-event"
-    override val codecId: String = "benchmark-event-binary-v1"
 
     override fun encode(buffer: ByteBuf, value: BenchmarkEvent) {
         buffer.writeLong(value.aggregateId)
@@ -314,6 +286,27 @@ private object BenchmarkEventCodec : RedisEventCodec<BenchmarkEvent> {
         active = buffer.readBoolean(),
         payload = buffer.readString(MAX_PAYLOAD_BYTES),
     )
+
+    fun encodeToByteArray(value: BenchmarkEvent): ByteArray {
+        val buffer = Unpooled.buffer()
+        try {
+            encode(buffer, value)
+            val bytes = ByteArray(buffer.readableBytes())
+            buffer.readBytes(bytes)
+            return bytes
+        } finally {
+            buffer.release()
+        }
+    }
+
+    fun decodeFromByteArray(bytes: ByteArray): BenchmarkEvent {
+        val buffer = Unpooled.wrappedBuffer(bytes)
+        try {
+            return decode(buffer)
+        } finally {
+            buffer.release()
+        }
+    }
 }
 
 private fun benchmarkPayload(size: Int) = buildString(size) {

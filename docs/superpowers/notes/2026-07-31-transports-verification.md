@@ -23,3 +23,19 @@ therefore ran for real rather than being skipped — this note records actual pa
   the pattern already used by `surf-eventbus-rabbitmq-core`), and `testCompileOnly` +
   `kspTest("dev.slne.surf.api:surf-api-processor:1.0.1")` so `@AutoService` is processed for test
   sources too — main only wires the `ksp` configuration, not `kspTest`.
+
+## Deviation from Plan 3 Task 2
+
+The task's file list says to *modify* `EventCodecRegistry.kt` (rekey on the event class instead of
+`eventId`) rather than delete it. By the time this task ran, Plan 2 had already added
+`BusEventCodecs` (`surf-eventbus-bus-core`), which discovers a `BusEventCodec` from an event's
+companion object with no `eventId`, no collision detection, and no packet-size estimation —
+`EventCodecRegistry`'s entire job, done more simply, with `RedisEventTransport` as the only
+caller-to-be. Its only real callers were `RedisEventBusImpl`/`RedisEventInvoker` (deleted this
+task) and the JMH benchmark (redirected to measure `EventEnvelope` + `BinaryFrame` +
+`BusEventCodec` directly, per the task's own Step 6). Deleted `EventCodecRegistry`,
+`EventCodecRegistration`, `CustomEventPacketCodec`, and their three tests instead of rekeying —
+rekeeping a class with no remaining caller would have been dead code. `RedisEventInvokerTemplate.java`
+(a generated-invoker template implementing the deleted `RedisEventInvoker` interface) went with it;
+`RedisInvokerLookupProvider.java` stayed, since `RequestResponseBusImpl` still uses it until Plan 3
+Task 7.

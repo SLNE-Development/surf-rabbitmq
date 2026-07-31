@@ -4,8 +4,6 @@ import com.google.auto.service.AutoService
 import dev.slne.surf.eventbus.redis.cache.*
 import dev.slne.surf.eventbus.redis.codec.RedisCodec
 import dev.slne.surf.eventbus.redis.config.redisConfig
-import dev.slne.surf.eventbus.redis.event.RedisEventBus
-import dev.slne.surf.eventbus.redis.event.RedisEventBusImpl
 import dev.slne.surf.eventbus.redis.internal.RedissonConfigDetails
 import dev.slne.surf.eventbus.redis.request.RequestResponseBus
 import dev.slne.surf.eventbus.redis.request.RequestResponseBusImpl
@@ -93,10 +91,6 @@ class RedisComponentProviderImpl : RedisComponentProvider {
         redisApi: RedisApi
     ): SimpleSetRedisCache<T> {
         return SimpleSetRedisCacheImpl(namespace, serializer, idOf, indexes, ttl, redisApi)
-    }
-
-    override fun createEventBus(redisApi: RedisApi): RedisEventBus {
-        return RedisEventBusImpl(redisApi)
     }
 
     override fun createRequestResponseBus(redisApi: RedisApi): RequestResponseBus {
