@@ -19,7 +19,5 @@ class RedisTransportProviderImpl : RedisTransportProvider {
 
     override fun event(): EventTransport = RedisEventTransport(redis, redis.json)
 
-    override fun query(): QueryTransport = throw NotImplementedError(
-        "the Redis query transport arrives in Plan 3 Task 7"
-    )
+    override fun query(): QueryTransport = RedisQueryTransport(redis, redis.json)
 }

@@ -51,8 +51,12 @@ class FakeQueryTransport : QueryTransport {
     val answered = CopyOnWriteArrayList<Pair<QueryFrame, String>>()
     var nextAnswer: String? = null
 
-    override suspend fun connect(contracts: Set<String>, onQuery: suspend (QueryFrame) -> Unit) {
+    var instanceId: String = ""
+        private set
+
+    override suspend fun connect(contracts: Set<String>, instanceId: String, onQuery: suspend (QueryFrame) -> Unit) {
         this.contracts = contracts
+        this.instanceId = instanceId
     }
 
     override suspend fun ask(frame: QueryFrame, timeoutMillis: Long): String? {

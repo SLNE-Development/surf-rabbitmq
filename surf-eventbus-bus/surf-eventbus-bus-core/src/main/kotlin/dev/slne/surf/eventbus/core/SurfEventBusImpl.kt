@@ -55,7 +55,15 @@ class SurfEventBusImpl(
         typeResolver = EventTypeResolver(),
         serviceName = serviceName
     )
-    private val queryDispatcher = QueryDispatcher(queryRegistry)
+    private val queryDispatcher = queryTransport?.let {
+        QueryDispatcher(
+            registry = queryRegistry,
+            instanceId = instanceId,
+            auditSink = LoggingAuditSink,
+            json = json,
+            transport = it
+        )
+    }
     private val serializerCache = KotlinSerializerCache<SurfBusEvent>(serializers)
 
     @Volatile
@@ -132,7 +140,7 @@ class SurfEventBusImpl(
                 wildcardPatterns = eventRegistry.wildcardPatterns(),
                 onEvent = dispatcher::dispatch
             )
-            queryTransport?.connect(queryRegistry.contracts()) { frame -> queryDispatcher.dispatch(frame) }
+            queryTransport?.connect(queryRegistry.contracts(), instanceId) { frame -> queryDispatcher!!.dispatch(frame) }
         } catch (throwable: Throwable) {
             // Half connected is harder to diagnose than not started.
             runCatching { eventTransport?.disconnect() }

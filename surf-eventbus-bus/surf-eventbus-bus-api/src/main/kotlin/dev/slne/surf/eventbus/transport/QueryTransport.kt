@@ -1,8 +1,11 @@
 package dev.slne.surf.eventbus.transport
 
+import kotlinx.serialization.Serializable
+
 /**
  * One question or answer on the wire.
  */
+@Serializable
 data class QueryFrame(
     val contract: String,
     val callable: String,
@@ -18,7 +21,8 @@ data class QueryFrame(
  */
 interface QueryTransport {
 
-    suspend fun connect(contracts: Set<String>, onQuery: suspend (QueryFrame) -> Unit)
+    /** @param instanceId this process's id, so the reply channel it listens on can be named. */
+    suspend fun connect(contracts: Set<String>, instanceId: String, onQuery: suspend (QueryFrame) -> Unit)
 
     /**
      * Publishes the question and waits for the first answer.

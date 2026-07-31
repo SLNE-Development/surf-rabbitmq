@@ -51,7 +51,6 @@ import kotlin.time.Duration
  * Central entry point for surf-redis.
  *
  * `RedisApi` owns the underlying Redisson clients and wires up the higher-level surf-redis features:
- * - request/response messaging via [requestResponseBus]
  * - replicated in-memory data structures ([SyncList], [SyncSet], [SyncMap], [SyncValue])
  * - simple cache helpers ([SimpleRedisCache], [SimpleSetRedisCache])
  *
@@ -156,13 +155,6 @@ class RedisApi private constructor(
         private set
 
     /**
-     * Request/response bus used for sending [RedisRequest]s and receiving [RedisResponse]s.
-     *
-     * The bus is initialized during [connect] and closed during [disconnect].
-     */
-    val requestResponseBus = RedisComponentProvider.createRequestResponseBus(this)
-
-    /**
      * Identifier of the current client/node as provided by the component provider.
      */
     val clientId get() = RedisComponentProvider.clientId
@@ -214,10 +206,6 @@ class RedisApi private constructor(
 
     @Volatile
     private var disconnected = false
-
-    init {
-        initializables.put(requestResponseBus, Unit)
-    }
 
     companion object {
         private val log = logger()
@@ -341,7 +329,6 @@ class RedisApi private constructor(
      * During connection:
      * - [redisson] / [redissonReactive] are created
      * - [redisOsType] may be detected
-     * - [requestResponseBus] is initialized
      * - all previously created sync structures are initialized
      *
      * @throws IllegalArgumentException if the API is not frozen
@@ -496,7 +483,6 @@ class RedisApi private constructor(
 
         cleanup { syncStructureScope.cancel("RedisApi disconnected") }
         cleanup { redisListenerScope.cancel("RedisApi disconnected") }
-        cleanup(requestResponseBus::close)
 
         cleanupFailure?.let { throw it }
     }
@@ -522,41 +508,6 @@ class RedisApi private constructor(
     } catch (_: Exception) {
         false
     }
-
-    /**
-     * Sends a [RedisRequest] and awaits a [RedisResponse] of type [T].
-     *
-     * @param request Request instance to send.
-     * @param timeoutMs Timeout in milliseconds.
-     * @see dev.slne.surf.eventbus.redis.request.RequestResponseBus.sendRequest
-     */
-    @Throws(RequestTimeoutException::class)
-    suspend inline fun <reified T : RedisResponse> sendRequest(
-        request: RedisRequest,
-        timeoutMs: Long = RequestResponseBus.DEFAULT_TIMEOUT_MS
-    ) = requestResponseBus.sendRequest<T>(request, timeoutMs)
-
-    /**
-     * Sends a [RedisRequest] and awaits a [RedisResponse] of the given [responseType].
-     *
-     * @param request Request instance to send.
-     * @param responseType Expected response type.
-     * @param timeoutMs Timeout in milliseconds.
-     * @see dev.slne.surf.eventbus.redis.request.RequestResponseBus.sendRequest
-     */
-    @Throws(RequestTimeoutException::class)
-    suspend fun <T : RedisResponse> sendRequest(
-        request: RedisRequest,
-        responseType: Class<T>,
-        timeoutMs: Long = RequestResponseBus.DEFAULT_TIMEOUT_MS
-    ) = requestResponseBus.sendRequest(request, responseType, timeoutMs)
-
-    /**
-     * Registers request handlers on the given handler instance.
-     *
-     * @see dev.slne.surf.eventbus.redis.request.RequestResponseBus.registerRequestHandler
-     */
-    fun registerRequestHandler(handler: Any) = requestResponseBus.registerRequestHandler(handler)
 
 
     /**

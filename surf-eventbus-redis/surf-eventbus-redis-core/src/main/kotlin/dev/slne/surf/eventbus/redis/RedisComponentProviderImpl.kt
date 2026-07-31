@@ -5,8 +5,6 @@ import dev.slne.surf.eventbus.redis.cache.*
 import dev.slne.surf.eventbus.redis.codec.RedisCodec
 import dev.slne.surf.eventbus.redis.config.redisConfig
 import dev.slne.surf.eventbus.redis.internal.RedissonConfigDetails
-import dev.slne.surf.eventbus.redis.request.RequestResponseBus
-import dev.slne.surf.eventbus.redis.request.RequestResponseBusImpl
 import dev.slne.surf.eventbus.redis.sync.BinarySyncValueCodec
 import dev.slne.surf.eventbus.redis.sync.JsonSyncValueCodec
 import dev.slne.surf.eventbus.redis.sync.list.SyncList
@@ -91,10 +89,6 @@ class RedisComponentProviderImpl : RedisComponentProvider {
         redisApi: RedisApi
     ): SimpleSetRedisCache<T> {
         return SimpleSetRedisCacheImpl(namespace, serializer, idOf, indexes, ttl, redisApi)
-    }
-
-    override fun createRequestResponseBus(redisApi: RedisApi): RequestResponseBus {
-        return RequestResponseBusImpl(redisApi)
     }
 
     override fun <E : Any> createSyncList(

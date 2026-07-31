@@ -151,3 +151,51 @@ Verified: `QueryServiceValidationTest` (KSP, 5/5 — non-nullable return, `Unit`
 `null` answer means abstain, and the annotation's `timeoutMillis` lands in the descriptor) against
 a `FakeQueryTransport`. Server-side dispatch (turning a registered implementation into answers)
 is Plan 3 Task 7's job, not exercised here.
+
+## Plan 3 Task 7: Redis query transport and real dispatch
+
+`QueryDispatcher` now actually dispatches: it resolves the generated `<Name>Descriptor` for
+`frame.contract` via a `ClassValue`-style reflection cache (same idea as
+`SurfEventBusImpl.queryDescriptorOf`, kept as a separate small cache here rather than sharing
+code across modules), decodes the frame payload with `QuerySerializerCache`, invokes the callable,
+and encodes a non-null result back. `RedisQueryTransport` carries queries and answers over Redis
+Pub/Sub: one channel per contract (`surf.eventbus.query.<contract>`), one reply channel per
+instance (`surf.eventbus.reply.<instanceId>`) — first reply on the asker's own reply channel wins,
+matching `QueryFrame`'s existing `correlationId`/`originInstanceId` fields (now `@Serializable`,
+which they needed to be to travel as JSON at all). Old Redis request/response API deleted:
+`RedisRequest`/`RedisResponse`/`RequestResponseBus`/`RequestContext`/`HandleRedisRequest`/
+`RequestTimeoutException` and their impls — `RedisApi.sendRequest()`/`registerRequestHandler()`/
+`requestResponseBus` all gone.
+
+**Deviation:** `QueryTransport.connect()` gained an `instanceId: String` parameter that isn't in
+the plan's interface sketch. The reply channel name is `surf.eventbus.reply.<instanceId>`, and
+`instanceId` wasn't available at `RedisTransportProvider.query()`/`withRedis()` time (the builder
+resolves it later, in `build()`) — passing it at `connect()` time, where `SurfEventBusImpl` already
+has it, was the smallest fix that didn't require restructuring `SurfEventBusBuilder`'s ordering.
+
+**Deviation:** `QueryDispatcherTest`'s `Locator` contract is `internal`, not `private` as the
+plan's own example code shows. A truly file-private interface can't be referenced from a
+generated descriptor in a different file (Kotlin visibility rules, not a processor limitation),
+and the KSP processor already skips codegen for private `@QueryService` interfaces (Task 6, for
+`QueryServiceRegistryTest`'s fixtures) — so a private `Locator` here would get no descriptor at
+all, and `QueryDispatcher.invoke()` needs one. `internal` keeps the contract out of the published
+API while still being visible enough for the generator.
+
+**Verification pitfall worth recording:** the first draft of `RedisQueryTransportTest` used
+`kotlinx-coroutines-test`'s `runTest`, copying `RedisEventTransportTest`'s style — and failed on
+every case that raced a real cross-thread Redis round trip against `withTimeoutOrNull`.
+`runTest`'s virtual-time scheduler auto-advances through a scheduled `delay` (which is what a
+timeout is, internally) the moment nothing else is runnable *on that dispatcher*, even though a
+real background thread (the Redisson listener) is about to complete the real work — so the
+timeout fired instantly, before the real answer arrived. `RedisEventTransportTest` never hit this
+because its assertions wait on a plain `Channel.receive()` with no explicit timeout on the
+success path. Fixed by switching to `runBlocking`, which waits in real time. Also needed a
+thread-safe `apis` list (`CopyOnWriteArrayList`, not `mutableListOf()`) — Redis listener callbacks
+that build a fresh transport to answer run on a different thread than the test body and JUnit's
+`@AfterAll`, and a plain `ArrayList` throws `ConcurrentModificationException` under that.
+
+Verified against a real broker: `RedisQueryTransportTest` (6/6 — one of three providers answers,
+two providers answering has the first reply win, no answer within the timeout is `null`, no
+provider at all is `null`, and only the asker receives the reply) and `QueryDispatcherTest`
+(4/4 — answering, abstaining, throwing-is-audited-not-answered, and an unoffered contract is
+ignored).

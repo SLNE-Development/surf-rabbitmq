@@ -29,13 +29,9 @@ public final class dev/slne/surf/eventbus/redis/RedisApi {
 	public final fun getRedisOsType ()Lorg/redisson/codec/BaseEventCodec$OSType;
 	public final fun getRedisson ()Lorg/redisson/api/RedissonClient;
 	public final fun getRedissonReactive ()Lorg/redisson/api/RedissonReactiveClient;
-	public final fun getRequestResponseBus ()Ldev/slne/surf/eventbus/redis/request/RequestResponseBus;
 	public final fun isAlive (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun isConnected ()Z
 	public final fun isFrozen ()Z
-	public final fun registerRequestHandler (Ljava/lang/Object;)V
-	public final fun sendRequest (Ldev/slne/surf/eventbus/redis/request/RedisRequest;Ljava/lang/Class;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun sendRequest$default (Ldev/slne/surf/eventbus/redis/RedisApi;Ldev/slne/surf/eventbus/redis/request/RedisRequest;Ljava/lang/Class;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class dev/slne/surf/eventbus/redis/RedisApi$Companion {
@@ -52,7 +48,6 @@ public final class dev/slne/surf/eventbus/redis/RedisApi$Companion {
 
 public final class dev/slne/surf/eventbus/redis/RedisComponentProvider$Companion : dev/slne/surf/eventbus/redis/RedisComponentProvider {
 	public fun createRedissonConfig (Ldev/slne/surf/eventbus/redis/internal/RedissonConfigDetails;)Lorg/redisson/config/Config;
-	public fun createRequestResponseBus (Ldev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/request/RequestResponseBus;
 	public fun createSimpleCache-1Y68eR8 (Ljava/lang/String;Lkotlinx/serialization/KSerializer;JLkotlin/jvm/functions/Function1;Ldev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/cache/SimpleRedisCache;
 	public fun createSimpleSetRedisCache-WPi__2c (Ljava/lang/String;Lkotlinx/serialization/KSerializer;JLkotlin/jvm/functions/Function1;Ldev/slne/surf/eventbus/redis/cache/RedisSetIndexes;Ldev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/cache/SimpleSetRedisCache;
 	public fun createSyncList-exY8QGI (Ljava/lang/String;Ldev/slne/surf/eventbus/redis/codec/RedisCodec;JLdev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/sync/list/SyncList;
@@ -67,7 +62,6 @@ public final class dev/slne/surf/eventbus/redis/RedisComponentProvider$Companion
 	public fun getEventLoopGroup ()Lio/netty/channel/MultiThreadIoEventLoopGroup;
 	public final fun getINSTANCE ()Ldev/slne/surf/eventbus/redis/RedisComponentProvider;
 	public fun getRedissonExecutorService ()Ljava/util/concurrent/ExecutorService;
-	public fun injectOriginId (Ldev/slne/surf/eventbus/redis/request/RedisRequest;)V
 	public fun tryExtractPluginNameFromClass (Ljava/lang/Class;)Ljava/lang/String;
 }
 
@@ -320,66 +314,6 @@ public final class dev/slne/surf/eventbus/redis/codec/default/VarLongBinaryCodec
 public final class dev/slne/surf/eventbus/redis/credentials/RedisCredentialsProvider$Companion : dev/slne/surf/eventbus/redis/credentials/RedisCredentialsProvider {
 	public final fun getINSTANCE ()Ldev/slne/surf/eventbus/redis/credentials/RedisCredentialsProvider;
 	public fun redisURI ()Lorg/redisson/misc/RedisURI;
-}
-
-public abstract interface annotation class dev/slne/surf/eventbus/redis/request/HandleRedisRequest : java/lang/annotation/Annotation {
-}
-
-public abstract class dev/slne/surf/eventbus/redis/request/RedisRequest {
-	public static final field Companion Ldev/slne/surf/eventbus/redis/request/RedisRequest$Companion;
-	public fun <init> ()V
-	public synthetic fun <init> (IJLjava/lang/String;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
-	public final fun getOriginId ()Ljava/lang/String;
-	public final fun getTimestamp ()J
-	public final fun originatesFromThisClient ()Z
-	public static final synthetic fun write$Self (Ldev/slne/surf/eventbus/redis/request/RedisRequest;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
-}
-
-public final class dev/slne/surf/eventbus/redis/request/RedisRequest$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
-public abstract class dev/slne/surf/eventbus/redis/request/RedisResponse {
-	public static final field Companion Ldev/slne/surf/eventbus/redis/request/RedisResponse$Companion;
-	public fun <init> ()V
-	public synthetic fun <init> (IJLkotlinx/serialization/internal/SerializationConstructorMarker;)V
-	public final fun getTimestamp ()J
-	public static final synthetic fun write$Self (Ldev/slne/surf/eventbus/redis/request/RedisResponse;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
-}
-
-public final class dev/slne/surf/eventbus/redis/request/RedisResponse$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/slne/surf/eventbus/redis/request/RequestContext : kotlinx/coroutines/CoroutineScope {
-	public fun getCoroutineContext ()Lkotlin/coroutines/CoroutineContext;
-	public final fun getRequest ()Ldev/slne/surf/eventbus/redis/request/RedisRequest;
-	public final fun originatesFromThisClient ()Z
-	public final fun respond (Ldev/slne/surf/eventbus/redis/request/RedisResponse;)Lkotlinx/coroutines/Deferred;
-}
-
-public abstract interface class dev/slne/surf/eventbus/redis/request/RequestResponseBus : dev/slne/surf/eventbus/redis/util/Initializable, java/io/Closeable {
-	public static final field Companion Ldev/slne/surf/eventbus/redis/request/RequestResponseBus$Companion;
-	public static final field DEFAULT_TIMEOUT_MS J
-	public abstract fun registerRequestHandler (Ljava/lang/Object;)V
-	public abstract fun sendRequest (Ldev/slne/surf/eventbus/redis/request/RedisRequest;Ljava/lang/Class;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun sendRequest$default (Ldev/slne/surf/eventbus/redis/request/RequestResponseBus;Ldev/slne/surf/eventbus/redis/request/RedisRequest;Ljava/lang/Class;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-}
-
-public final class dev/slne/surf/eventbus/redis/request/RequestResponseBus$Companion {
-	public static final field DEFAULT_TIMEOUT_MS J
-}
-
-public final class dev/slne/surf/eventbus/redis/request/RequestResponseBus$DefaultImpls {
-	public static synthetic fun sendRequest$default (Ldev/slne/surf/eventbus/redis/request/RequestResponseBus;Ldev/slne/surf/eventbus/redis/request/RedisRequest;Ljava/lang/Class;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-}
-
-public final class dev/slne/surf/eventbus/redis/request/RequestTimeoutException : java/lang/Exception {
-	public static final field Companion Ldev/slne/surf/eventbus/redis/request/RequestTimeoutException$Companion;
-	public fun <init> (Ljava/lang/String;)V
-}
-
-public final class dev/slne/surf/eventbus/redis/request/RequestTimeoutException$Companion {
 }
 
 public abstract interface class dev/slne/surf/eventbus/redis/sync/SyncStructure : dev/slne/surf/eventbus/redis/util/Initializable, reactor/core/Disposable {
