@@ -14,6 +14,9 @@ rootProject.name = "surf-eventbus"
 
 include("surf-eventbus-common")
 
+include("surf-eventbus-bus:surf-eventbus-bus-api")
+include("surf-eventbus-bus:surf-eventbus-bus-core")
+
 include("surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-api")
 include("surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core")
 

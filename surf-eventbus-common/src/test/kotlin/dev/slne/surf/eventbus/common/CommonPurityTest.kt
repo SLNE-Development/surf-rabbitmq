@@ -25,24 +25,31 @@ class CommonPurityTest {
         "RedissonClient"
     )
 
+    private val brokerFreeModules = listOf(
+        Path.of("src", "main", "kotlin"),
+        Path.of("..", "surf-eventbus-bus", "surf-eventbus-bus-api", "src", "main", "kotlin"),
+        Path.of("..", "surf-eventbus-bus", "surf-eventbus-bus-core", "src", "main", "kotlin")
+    )
+
     @Test
     fun `surf-eventbus-common references neither broker`() {
-        val root = Path.of("src", "main", "kotlin")
-
-        if (!Files.exists(root)) {
-            fail("Expected sources at ${root.toAbsolutePath()}")
+        val roots = brokerFreeModules.filter { Files.exists(it) }
+        if (roots.isEmpty()) {
+            fail("Expected sources at at least one of ${brokerFreeModules.map { it.toAbsolutePath() }}")
         }
 
-        val offenders = Files.walk(root).asSequence()
-            .filter { it.extension == "kt" }
-            .mapNotNull { file ->
-                val text = file.readText()
-                forbidden.firstOrNull { text.contains(it) }?.let { "$file references '$it'" }
-            }
-            .toList()
+        val offenders = roots.flatMap { root ->
+            Files.walk(root).asSequence()
+                .filter { it.extension == "kt" }
+                .mapNotNull { file ->
+                    val text = file.readText()
+                    forbidden.firstOrNull { text.contains(it) }?.let { "$file references '$it'" }
+                }
+                .toList()
+        }
 
         if (offenders.isNotEmpty()) {
-            fail("Broker types in surf-eventbus-common:\n" + offenders.joinToString("\n"))
+            fail("Broker types in a bus-free module:\n" + offenders.joinToString("\n"))
         }
     }
 }

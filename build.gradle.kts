@@ -30,6 +30,7 @@ subprojects {
             compilerOptions {
                 optIn.add("dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ")
                 optIn.add("dev.slne.surf.eventbus.redis.util.InternalRedisAPI")
+                optIn.add("dev.slne.surf.eventbus.InternalEventBusApi")
             }
         }
 
