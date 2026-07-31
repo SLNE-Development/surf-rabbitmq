@@ -13,4 +13,5 @@ data class RpcFunctionModel(
     val returnType: KSTypeReference,
     val parameters: List<KSValueParameter>,
     val typeParameterResolver: TypeParameterResolver,
+    val fireAndForget: Boolean,
 )

@@ -2,6 +2,7 @@ package dev.slne.surf.eventbus.rabbitmq.core.rpc
 
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService
+import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.common.testing.testConfig
@@ -38,7 +39,7 @@ class RpcProxyRoundTripTest {
         client.freezeAndConnect()
 
         try {
-            val proxy = client.rpc<EchoRpcService>(service = service)
+            val proxy = client.rpc<EchoRpcService>(target = RabbitTarget.ServiceTarget(service))
 
             assertEquals(
                 "echo:hi", proxy.echo("hi"),

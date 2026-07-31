@@ -67,6 +67,7 @@ class RpcCallableCodegen {
                 )
                 add("invoker = %N,\n", function.invokerName)
                 add("parameters = %L,\n", createParametersArray(function))
+                add("fireAndForget = %L,\n", function.fireAndForget)
             }
             .add(")")
             .build()

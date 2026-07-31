@@ -11,6 +11,8 @@ object Names {
 
     const val RPC_SERVICE_DESCRIPTOR_FQ = "dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor"
 
+    const val FIRE_AND_FORGET_ANNOTATION_FQ = "dev.slne.surf.eventbus.rabbitmq.api.rpc.FireAndForget"
+
     const val KOTLINX_SERIALIZABLE_FQ = "kotlinx.serialization.Serializable"
 }
 

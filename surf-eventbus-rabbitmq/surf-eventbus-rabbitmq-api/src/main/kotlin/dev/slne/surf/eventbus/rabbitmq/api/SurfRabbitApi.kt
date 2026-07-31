@@ -138,16 +138,17 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
      * Creates a client proxy for an `@RpcService` interface.
      *
      * The target service comes from the interface's `@RpcService(service = ...)`. Pass
-     * [service] to override it, for example to reach a staging deployment.
+     * [target] to override it, for example to reach one specific instance.
      *
-     * The returned proxy is cheap to keep but not free to create; create it once and reuse it.
+     * The returned proxy is cached per `(serviceKClass, target)` pair, so calling this in a
+     * loop body with an [RabbitTarget.InstanceTarget] is cheap.
      */
-    fun <Service : Any> rpc(serviceKClass: KClass<Service>, service: String? = null): Service =
-        rpcService.createService(serviceKClass, service)
+    fun <Service : Any> rpc(serviceKClass: KClass<Service>, target: RabbitTarget? = null): Service =
+        rpcService.createService(serviceKClass, target)
 
     /** Creates a client proxy for an `@RpcService` interface. */
-    inline fun <reified Service : Any> rpc(service: String? = null): Service =
-        rpc(Service::class, service)
+    inline fun <reified Service : Any> rpc(target: RabbitTarget? = null): Service =
+        rpc(Service::class, target)
 
     /** The generated descriptor for an `@RpcService` interface, e.g. to read its `defaultService`. */
     inline fun <reified Service : Any> serviceDescriptorOf(): RabbitRpcServiceDescriptor<Service> =

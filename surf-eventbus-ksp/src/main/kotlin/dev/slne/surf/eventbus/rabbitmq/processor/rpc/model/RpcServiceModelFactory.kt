@@ -104,6 +104,19 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
                 continue
             }
 
+            val fireAndForget = function.annotations.any {
+                it.shortName.asString() == "FireAndForget"
+            }
+
+            if (fireAndForget && returnType.resolve().declaration.qualifiedName?.asString() != "kotlin.Unit") {
+                logger.error(
+                    "@FireAndForget on $functionName requires the return type Unit: nobody " +
+                            "sends an answer, so nothing can be returned.",
+                    function,
+                )
+                continue
+            }
+
             functions += RpcFunctionModel(
                 declaration = function,
                 name = functionName,
@@ -112,6 +125,7 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
                 returnType = returnType,
                 parameters = function.parameters,
                 typeParameterResolver = function.typeParameters.toTypeParameterResolver(classTypeParameterResolver),
+                fireAndForget = fireAndForget,
             )
         }
 

@@ -2,6 +2,7 @@ package dev.slne.surf.eventbus.rabbitmq.api.rpc
 
 import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
+import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import kotlin.reflect.KClass
 
 /**
@@ -18,12 +19,13 @@ interface RabbitRpcService {
     fun <Service : Any> serviceDescriptorOf(kClass: KClass<Service>): RabbitRpcServiceDescriptor<Service>
 
     /**
-     * Creates a client proxy for [serviceKClass].
+     * Creates a client proxy for [serviceKClass], addressed at [target].
      *
-     * [service] overrides the target named in `@RpcService(service = ...)`. Until that
-     * annotation parameter lands (Plan 4), [service] is mandatory.
+     * [target] overrides the target named in `@RpcService(service = ...)`; omit it to use that
+     * default. Proxies are cached per `(serviceKClass, target)` pair, so calling this in a loop
+     * body with an [RabbitTarget.InstanceTarget] does not construct a new proxy each time.
      */
-    fun <Service : Any> createService(serviceKClass: KClass<Service>, service: String?): Service
+    fun <Service : Any> createService(serviceKClass: KClass<Service>, target: RabbitTarget?): Service
 
     fun <Service : Any> registerService(serviceKClass: KClass<Service>, serviceInstance: Service)
     fun <Service : Any> unregisterService(serviceKClass: KClass<Service>)

@@ -43,6 +43,15 @@ class RabbitRpcServiceImpl(private val api: SurfRabbitApi) : RabbitRpcService {
     private val rpcServices = Caffeine.newBuilder()
         .build<String, RpcServiceExecutor<*>>()
 
+    /**
+     * Caches client proxies per `(serviceKClass, target)` pair.
+     *
+     * Without this, `bus.rpc<PlayerService>(InstanceTarget(id))` in a loop body would
+     * construct a new proxy every iteration.
+     */
+    private val proxies = Caffeine.newBuilder()
+        .build<Pair<KClass<*>, RabbitTarget>, Any>()
+
     private val internalScope = CoroutineScope(
         api.scope.coroutineContext + SupervisorJob(api.scope.coroutineContext.job)
     )
@@ -81,19 +90,21 @@ class RabbitRpcServiceImpl(private val api: SurfRabbitApi) : RabbitRpcService {
         }
     }
 
-    override fun <Service : Any> createService(serviceKClass: KClass<Service>, service: String?): Service {
+    override fun <Service : Any> createService(serviceKClass: KClass<Service>, target: RabbitTarget?): Service {
         val descriptor = serviceDescriptorOf(serviceKClass)
-        val id = serviceIdCounter.incrementAndGet()
-
-        val target = service
-            ?: descriptor.defaultService.ifBlank {
+        val resolved = target ?: RabbitTarget.ServiceTarget(
+            descriptor.defaultService.ifBlank {
                 error(
-                    "No target service for ${descriptor.fqName}. Either annotate the interface " +
-                            "with @RpcService(service = \"...\") or pass rpc(service = \"...\")."
+                    "No target for ${descriptor.fqName}. Either annotate the interface with " +
+                            "@RpcService(service = \"...\") or pass rpc(target = ...)."
                 )
             }
+        )
 
-        return descriptor.createInstance(id, api, RabbitTarget.ServiceTarget(target))
+        @Suppress("UNCHECKED_CAST")
+        return proxies.get(serviceKClass to resolved) {
+            descriptor.createInstance(serviceIdCounter.incrementAndGet(), api, resolved)
+        } as Service
     }
 
     override suspend fun <T> call(call: RabbitRpcCall): T {
@@ -105,6 +116,13 @@ class RabbitRpcServiceImpl(private val api: SurfRabbitApi) : RabbitRpcService {
         val serialFormat = api.cbor
 
         val request = serializeRequest(callId, call, callable, serialFormat)
+
+        if (callable.fireAndForget) {
+            api.connection.send(request, call.target)
+            @Suppress("UNCHECKED_CAST")
+            return Unit as T
+        }
+
         val result = api.connection
             .sendRequest(request, RpcCallResponsePacket::class.java, call.target)
             .response

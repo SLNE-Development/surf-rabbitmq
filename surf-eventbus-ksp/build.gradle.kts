@@ -11,6 +11,20 @@ dependencies {
     val kotlinPoetVersion = "2.3.0"
     implementation("com.squareup:kotlinpoet-jvm:$kotlinPoetVersion")
     implementation("com.squareup:kotlinpoet-ksp:$kotlinPoetVersion")
+
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(kotlin("test"))
+    testImplementation("dev.zacsweers.kctfork:ksp:+")
+    testImplementation(projects.surfEventbusRabbitmq.surfEventbusRabbitmqApi)
+}
+
+tasks.test {
+    useJUnitPlatform()
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
 }
 
 publishing {

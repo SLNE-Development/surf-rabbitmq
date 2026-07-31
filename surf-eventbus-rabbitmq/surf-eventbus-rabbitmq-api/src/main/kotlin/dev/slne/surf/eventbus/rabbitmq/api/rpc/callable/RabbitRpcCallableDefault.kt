@@ -10,5 +10,6 @@ class RabbitRpcCallableDefault<Service : Any>(
     override val name: String,
     override val returnType: RabbitRpcType,
     override val invoker: RabbitRpcInvoker<Service>,
-    override val parameters: Array<out RabbitRpcParameter>
+    override val parameters: Array<out RabbitRpcParameter>,
+    override val fireAndForget: Boolean = false
 ) : RabbitRpcCallable<Service>

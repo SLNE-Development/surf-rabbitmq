@@ -11,4 +11,7 @@ interface RabbitRpcCallable<Service: Any> {
     val returnType: RabbitRpcType
     val invoker: RabbitRpcInvoker<Service>
     val parameters: Array<out RabbitRpcParameter>
+
+    /** Whether this callable is `@FireAndForget`: no reply is awaited or sent. */
+    val fireAndForget: Boolean
 }

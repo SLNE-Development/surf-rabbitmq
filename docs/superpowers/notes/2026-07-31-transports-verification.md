@@ -52,3 +52,27 @@ a later plan once the platform module wires up `SurfEventBus`.
 retry tiers work the same for RPC and events. Events no longer touch the RabbitMQ retry ladder at
 all (they're Redis pub/sub with no dead-lettering), so the test's premise is gone — deleted rather
 than adapted.
+
+## Plan 3 Task 4: @FireAndForget
+
+Verified for real (Docker reachable): `FireAndForgetValidationTest` (KSP, `kotlin-compile-testing`
+via `dev.zacsweers.kctfork:ksp`) — both cases pass. `FireAndForgetContractTest` — 4/4 passed: the
+caller returns before the handler finishes, an `InstanceTarget` reaches exactly one of three
+instances, an `InstanceTarget` naming no running instance is unroutable, and repeated
+`rpc<T>(InstanceTarget(x))` calls share one cached proxy.
+
+**Deviation:** the client codegen (`RpcClientImplCodegen`) is unchanged — it still generates
+`rpcService.call(RabbitRpcCall(...))` for every method. The plan's wording suggested generating
+`send(...)` for `@FireAndForget` methods directly in the client proxy; instead,
+`RabbitRpcServiceImpl.call()` branches at runtime on `callable.fireAndForget` and calls
+`connection.send(...)` there. The server side needed no new code at all:
+`RabbitListenerHandlerManager.handleRequest`'s existing `replyTo == null` branch — already used by
+the untyped `@RabbitHandler` fire-and-forget path — runs the handler, joins it, and acks without
+ever awaiting `responseDeferred`, exactly the behavior `@FireAndForget` needs. `RabbitTarget`
+replaces `String?` in `RabbitRpcService.createService`/`SurfRabbitApi.rpc()`, with a
+`Caffeine`-backed proxy cache keyed on `(serviceKClass, target)`.
+
+**Note for Plan 3 Task 5:** `RabbitRpcServiceImpl.handleRequest` is itself registered via
+`@RabbitHandler` (`RabbitListenerHandlerManager` calls `registerHandler(api.rpcService, ...)` in
+its `init` block) — the one place the internal RPC dispatch reuses the annotation Task 5 deletes.
+That registration needs a non-reflective replacement once `@RabbitHandler` is gone.
