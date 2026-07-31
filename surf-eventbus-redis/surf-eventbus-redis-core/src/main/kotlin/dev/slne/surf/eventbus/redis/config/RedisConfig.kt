@@ -12,13 +12,6 @@ data class RedisConfig(
     val password: String? = null,
     val clientName: String = "surf-redis-client-${UUID.randomUUID()}",
 ) {
-    fun overwriteFromEnv() = copy(
-        host = RedisEnvironment.host ?: host,
-        port = RedisEnvironment.port ?: port,
-        password = RedisEnvironment.password ?: password,
-        clientName = RedisEnvironment.clientName ?: clientName
-    )
-
     companion object : SpongeYmlConfigClass<RedisConfig>(
         RedisConfig::class.java,
         RedisInstance.instance.dataPath,
@@ -26,4 +19,7 @@ data class RedisConfig(
     )
 }
 
-val redisConfig by lazy { RedisConfig.getConfig().overwriteFromEnv() }
+/** `env > plugin yaml > global yaml > default`, resolved once per process. */
+val redisConfig by lazy {
+    resolveRedisConfig(global = RedisConfig.getConfig(), plugin = null)
+}

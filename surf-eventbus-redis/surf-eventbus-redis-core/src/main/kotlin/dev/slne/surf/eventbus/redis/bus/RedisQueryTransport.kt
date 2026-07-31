@@ -26,13 +26,16 @@ import java.util.concurrent.CopyOnWriteArrayList
 @OptIn(InternalRedisAPI::class)
 class RedisQueryTransport(
     private val redis: RedisApi,
-    private val json: Json
+    private val json: Json,
+    private val ensureConnected: suspend () -> Unit = {}
 ) : QueryTransport {
 
     private val pending = ConcurrentHashMap<String, CompletableDeferred<String>>()
     private val subscriptions = CopyOnWriteArrayList<Pair<RTopicReactive, Int>>()
 
     override suspend fun connect(contracts: Set<String>, instanceId: String, onQuery: suspend (QueryFrame) -> Unit) {
+        ensureConnected()
+
         for (contract in contracts) {
             subscribeQuery(RedisChannels.query(contract), onQuery)
         }
@@ -40,6 +43,8 @@ class RedisQueryTransport(
     }
 
     override suspend fun ask(frame: QueryFrame, timeoutMillis: Long): String? {
+        ensureConnected()
+
         val deferred = CompletableDeferred<String>()
         pending[frame.correlationId] = deferred
 
@@ -56,6 +61,8 @@ class RedisQueryTransport(
     }
 
     override suspend fun answer(frame: QueryFrame, payload: String) {
+        ensureConnected()
+
         val answerFrame = frame.copy(payload = payload)
 
         redis.redissonReactive

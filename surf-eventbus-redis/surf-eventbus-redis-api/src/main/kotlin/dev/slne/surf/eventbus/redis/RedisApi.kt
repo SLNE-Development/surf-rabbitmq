@@ -13,7 +13,6 @@ import dev.slne.surf.eventbus.redis.cache.SimpleSetRedisCache
 import dev.slne.surf.eventbus.redis.codec.RedisCodec
 import dev.slne.surf.eventbus.redis.credentials.RedisCredentialsProvider
 import dev.slne.surf.eventbus.redis.internal.RedissonConfigDetails
-import dev.slne.surf.eventbus.redis.request.*
 import dev.slne.surf.eventbus.redis.sync.SyncStructure
 import dev.slne.surf.eventbus.redis.sync.list.SyncList
 import dev.slne.surf.eventbus.redis.sync.map.SyncMap
@@ -22,6 +21,7 @@ import dev.slne.surf.eventbus.redis.sync.value.SyncValue
 import dev.slne.surf.eventbus.redis.util.Initializable
 import dev.slne.surf.eventbus.redis.util.InternalRedisAPI
 import kotlinx.coroutines.*
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
@@ -32,7 +32,6 @@ import kotlinx.serialization.modules.contextual
 import kotlinx.serialization.modules.overwriteWith
 import kotlinx.serialization.serializer
 import org.intellij.lang.annotations.Language
-import org.jetbrains.annotations.Blocking
 import org.redisson.Redisson
 import org.redisson.api.RScript
 import org.redisson.api.RedissonClient
@@ -334,8 +333,7 @@ class RedisApi private constructor(
      * @throws IllegalArgumentException if the API is not frozen
      * @throws IllegalArgumentException if already connected
      */
-    @Blocking
-    fun connect(): RedisApi = apply {
+    suspend fun connect(): RedisApi = apply {
         require(isFrozen()) { "Redis client must be frozen before connecting" }
         require(!isConnected()) { "Redis client already initialized" }
         require(!disconnected) {
@@ -345,7 +343,7 @@ class RedisApi private constructor(
         log.atInfo()
             .log("Connecting to Redis...")
 
-        redisson = Redisson.create(config)
+        redisson = withContext(Dispatchers.IO) { Redisson.create(config) }
         redissonReactive = redisson.reactive()
 
         try {
@@ -364,7 +362,7 @@ class RedisApi private constructor(
                     log.atSevere()
                         .withCause(throwable)
                         .log("RedisApi.connect() failed because one or more components could not be initialized.")
-                }.block()
+                }.awaitFirstOrNull()
             }
         } catch (failure: Throwable) {
             try {
@@ -372,7 +370,7 @@ class RedisApi private constructor(
             } catch (cleanupFailure: Throwable) {
                 failure.addSuppressed(cleanupFailure)
             } finally {
-                redisson.shutdown()
+                withContext(Dispatchers.IO) { redisson.shutdown() }
                 disconnected = true
             }
             throw failure
@@ -389,19 +387,20 @@ class RedisApi private constructor(
                 )
         }
 
-    @Blocking
-    private fun fetchRedisOs() {
+    private suspend fun fetchRedisOs() {
         @Language("Redis")
         val lua = """
             local info = redis.call('INFO', 'server')
             return string.match(info, 'os:([^\\r\\n]+)')
         """.trimIndent()
 
-        val os = redisson.script.eval<String?>(
-            RScript.Mode.READ_ONLY,
-            lua,
-            RScript.ReturnType.STRING,
-        )
+        val os = withContext(Dispatchers.IO) {
+            redisson.script.eval<String?>(
+                RScript.Mode.READ_ONLY,
+                lua,
+                RScript.ReturnType.STRING,
+            )
+        }
 
         if (os == null || os.contains("Windows")) {
             redisOsType = BaseEventCodec.OSType.WINDOWS
@@ -410,13 +409,8 @@ class RedisApi private constructor(
         }
     }
 
-    /**
-     * Convenience method that calls [freeze] and then [connect].
-     *
-     * This method is blocking.
-     */
-    @Blocking
-    fun freezeAndConnect(): RedisApi = apply {
+    /** Convenience method that calls [freeze] and then [connect]. */
+    suspend fun freezeAndConnect(): RedisApi = apply {
         freeze()
         connect()
     }
@@ -454,14 +448,13 @@ class RedisApi private constructor(
      * - reactive disposables are disposed
      * - Redisson is shut down
      */
-    @Blocking
-    fun disconnect() {
+    suspend fun disconnect() {
         if (!isConnected()) return
 
         try {
             disposeManagedResources()
         } finally {
-            redisson.shutdown()
+            withContext(Dispatchers.IO) { redisson.shutdown() }
             disconnected = true
         }
     }

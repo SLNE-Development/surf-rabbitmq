@@ -25,7 +25,8 @@ import java.util.concurrent.CopyOnWriteArrayList
 @OptIn(InternalRedisAPI::class)
 class RedisEventTransport(
     private val redis: RedisApi,
-    private val json: Json
+    private val json: Json,
+    private val ensureConnected: suspend () -> Unit = {}
 ) : EventTransport {
 
     private val disposables = CopyOnWriteArrayList<Disposable>()
@@ -35,6 +36,8 @@ class RedisEventTransport(
         wildcardPatterns: Set<String>,
         onEvent: suspend (EventEnvelope, ByteArray?) -> Unit
     ) {
+        ensureConnected()
+
         for (topic in exactTopics) {
             subscribeJson(RedisChannels.json(topic), onEvent)
             subscribeBinary(RedisChannels.binary(topic), onEvent)
@@ -47,6 +50,8 @@ class RedisEventTransport(
     }
 
     override suspend fun publish(envelope: EventEnvelope, binaryPayload: ByteArray?) {
+        ensureConnected()
+
         if (binaryPayload == null) {
             redis.redissonReactive
                 .getTopic(RedisChannels.json(envelope.topic), StringCodec.INSTANCE)

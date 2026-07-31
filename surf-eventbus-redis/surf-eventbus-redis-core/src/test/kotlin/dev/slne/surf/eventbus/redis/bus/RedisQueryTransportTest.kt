@@ -23,7 +23,7 @@ import kotlin.time.Duration.Companion.seconds
 @RequiresDocker
 class RedisQueryTransportTest {
 
-    private fun newTransport(): RedisQueryTransport {
+    private suspend fun newTransport(): RedisQueryTransport {
         val uri = RedisURI("redis://${redis.host}:${redis.getMappedPort(6379)}")
         val api = RedisApi.create(uri).freezeAndConnect()
         apis += api
@@ -127,7 +127,7 @@ class RedisQueryTransportTest {
 
         @JvmStatic
         @AfterAll
-        fun stopRedis() {
+        fun stopRedis() = kotlinx.coroutines.runBlocking {
             apis.forEach { runCatching { it.disconnect() } }
             redis.stop()
         }

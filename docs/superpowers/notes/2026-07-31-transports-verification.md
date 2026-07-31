@@ -199,3 +199,47 @@ two providers answering has the first reply win, no answer within the timeout is
 provider at all is `null`, and only the asker receives the reply) and `QueryDispatcherTest`
 (4/4 — answering, abstaining, throwing-is-audited-not-answered, and an unoffered contract is
 ignored).
+
+## Plan 3 Task 8: Redis lifecycle and config layering
+
+`RedisApi.connect()`/`freezeAndConnect()`/`disconnect()` are `suspend` now; the internal blocking
+calls (`Redisson.create()`, the `INFO server` Lua eval, `redisson.shutdown()`) run inside
+`withContext(Dispatchers.IO)`, and the `Mono.block()` in the initializables fan-out became
+`.awaitFirstOrNull()`. `RedisConfig` resolves four layers — `env > plugin yaml > global yaml >
+default` — via a new `resolveRedisConfig(global, plugin, environment)`; unlike RabbitMQ's
+per-field `IntOr.Default` merging, a YAML layer here wins or loses as a whole (`RedisConfig` has
+no per-field "unset" sentinel), with only the environment layer overriding individual fields.
+`overwriteFromEnv()` and the old two-layer `RedisEnvironment` are gone.
+
+**Design decision beyond the plan's literal wording:** `RedisTransportProviderImpl` no longer
+eagerly connects `RedisApi` at construction (`by lazy { RedisApi.create().apply {
+freezeAndConnect() } }` was still blocking-in-a-lazy, which cannot work once `connect()` is
+`suspend`). Both `RedisEventTransport` and `RedisQueryTransport` now take an `ensureConnected:
+suspend () -> Unit` callback (default no-op, so the existing tests constructing them directly
+against an already-connected `RedisApi` are unaffected) and call it at the top of every public
+suspend method; `RedisTransportProviderImpl` supplies a `Mutex`-guarded `ensureConnected()` that
+freezes and connects the shared `RedisApi` exactly once, on whichever transport's first real
+operation reaches it first.
+
+**Deviation:** the plan phrased this as "`SurfEventBusImpl.connect()` hängt den Redis-Client mit
+an... `disconnect()` in umgekehrter Reihenfolge" (`disconnect()` in reverse order) — but
+`RedisTransportLocator` caches the `ServiceLoader`-discovered `RedisTransportProvider` in a
+JVM-wide singleton (`internal object` with a `by lazy` provider), which means every
+`SurfEventBus` built with `.withRedis()` in one process shares the *same* underlying `RedisApi`
+and its one Redis connection. If `SurfEventBusImpl.disconnect()` tore down that shared
+`RedisApi`, the first bus to disconnect would break every other bus still using it — so
+`disconnect()` intentionally only clears this bus's own subscriptions
+(`eventTransport.disconnect()`/`queryTransport.disconnect()`), never the shared connection. Only
+`connect()` needed the fix; there is no symmetric per-bus "disconnect the broker" step, because
+the broker connection isn't owned per-bus.
+
+**Coverage gap, noted rather than closed:** the `ensureConnected()` lazy-connect path in
+`RedisTransportProviderImpl` (the no-arg `.withRedis()` route through the real `ServiceLoader`
+discovery) has no dedicated test — every existing test either uses the explicit
+`.withRedis(event, query)` test-seam with fakes, or constructs `RedisEventTransport`/
+`RedisQueryTransport` directly against an already-`freezeAndConnect()`-ed `RedisApi`. Closing this
+gap needs a `SurfEventBus` built with real `.withRedis()` against a live Redis container, which
+wasn't reached in this stage.
+
+This closes Plan 3 (Task 1 through Task 8) — every task committed, full build green, both ABI
+checks clean.

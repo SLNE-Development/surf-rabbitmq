@@ -56,6 +56,7 @@ dependencies {
     testImplementation(libs.testcontainers.core)
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.coroutines.test)
+    testImplementation("dev.slne.surf.api:surf-api-core:+")
     testRuntimeOnly("dev.slne.surf.api:surf-api-standalone:+")
     testCompileOnly("com.google.auto.service:auto-service-annotations:1.1.1")
     kspTest("dev.slne.surf.api:surf-api-processor:1.0.1")
