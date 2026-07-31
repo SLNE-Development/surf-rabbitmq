@@ -1,21 +1,26 @@
 package dev.slne.surf.eventbus
 
+import dev.slne.surf.api.core.util.requiredService
 import dev.slne.surf.eventbus.transport.EventTransport
 import dev.slne.surf.eventbus.transport.QueryTransport
 
 /**
- * Forward reference to the ServiceLoader-based lookup of the real Redis transports, which
- * surf-eventbus-redis-core provides once it exists.
+ * Finds the Redis transports on the classpath.
  *
- * Until then, `.withRedis()` with no arguments has nothing to find; tests and callers use the
- * explicit `withRedis(event, query)` overload instead.
+ * `withRedis()` on the builder must not reference `surf-eventbus-redis-core` — the bus API sits
+ * below the transports. A `ServiceLoader`-backed lookup (via [requiredService], the same
+ * mechanism `RedisComponentProvider` uses) is the smallest thing that inverts that dependency.
  */
 internal object RedisTransportLocator {
-    fun event(): EventTransport = error(
-        "no EventTransport is registered yet; surf-eventbus-redis-core wires this in a later plan"
-    )
+    private val provider by lazy { requiredService<RedisTransportProvider>() }
 
-    fun query(): QueryTransport = error(
-        "no QueryTransport is registered yet; surf-eventbus-redis-core wires this in a later plan"
-    )
+    fun event(): EventTransport = provider.event()
+
+    fun query(): QueryTransport = provider.query()
+}
+
+/** Implemented once, by `surf-eventbus-redis-core`, and discovered via `@AutoService`. */
+interface RedisTransportProvider {
+    fun event(): EventTransport
+    fun query(): QueryTransport
 }

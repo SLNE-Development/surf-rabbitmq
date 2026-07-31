@@ -10,6 +10,7 @@ plugins {
 dependencies {
     api(projects.surfEventbusRedis.surfEventbusRedisApi)
     api(projects.surfEventbusCommon)
+    api(projects.surfEventbusBus.surfEventbusBusCore)
     api(platform(libs.netty.bom))
 
     // transport classes
@@ -51,6 +52,13 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0")
     testImplementation(libs.lincheck)
     testRuntimeOnly("it.unimi.dsi:fastutil:8.5.18")
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.core)
+    testImplementation(libs.testcontainers.junit)
+    testImplementation(libs.coroutines.test)
+    testRuntimeOnly("dev.slne.surf.api:surf-api-standalone:+")
+    testCompileOnly("com.google.auto.service:auto-service-annotations:1.1.1")
+    kspTest("dev.slne.surf.api:surf-api-processor:1.0.1")
 
     add("jmhImplementation", "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0")
 }
