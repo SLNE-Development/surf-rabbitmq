@@ -43,6 +43,14 @@ subprojects {
 
             val base = "dev.slne.surf.eventbus.libs."
             relocate("com.rabbitmq", base + "com.rabbitmq")
+            relocate("org.redisson", base + "redisson")
+            relocate("com.esotericsoftware", base + "kryo")
+            relocate("io.reactivex", base + "reactivex")
+            relocate("javax.cache", base + "javax.cache")
+            relocate("jodd", base + "jodd")
+            relocate("net.bytebuddy", base + "bytebuddy")
+            relocate("org.objenesis", base + "objenesis")
+            relocate("org.yaml", base + "yaml")
 
             val nettyBase = "dev.slne.surf.eventbus.shaded." // fails to load if contains "lib"
             val mangledPrefix: String = nettyBase

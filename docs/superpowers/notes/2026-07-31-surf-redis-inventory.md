@@ -43,6 +43,14 @@ patch newer than the one it tests against upstream.
 Four call sites in `surf-redis-api/src/main/kotlin/dev/slne/surf/redis/RedisApi.kt`, at lines
 365, 420, 446, 486 (pre-copy line numbers).
 
+## Netty convergence (Task 7)
+
+`surf-eventbus-redis:surf-eventbus-redis-core:dependencies --configuration runtimeClasspath`
+shows every `io.netty:*` line resolving to `4.2.16.Final`; Redisson's own `4.2.15.Final` pin is
+upgraded cleanly with no divergent copy on the classpath. Redisson 4.6.1 therefore now runs
+against a Netty patch release it does not test against upstream — worth remembering if a Netty
+regression only shows up through the Redis transport.
+
 ## Platform modules
 
 `surf-redis-paper` and `surf-redis-velocity` are **not** copied. Their only project-specific
