@@ -63,4 +63,56 @@ class RpcProxyRoundTripTest {
             client.serviceDescriptorOf<EchoRpcService>().defaultService
         )
     }
+
+    @Test
+    fun `one client reaches two different services over one connection`() = runBlocking {
+        val serviceA = RabbitBrokerExtension.uniqueServiceName("a")
+        val serviceB = RabbitBrokerExtension.uniqueServiceName("b")
+
+        val serverA = SurfRabbitApi.builder(serviceA, dataPath).config(testConfig()).build()
+            .also { it.registerService<EchoRpcService>(EchoRpcImpl); it.freezeAndConnect() }
+        val serverB = SurfRabbitApi.builder(serviceB, dataPath).config(testConfig()).build()
+            .also { it.registerService<EchoRpcService>(EchoRpcImpl); it.freezeAndConnect() }
+
+        val client = SurfRabbitApi.builder("caller", dataPath).config(testConfig()).build()
+        client.freezeAndConnect()
+
+        try {
+            val fromA = client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget(serviceA)).echo("a")
+            val fromB = client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget(serviceB)).echo("b")
+
+            assertEquals("echo:a", fromA)
+            assertEquals("echo:b", fromB)
+            // Reaching two services requires only two proxies over one TCP connection.
+        } finally {
+            client.disconnect()
+            serverA.disconnect()
+            serverB.disconnect()
+        }
+    }
+
+    @Test
+    fun `a call to an unknown service fails fast instead of timing out`() = runBlocking {
+        val client = SurfRabbitApi.builder("caller", dataPath).config(testConfig()).build()
+        client.freezeAndConnect()
+
+        try {
+            val start = System.currentTimeMillis()
+
+            val thrown = runCatching {
+                client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget("service-that-does-not-exist"))
+                    .echo("x")
+            }.exceptionOrNull()
+
+            val elapsed = System.currentTimeMillis() - start
+
+            assert(thrown != null) { "an unroutable call must fail" }
+            assert(elapsed < 10_000) {
+                "expected a fast failure via mandatory + return listener, " +
+                        "but it took ${elapsed}ms - it is falling through to the request timeout"
+            }
+        } finally {
+            client.disconnect()
+        }
+    }
 }

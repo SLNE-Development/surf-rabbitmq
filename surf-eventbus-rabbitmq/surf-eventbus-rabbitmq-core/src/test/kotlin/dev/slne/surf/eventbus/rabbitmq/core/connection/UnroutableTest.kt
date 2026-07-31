@@ -7,8 +7,8 @@ import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.common.testing.testConfig
 import dev.slne.surf.eventbus.rabbitmq.common.topology.RabbitTopology
-import dev.slne.surf.eventbus.rabbitmq.core.EchoPacket
-import dev.slne.surf.eventbus.rabbitmq.core.EchoResponse
+import dev.slne.surf.eventbus.rabbitmq.core.rpc.EchoRpcService
+import dev.slne.surf.eventbus.rabbitmq.core.send.WorkService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
@@ -33,11 +33,8 @@ class UnroutableTest {
             val start = System.currentTimeMillis()
 
             assertFailsWith<SurfRabbitServiceUnavailableException> {
-                client.connection.sendRequest(
-                    EchoPacket("x"),
-                    EchoResponse::class.java,
-                    RabbitTarget.ServiceTarget("nonexistent-${System.nanoTime()}")
-                )
+                client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget("nonexistent-${System.nanoTime()}"))
+                    .echo("x")
             }
 
             val elapsed = System.currentTimeMillis() - start
@@ -59,9 +56,7 @@ class UnroutableTest {
 
         try {
             val thrown = assertFailsWith<SurfRabbitServiceUnavailableException> {
-                client.connection.sendRequest(
-                    EchoPacket("x"), EchoResponse::class.java, RabbitTarget.ServiceTarget(target)
-                )
+                client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget(target)).echo("x")
             }
 
             assertTrue(thrown.target == target, "the message must name the target to be useful")
@@ -77,11 +72,8 @@ class UnroutableTest {
 
         try {
             runCatching {
-                client.connection.sendRequest(
-                    EchoPacket("x"),
-                    EchoResponse::class.java,
-                    RabbitTarget.ServiceTarget("nonexistent-${System.nanoTime()}")
-                )
+                client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget("nonexistent-${System.nanoTime()}"))
+                    .echo("x")
             }
 
             delay(1_000)
@@ -103,7 +95,7 @@ class UnroutableTest {
 
     @Test
     fun `a fire-and-forget to an unknown service fails fast too`() = runBlocking {
-        // Fire-and-forget has no reply to wait for, so without this check a send() to a
+        // Fire-and-forget has no reply to wait for, so without this check a call to a
         // misspelled service would report nothing at all - the message would just vanish
         // (with only the audit copy as evidence).
         val client = api("caller")
@@ -112,7 +104,7 @@ class UnroutableTest {
 
         try {
             val thrown = assertFailsWith<SurfRabbitServiceUnavailableException> {
-                client.send(EchoPacket("x"), RabbitTarget.ServiceTarget(target))
+                client.rpc<WorkService>(RabbitTarget.ServiceTarget(target)).doWork("x")
             }
 
             assertTrue(thrown.target == target)

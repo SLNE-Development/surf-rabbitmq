@@ -1,9 +1,8 @@
 package dev.slne.surf.eventbus.rabbitmq.core.failure
 
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.api.handler.RabbitHandler
-import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitRequestPacket
-import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitResponsePacket
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.FireAndForget
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
@@ -13,7 +12,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.Serializable
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicInteger
@@ -21,11 +19,13 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@Serializable
-class SlowPacket(val text: String, val holdMillis: Long) : RabbitRequestPacket<SlowResponse>()
+@RpcService
+interface SlowService {
+    suspend fun slow(text: String, holdMillis: Long): String
 
-@Serializable
-class SlowResponse(val text: String) : RabbitResponsePacket()
+    @FireAndForget
+    suspend fun slowFireAndForget(text: String, holdMillis: Long)
+}
 
 /**
  * What happens when a microservice dies at specific points in the request lifecycle.
@@ -45,15 +45,16 @@ class ConsumerDeathTest {
         .config(testConfig(requestTimeoutSeconds = 30))
         .build()
 
-    // Not private: handler registration goes through the hidden-class invoker, which
-    // rejects inaccessible members.
-    class SlowHandler(val started: AtomicInteger, val completed: AtomicInteger) {
-        @RabbitHandler
-        suspend fun onSlow(packet: SlowPacket) {
+    private class SlowHandler(val started: AtomicInteger, val completed: AtomicInteger) : SlowService {
+        override suspend fun slow(text: String, holdMillis: Long): String {
             started.incrementAndGet()
-            delay(packet.holdMillis)
+            delay(holdMillis)
             completed.incrementAndGet()
-            packet.respond(SlowResponse("done:${packet.text}"))
+            return "done:$text"
+        }
+
+        override suspend fun slowFireAndForget(text: String, holdMillis: Long) {
+            slow(text, holdMillis)
         }
     }
 
@@ -64,21 +65,16 @@ class ConsumerDeathTest {
         val dyingStarted = AtomicInteger()
         val dyingCompleted = AtomicInteger()
         val dying = api(service).also {
-            it.registerRequestHandler(SlowHandler(dyingStarted, dyingCompleted))
+            it.registerService<SlowService>(SlowHandler(dyingStarted, dyingCompleted))
             it.freezeAndConnect()
         }
 
         val client = api("caller").also { it.freezeAndConnect() }
 
         try {
+            val proxy = client.rpc<SlowService>(RabbitTarget.ServiceTarget(service))
             val call = async {
-                runCatching {
-                    client.connection.sendRequest(
-                        SlowPacket("x", holdMillis = 30_000),
-                        SlowResponse::class.java,
-                        RabbitTarget.ServiceTarget(service)
-                    )
-                }
+                runCatching { proxy.slow("x", holdMillis = 30_000) }
             }
 
             // Wait until the handler is genuinely running, then kill the instance mid-flight.
@@ -90,7 +86,7 @@ class ConsumerDeathTest {
             val survivorStarted = AtomicInteger()
             val survivorCompleted = AtomicInteger()
             val survivor = api(service).also {
-                it.registerRequestHandler(SlowHandler(survivorStarted, survivorCompleted))
+                it.registerService<SlowService>(SlowHandler(survivorStarted, survivorCompleted))
                 it.freezeAndConnect()
             }
 
@@ -124,19 +120,20 @@ class ConsumerDeathTest {
         val totalStarts = AtomicInteger()
 
         val first = api(service).also {
-            it.registerRequestHandler(SlowHandler(totalStarts, AtomicInteger()))
+            it.registerService<SlowService>(SlowHandler(totalStarts, AtomicInteger()))
             it.freezeAndConnect()
         }
         val client = api("caller").also { it.freezeAndConnect() }
 
         try {
-            client.send(SlowPacket("x", holdMillis = 20_000), RabbitTarget.ServiceTarget(service))
+            client.rpc<SlowService>(RabbitTarget.ServiceTarget(service))
+                .slowFireAndForget("x", holdMillis = 20_000)
 
             awaitCondition("first attempt starts") { totalStarts.get() == 1 }
             first.disconnect()
 
             val second = api(service).also {
-                it.registerRequestHandler(SlowHandler(totalStarts, AtomicInteger()))
+                it.registerService<SlowService>(SlowHandler(totalStarts, AtomicInteger()))
                 it.freezeAndConnect()
             }
 
@@ -147,8 +144,8 @@ class ConsumerDeathTest {
 
                 assertTrue(
                     totalStarts.get() >= 2,
-                    "delivery is at-least-once: a handler that is not idempotent must use " +
-                            "@RabbitHandler(retry = false) and accept the message being dropped"
+                    "delivery is at-least-once: a handler that is not idempotent must accept " +
+                            "the message being redelivered"
                 )
             } finally {
                 second.disconnect()
@@ -165,32 +162,30 @@ class ConsumerDeathTest {
 
         // Replies, then stalls before acking, so the message is redelivered while the
         // answer is already on its way to the client.
-        class ReplyThenStall {
-            @RabbitHandler
-            suspend fun onSlow(packet: SlowPacket) {
+        class ReplyThenStall : SlowService {
+            override suspend fun slow(text: String, holdMillis: Long): String {
                 replies.incrementAndGet()
-                packet.respond(SlowResponse("done:${packet.text}"))
-                delay(packet.holdMillis)
+                delay(holdMillis)
+                return "done:$text"
+            }
+
+            override suspend fun slowFireAndForget(text: String, holdMillis: Long) {
+                slow(text, holdMillis)
             }
         }
 
         val server = api(service).also {
-            it.registerRequestHandler(ReplyThenStall())
+            it.registerService<SlowService>(ReplyThenStall())
             it.freezeAndConnect()
         }
         val client = api("caller").also { it.freezeAndConnect() }
 
         try {
             val received = AtomicReference<String?>(null)
+            val proxy = client.rpc<SlowService>(RabbitTarget.ServiceTarget(service))
 
             val call = async {
-                runCatching {
-                    client.connection.sendRequest(
-                        SlowPacket("x", holdMillis = 5_000),
-                        SlowResponse::class.java,
-                        RabbitTarget.ServiceTarget(service)
-                    ).text
-                }.getOrNull()
+                runCatching { proxy.slow("x", holdMillis = 5_000) }.getOrNull()
             }
 
             awaitCondition("the client receives an answer", timeoutMillis = 20_000) {
@@ -218,18 +213,16 @@ class ConsumerDeathTest {
 
         // Create the durable queue, then take the service away entirely.
         api(service).also {
-            it.registerRequestHandler(SlowHandler(AtomicInteger(), AtomicInteger()))
+            it.registerService<SlowService>(SlowHandler(AtomicInteger(), AtomicInteger()))
             it.freezeAndConnect()
         }.disconnect()
 
         val client = api("caller").also { it.freezeAndConnect() }
 
         try {
+            val proxy = client.rpc<SlowService>(RabbitTarget.ServiceTarget(service))
             repeat(5) {
-                client.send(
-                    SlowPacket("queued-$it", holdMillis = 0),
-                    RabbitTarget.ServiceTarget(service)
-                )
+                proxy.slowFireAndForget("queued-$it", holdMillis = 0)
             }
 
             delay(2_000)
@@ -249,7 +242,7 @@ class ConsumerDeathTest {
             // Bringing the service back must drain them.
             val started = AtomicInteger()
             val restarted = api(service).also {
-                it.registerRequestHandler(SlowHandler(started, AtomicInteger()))
+                it.registerService<SlowService>(SlowHandler(started, AtomicInteger()))
                 it.freezeAndConnect()
             }
 
@@ -272,29 +265,29 @@ class ConsumerDeathTest {
 
         // First attempt dies after the handler responds but before all chunks are flushed;
         // the second answers completely. Distinct filler bytes make a mixture detectable.
-        class ChunkedHandler {
-            @RabbitHandler
-            suspend fun onSlow(packet: SlowPacket) {
+        class ChunkedHandler : SlowService {
+            override suspend fun slow(text: String, holdMillis: Long): String {
                 val n = attempt.incrementAndGet()
                 val filler = if (n == 1) 'a' else 'b'
-                packet.respond(SlowResponse(filler.toString().repeat(1_500_000)))
+                return filler.toString().repeat(1_500_000)
+            }
+
+            override suspend fun slowFireAndForget(text: String, holdMillis: Long) {
+                slow(text, holdMillis)
             }
         }
 
         val server = api(service).also {
-            it.registerRequestHandler(ChunkedHandler())
+            it.registerService<SlowService>(ChunkedHandler())
             it.freezeAndConnect()
         }
         val client = api("caller").also { it.freezeAndConnect() }
 
         try {
-            val response = client.connection.sendRequest(
-                SlowPacket("x", holdMillis = 0),
-                SlowResponse::class.java,
-                RabbitTarget.ServiceTarget(service)
-            )
+            val response = client.rpc<SlowService>(RabbitTarget.ServiceTarget(service))
+                .slow("x", holdMillis = 0)
 
-            val distinct = response.text.toCharArray().distinct()
+            val distinct = response.toCharArray().distinct()
             assertEquals(
                 1, distinct.size,
                 "the reply must come from a single attempt. Two distinct filler characters " +

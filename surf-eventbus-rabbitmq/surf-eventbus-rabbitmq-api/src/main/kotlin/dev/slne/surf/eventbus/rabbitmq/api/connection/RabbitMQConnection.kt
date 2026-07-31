@@ -11,8 +11,6 @@ interface RabbitMQConnection {
     suspend fun connect()
     suspend fun disconnect()
 
-    fun registerRequestHandler(instance: Any)
-
     suspend fun <R : RabbitResponsePacket> sendRequest(
         request: RabbitRequestPacket<R>,
         responseClass: Class<R>,

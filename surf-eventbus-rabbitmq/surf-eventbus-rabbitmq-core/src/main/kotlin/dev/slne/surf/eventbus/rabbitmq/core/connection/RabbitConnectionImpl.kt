@@ -226,10 +226,6 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
         client.close()
     }
 
-    override fun registerRequestHandler(instance: Any) {
-        listenerHandler.registerRequestHandler(instance)
-    }
-
     override suspend fun send(packet: RabbitRequestPacket<*>, target: RabbitTarget) {
         val serializer = requestSerializerCache.get(packet.javaClass)
             ?: throw SurfRabbitSerializerNotFoundException(packet.javaClass.name)

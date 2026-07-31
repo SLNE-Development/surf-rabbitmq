@@ -1,9 +1,8 @@
 package dev.slne.surf.eventbus.rabbitmq.core.send
 
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.api.handler.RabbitHandler
-import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitRequestPacket
-import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitResponsePacket
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.FireAndForget
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
@@ -12,18 +11,17 @@ import dev.slne.surf.eventbus.rabbitmq.common.topology.RabbitTopology
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.Serializable
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@Serializable
-class WorkPacket(val text: String) : RabbitRequestPacket<WorkResponse>()
-
-@Serializable
-class WorkResponse : RabbitResponsePacket()
+@RpcService
+interface WorkService {
+    @FireAndForget
+    suspend fun doWork(text: String)
+}
 
 @RequiresDocker
 class FireAndForgetTest {
@@ -34,26 +32,22 @@ class FireAndForgetTest {
         SurfRabbitApi.builder(service, dataPath).config(testConfig(requestTimeoutSeconds = 3)).build()
 
     @Test
-    fun `a handler that never responds is acked, not timed out`() = runBlocking {
+    fun `a handler that never returns a value is acked, not timed out`() = runBlocking {
         val service = RabbitBrokerExtension.uniqueServiceName("fnf")
         val handled = AtomicInteger()
 
-        // The natural F&F handler shape: process the message, respond to nobody.
-        class SilentHandler {
-            @RabbitHandler
-            suspend fun onWork(packet: WorkPacket) {
-                handled.incrementAndGet()
-            }
-        }
-
         val server = api(service).also {
-            it.registerRequestHandler(SilentHandler())
+            it.registerService<WorkService>(object : WorkService {
+                override suspend fun doWork(text: String) {
+                    handled.incrementAndGet()
+                }
+            })
             it.freezeAndConnect()
         }
         val client = api("caller").also { it.freezeAndConnect() }
 
         try {
-            client.send(WorkPacket("x"), RabbitTarget.ServiceTarget(service))
+            client.rpc<WorkService>(RabbitTarget.ServiceTarget(service)).doWork("x")
 
             awaitCondition("the handler runs") { handled.get() == 1 }
 
@@ -77,31 +71,32 @@ class FireAndForgetTest {
     }
 
     @Test
-    fun `a respond() from a fire-and-forget handler is discarded without error`() = runBlocking {
-        val service = RabbitBrokerExtension.uniqueServiceName("fnf-respond")
+    fun `the caller never waits, even when the handler is slow`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("fnf-slow")
         val handled = AtomicInteger()
 
-        class RespondingHandler {
-            @RabbitHandler
-            suspend fun onWork(packet: WorkPacket) {
-                handled.incrementAndGet()
-                packet.respond(WorkResponse())
-            }
-        }
-
         val server = api(service).also {
-            it.registerRequestHandler(RespondingHandler())
+            it.registerService<WorkService>(object : WorkService {
+                override suspend fun doWork(text: String) {
+                    delay(2_000)
+                    handled.incrementAndGet()
+                }
+            })
             it.freezeAndConnect()
         }
-        val client = api("caller").also { it.freezeAndConnect() }
+        val client = api("caller-slow").also { it.freezeAndConnect() }
 
         try {
-            client.send(WorkPacket("x"), RabbitTarget.ServiceTarget(service))
+            val elapsedMillis = System.currentTimeMillis()
+            client.rpc<WorkService>(RabbitTarget.ServiceTarget(service)).doWork("x")
+            val callDurationMillis = System.currentTimeMillis() - elapsedMillis
 
-            awaitCondition("the handler runs") { handled.get() == 1 }
-            delay(1_000)
+            assertTrue(
+                callDurationMillis < 1_000,
+                "doWork() must return long before the handler's 2s delay finishes"
+            )
 
-            assertEquals(1, handled.get(), "respond() on F&F must be a no-op, not a failure")
+            awaitCondition("the handler eventually runs") { handled.get() == 1 }
         } finally {
             client.disconnect()
             server.disconnect()

@@ -1,9 +1,8 @@
 package dev.slne.surf.eventbus.rabbitmq.core.retry
 
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.api.handler.RabbitHandler
-import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitRequestPacket
-import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitResponsePacket
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.FireAndForget
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
@@ -12,26 +11,16 @@ import dev.slne.surf.eventbus.rabbitmq.common.topology.RabbitTopology
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.Serializable
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@Serializable
-class FailingPacket(val text: String) : RabbitRequestPacket<FailingResponse>()
-
-@Serializable
-class FailingResponse : RabbitResponsePacket()
-
-@Serializable
-class OtherPacket(val text: String) : RabbitRequestPacket<FailingResponse>()
-
-/** Handles only [OtherPacket], so a [FailingPacket] delivery finds no handler. */
-class OtherHandler {
-    @RabbitHandler
-    suspend fun onOther(packet: OtherPacket) = Unit
+@RpcService
+interface FailingService {
+    @FireAndForget
+    suspend fun doWork(text: String)
 }
 
 @RequiresDocker
@@ -39,59 +28,12 @@ class RetryIntegrationTest {
 
     private val dataPath = Files.createTempDirectory("retry-integration")
 
-    // Not private: handler registration goes through the hidden-class invoker, which
-    // rejects inaccessible members.
-    class AlwaysFailing {
+    private class AlwaysFailing : FailingService {
         val attempts = AtomicInteger()
 
-        @RabbitHandler
-        suspend fun onPacket(packet: FailingPacket) {
+        override suspend fun doWork(text: String) {
             attempts.incrementAndGet()
             throw IllegalStateException("handler always fails")
-        }
-    }
-
-    class NeverRetried {
-        val attempts = AtomicInteger()
-
-        @RabbitHandler(retry = false)
-        suspend fun onPacket(packet: FailingPacket) {
-            attempts.incrementAndGet()
-            throw IllegalStateException("handler always fails")
-        }
-    }
-
-    @Test
-    fun `a handler marked retry=false is attempted once and dead-lettered`() = runBlocking {
-        val service = RabbitBrokerExtension.uniqueServiceName("no-retry")
-        val handler = NeverRetried()
-
-        val server = SurfRabbitApi.builder(service, dataPath).config(testConfig()).build()
-        server.registerRequestHandler(handler)
-        server.freezeAndConnect()
-
-        val client = SurfRabbitApi.builder("caller", dataPath).config(testConfig()).build()
-        client.freezeAndConnect()
-
-        try {
-            client.send(FailingPacket("x"), RabbitTarget.ServiceTarget(service))
-
-            awaitCondition("the handler runs once") { handler.attempts.get() >= 1 }
-            delay(3_000)
-
-            assertEquals(
-                1, handler.attempts.get(),
-                "retry=false must not retry - more than one attempt means the flag is ignored"
-            )
-
-            val dlqDepth = messageCount(RabbitTopology.deadLetterQueue(service))
-            assertEquals(
-                1, dlqDepth,
-                "the failed message must be preserved in the dead-letter queue, not dropped"
-            )
-        } finally {
-            client.disconnect()
-            server.disconnect()
         }
     }
 
@@ -101,14 +43,14 @@ class RetryIntegrationTest {
         val handler = AlwaysFailing()
 
         val server = SurfRabbitApi.builder(service, dataPath).config(testConfig()).build()
-        server.registerRequestHandler(handler)
+        server.registerService<FailingService>(handler)
         server.freezeAndConnect()
 
         val client = SurfRabbitApi.builder("caller", dataPath).config(testConfig()).build()
         client.freezeAndConnect()
 
         try {
-            client.send(FailingPacket("x"), RabbitTarget.ServiceTarget(service))
+            client.rpc<FailingService>(RabbitTarget.ServiceTarget(service)).doWork("x")
 
             awaitCondition("first attempt") { handler.attempts.get() >= 1 }
 
@@ -137,14 +79,14 @@ class RetryIntegrationTest {
         val handler = AlwaysFailing()
 
         val server = SurfRabbitApi.builder(service, dataPath).config(testConfig()).build()
-        server.registerRequestHandler(handler)
+        server.registerService<FailingService>(handler)
         server.freezeAndConnect()
 
         val client = SurfRabbitApi.builder("caller", dataPath).config(testConfig()).build()
         client.freezeAndConnect()
 
         try {
-            client.send(FailingPacket("doomed"), RabbitTarget.ServiceTarget(service))
+            client.rpc<FailingService>(RabbitTarget.ServiceTarget(service)).doWork("doomed")
 
             awaitCondition("four deliveries in total", timeoutMillis = 20_000) {
                 handler.attempts.get() == 4
@@ -161,37 +103,6 @@ class RetryIntegrationTest {
                 4, handler.attempts.get(),
                 "exactly four deliveries: the first plus three retries - more means the " +
                         "attempt counting from x-death is broken"
-            )
-        } finally {
-            client.disconnect()
-            server.disconnect()
-        }
-    }
-
-    @Test
-    fun `a message with no registered handler is dead-lettered, not lost`() = runBlocking {
-        val service = RabbitBrokerExtension.uniqueServiceName("no-handler")
-
-        // The server stays CONNECTED but only handles a different packet type, so the
-        // delivery reaches the no-handler branch, which nacks. The service queue's DLX
-        // must then preserve the message in the DLQ.
-        val server = SurfRabbitApi.builder(service, dataPath).config(testConfig()).build()
-        server.registerRequestHandler(OtherHandler())
-        server.freezeAndConnect()
-
-        val client = SurfRabbitApi.builder("caller", dataPath).config(testConfig()).build()
-        client.freezeAndConnect()
-
-        try {
-            client.send(FailingPacket("orphan"), RabbitTarget.ServiceTarget(service))
-
-            awaitCondition("the message lands in the DLQ") {
-                messageCount(RabbitTopology.deadLetterQueue(service)) == 1
-            }
-
-            assertEquals(
-                0, messageCount(RabbitTopology.serviceQueue(service)),
-                "the message must leave the service queue via nack, not linger unacked"
             )
         } finally {
             client.disconnect()

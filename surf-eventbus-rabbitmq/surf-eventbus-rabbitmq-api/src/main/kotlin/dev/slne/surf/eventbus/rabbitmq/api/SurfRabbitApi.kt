@@ -8,21 +8,13 @@ import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitApiNotFrozenExcep
 import dev.slne.surf.eventbus.rabbitmq.api.identity.RabbitIdentity
 import dev.slne.surf.eventbus.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.eventbus.rabbitmq.api.internal.StandaloneLifecycleHook
-import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
-import dev.slne.surf.eventbus.rabbitmq.api.packet.standard.response.StringResponsePacket
-import dev.slne.surf.eventbus.rabbitmq.api.packet.standard.response.optional.OptionalStringResponsePacket
-import dev.slne.surf.eventbus.rabbitmq.api.packet.standard.response.primitive.OptionalPrimitiveResponse
-import dev.slne.surf.eventbus.rabbitmq.api.packet.standard.response.primitive.PrimitiveResponse
-import dev.slne.surf.eventbus.rabbitmq.api.packet.standard.response.primitive.array.ArrayResponse
-import dev.slne.surf.eventbus.rabbitmq.api.packet.standard.response.primitive.array.OptionalArrayResponse
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.RabbitRpcServiceFactory
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.modules.SerializersModule
-import kotlinx.serialization.modules.contextual
 import kotlinx.serialization.modules.overwriteWith
 import java.nio.file.Path
 import kotlin.reflect.KClass
@@ -31,8 +23,8 @@ import kotlin.reflect.KClass
  * The entry point to RabbitMQ messaging.
  *
  * Replaces the former `ClientRabbitMQApi` / `ServerRabbitMQApi` split. There is no client or
- * server role: a process that calls [registerService] or [registerRequestHandler] hosts a
- * service queue, and one that does not simply has none. Both can call [rpc].
+ * server role: a process that calls [registerService] hosts a service queue, and one that does
+ * not simply has none. Both can call [rpc].
  *
  * A single instance addresses any number of services over one TCP connection, one publisher
  * pool and one reply queue.
@@ -112,17 +104,6 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
         if (standalone) StandaloneLifecycleHook.afterDisconnect()
     }
 
-    /**
-     * Registers `@RabbitHandler` methods on [instance].
-     *
-     * Hosting a handler makes this process consume the service queue of
-     * [RabbitIdentity.serviceName].
-     */
-    fun registerRequestHandler(instance: Any) {
-        if (frozen) throw SurfRabbitApiAlreadyFrozenException()
-        connection.registerRequestHandler(instance)
-    }
-
     /** Registers the server-side implementation of an `@RpcService` interface. */
     fun <Service : Any> registerService(serviceKClass: KClass<Service>, serviceInstance: Service) {
         if (frozen) throw SurfRabbitApiAlreadyFrozenException()
@@ -154,18 +135,6 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
     inline fun <reified Service : Any> serviceDescriptorOf(): RabbitRpcServiceDescriptor<Service> =
         rpcService.serviceDescriptorOf(Service::class)
 
-    /**
-     * Sends [packet] to one instance of [target] without waiting for a reply.
-     *
-     * Unlike an event, this is delivered to exactly one instance and waits in a durable queue
-     * if none is running, so the work is done once the service returns.
-     *
-     * Defaults to this process's own service when [target] is omitted.
-     */
-    suspend fun send(packet: RabbitRequestPacket<*>, target: RabbitTarget? = null) {
-        connection.send(packet, target ?: RabbitTarget.ServiceTarget(identity.serviceName))
-    }
-
     companion object {
         private val log = logger()
 
@@ -175,20 +144,7 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
         @InternalRabbitMQ
         fun createCbor(additionalSerializerModule: SerializersModule): Cbor = Cbor {
             ignoreUnknownKeys = true
-            serializersModule = SerializersModule {
-                include(SurfSerializerModule.all.overwriteWith(additionalSerializerModule))
-                include(defaultSerializersModule)
-            }
-        }
-
-        private val defaultSerializersModule = SerializersModule {
-            include(PrimitiveResponse.SERIALIZER_MODULE)
-            include(OptionalPrimitiveResponse.SERIALIZER_MODULE)
-            include(ArrayResponse.SERIALIZER_MODULE)
-            include(OptionalArrayResponse.SERIALIZER_MODULE)
-
-            contextual(StringResponsePacket.serializer())
-            contextual(OptionalStringResponsePacket.serializer())
+            serializersModule = SurfSerializerModule.all.overwriteWith(additionalSerializerModule)
         }
     }
 }

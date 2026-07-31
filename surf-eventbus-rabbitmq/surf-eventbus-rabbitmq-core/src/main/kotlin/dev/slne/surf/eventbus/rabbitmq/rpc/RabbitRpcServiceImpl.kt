@@ -2,7 +2,6 @@ package dev.slne.surf.eventbus.rabbitmq.rpc
 
 import com.github.benmanes.caffeine.cache.Caffeine
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.api.handler.RabbitHandler
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.RabbitRpcCall
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.RabbitRpcService
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.callable.RabbitRpcCallable
@@ -171,7 +170,7 @@ class RabbitRpcServiceImpl(private val api: SurfRabbitApi) : RabbitRpcService {
         return serialFormat.decodeFromByteArray(dataSerializer, response.data)
     }
 
-    @RabbitHandler
+    /** Dispatches an incoming [RpcCallRequestPacket] to its registered service, if any. */
     suspend fun handleRequest(request: RpcCallRequestPacket) {
         val service = rpcServices.getIfPresent(request.rpcServiceFqName)
         if (service != null) {

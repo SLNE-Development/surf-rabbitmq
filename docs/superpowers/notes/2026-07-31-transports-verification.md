@@ -76,3 +76,44 @@ replaces `String?` in `RabbitRpcService.createService`/`SurfRabbitApi.rpc()`, wi
 `@RabbitHandler` (`RabbitListenerHandlerManager` calls `registerHandler(api.rpcService, ...)` in
 its `init` block) — the one place the internal RPC dispatch reuses the annotation Task 5 deletes.
 That registration needs a non-reflective replacement once `@RabbitHandler` is gone.
+
+## Plan 3 Task 5: untyped packet API removed
+
+`RabbitPacket`, `RabbitRequestPacket`, `RabbitResponsePacket` (the internal envelope base
+classes `RpcCallRequestPacket`/`RpcCallResponsePacket` extend) stay, contrary to the task's file
+list, which named them for deletion — deleting them would have taken `RpcCallRequestPacket` down
+with them. Deleted instead: the six standard response packet types (`packet/standard/**`),
+`@RabbitHandler`, `SurfRabbitApi.send()`/`registerRequestHandler()`/`defaultSerializersModule`,
+and the reflection-based multi-handler machinery in `RabbitListenerHandlerManager`
+(`HandlerTemplate.java`, `HandlerMethodHandleProvider.java`, the four
+`SurfRabbitInvalidHandler*`/`SurfRabbitDuplicateHandler*`/`SurfRabbitHandlerNotAccessible*`
+exceptions) — with `@RabbitHandler` gone, `RpcCallRequestPacket` is the only request type that
+will ever exist, so the manager now wires it directly instead of scanning for annotated methods.
+
+**Bug found and fixed while rewriting the retry tests to typed contracts:** a `@FireAndForget`
+handler that throws was being silently swallowed. `RpcServiceExecutor.accept()`/`processMessage()`
+always caught handler exceptions and encoded them into an `RpcCallResponsePacket` error response —
+correct for a two-way call, but for fire-and-forget nobody reads that response, so the failure
+never reached `RabbitListenerHandlerManager`'s retry/dead-letter path; the message was acked as if
+it had succeeded. Fixed by having `processMessage` skip the respond-with-error path entirely for a
+fire-and-forget callable and let the exception propagate; `accept()` rethrows it (rather than
+responding) when the callable is fire-and-forget, which is what the fire-and-forget branch in
+`RabbitListenerHandlerManager.handleRequest` was already built to catch. Caught by
+`RetryIntegrationTest`'s two retry-ladder cases, which failed until this fix — `FireAndForgetTest`
+(Task 4) never exercised a throwing handler.
+
+**Deviation:** `@RabbitHandler(retry: Boolean)` gave each untyped handler its own retry opt-out;
+`@RpcService`/`@FireAndForget` have no equivalent per-callable annotation, so
+`RabbitListenerHandlerManager.retryEnabledFor()` is now hardcoded `true` for the sole remaining
+request type. `RetryIntegrationTest`'s `` `a handler marked retry=false is attempted once and
+dead-lettered` `` case is dropped — nothing in the typed API can express it. Also dropped:
+`` `a message with no registered handler is dead-lettered, not lost` `` — an unregistered
+`@RpcService` on a two-way call now gets a structured `NoSuchMethodError` response instead of a
+silent nack-to-DLQ (a strictly more informative outcome), and on a fire-and-forget call it acks
+quietly rather than dead-lettering, since `RabbitRpcServiceImpl.handleRequest` responds rather
+than throwing when the service fqName is unknown. Both are behavior changes inherent in
+collapsing the untyped API into RPC, not something Task 5 flagged explicitly.
+
+Verified for real (Docker reachable): every rewritten test passed against a live broker,
+including the retry-ladder, competing-consumers, broker-restart, broker-loss, consumer-death, and
+chunking suites.

@@ -73,12 +73,12 @@ class SurfRabbitApiBuilderTest {
     }
 
     @Test
-    fun `handlers cannot be registered after freezing`() {
+    fun `a service cannot be registered after freezing`() {
         val api = builder("svc").build()
         api.freeze()
 
         assertFailsWith<IllegalStateException> {
-            api.registerRequestHandler(Any())
+            api.registerService(Any::class, Any())
         }
     }
 

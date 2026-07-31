@@ -1,36 +1,29 @@
 package dev.slne.surf.eventbus.rabbitmq.core.packet
 
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.api.handler.RabbitHandler
-import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitRequestPacket
-import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitResponsePacket
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.common.testing.testConfig
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.Serializable
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import kotlin.test.assertEquals
 
-@Serializable
-class LargePacket(val payload: String) : RabbitRequestPacket<LargeResponse>()
-
-@Serializable
-class LargeResponse(val payload: String) : RabbitResponsePacket()
+@RpcService
+interface EchoLargeService {
+    suspend fun echo(payload: String): String
+}
 
 @RequiresDocker
 class ChunkingTest {
 
     private val dataPath = Files.createTempDirectory("chunking-test")
 
-    private object EchoLarge {
-        @RabbitHandler
-        suspend fun onLarge(packet: LargePacket) {
-            packet.respond(LargeResponse(packet.payload))
-        }
+    private object EchoLargeImpl : EchoLargeService {
+        override suspend fun echo(payload: String): String = payload
     }
 
     @Test
@@ -38,7 +31,7 @@ class ChunkingTest {
         val service = RabbitBrokerExtension.uniqueServiceName("chunk")
 
         val server = SurfRabbitApi.builder(service, dataPath).config(testConfig()).build()
-        server.registerRequestHandler(EchoLarge)
+        server.registerService<EchoLargeService>(EchoLargeImpl)
         server.freezeAndConnect()
 
         val client = SurfRabbitApi.builder("caller", dataPath).config(testConfig()).build()
@@ -48,15 +41,14 @@ class ChunkingTest {
             // Comfortably beyond the chunk threshold so splitting is exercised.
             val payload = buildString { repeat(2_000_000) { append('x') } }
 
-            val response = client.connection.sendRequest(
-                LargePacket(payload), LargeResponse::class.java, RabbitTarget.ServiceTarget(service)
-            )
+            val response = client.rpc<EchoLargeService>(RabbitTarget.ServiceTarget(service))
+                .echo(payload)
 
             assertEquals(
-                payload.length, response.payload.length,
+                payload.length, response.length,
                 "a truncated payload means chunks were dropped or reassembled out of order"
             )
-            assertEquals(payload, response.payload)
+            assertEquals(payload, response)
         } finally {
             client.disconnect()
             server.disconnect()
@@ -72,7 +64,7 @@ class ChunkingTest {
         val server = SurfRabbitApi.builder(service, dataPath)
             .config(testConfig(requestChunking = true))
             .build()
-        server.registerRequestHandler(EchoLarge)
+        server.registerService<EchoLargeService>(EchoLargeImpl)
         server.freezeAndConnect()
 
         val client = SurfRabbitApi.builder("caller", dataPath)
@@ -83,11 +75,10 @@ class ChunkingTest {
         try {
             val payload = buildString { repeat(2_000_000) { append('y') } }
 
-            val response = client.connection.sendRequest(
-                LargePacket(payload), LargeResponse::class.java, RabbitTarget.ServiceTarget(service)
-            )
+            val response = client.rpc<EchoLargeService>(RabbitTarget.ServiceTarget(service))
+                .echo(payload)
 
-            assertEquals(payload, response.payload)
+            assertEquals(payload, response)
         } finally {
             client.disconnect()
             server.disconnect()
@@ -99,22 +90,19 @@ class ChunkingTest {
         val service = RabbitBrokerExtension.uniqueServiceName("chunk-concurrent")
 
         val server = SurfRabbitApi.builder(service, dataPath).config(testConfig()).build()
-        server.registerRequestHandler(EchoLarge)
+        server.registerService<EchoLargeService>(EchoLargeImpl)
         server.freezeAndConnect()
 
         val client = SurfRabbitApi.builder("caller", dataPath).config(testConfig()).build()
         client.freezeAndConnect()
 
         try {
+            val proxy = client.rpc<EchoLargeService>(RabbitTarget.ServiceTarget(service))
             val responses = (1..5).map { n ->
                 async {
                     val payload = n.toString().repeat(500_000)
-                    val response = client.connection.sendRequest(
-                        LargePacket(payload),
-                        LargeResponse::class.java,
-                        RabbitTarget.ServiceTarget(service)
-                    )
-                    payload to response.payload
+                    val response = proxy.echo(payload)
+                    payload to response
                 }
             }.map { it.await() }
 

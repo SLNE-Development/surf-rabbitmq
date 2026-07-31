@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.rabbitmq.core
 
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.api.handler.RabbitHandler
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
@@ -16,20 +16,23 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+@RpcService
+interface CompetingEchoService {
+    suspend fun echo(text: String): String
+}
+
 @RequiresDocker
 class CompetingConsumersTest {
 
     private val dataPath = Files.createTempDirectory("competing-test")
 
-    // Not private: registration rejects members the hidden-class invoker cannot access.
-    class CountingHandler(val id: Int, val seen: MutableMap<String, Int>) {
+    private class CountingEcho(val id: Int, val seen: MutableMap<String, Int>) : CompetingEchoService {
         val handled = AtomicInteger()
 
-        @RabbitHandler
-        suspend fun onEcho(packet: EchoPacket) {
+        override suspend fun echo(text: String): String {
             handled.incrementAndGet()
-            seen[packet.text] = id
-            packet.respond(EchoResponse("echo:${packet.text}"))
+            seen[text] = id
+            return "echo:$text"
         }
     }
 
@@ -38,10 +41,10 @@ class CompetingConsumersTest {
         val service = RabbitBrokerExtension.uniqueServiceName("competing")
         val seen = ConcurrentHashMap<String, Int>()
 
-        val handlers = (1..3).map { CountingHandler(it, seen) }
+        val handlers = (1..3).map { CountingEcho(it, seen) }
         val servers = handlers.map { handler ->
             SurfRabbitApi.builder(service, dataPath).config(testConfig()).build().also {
-                it.registerRequestHandler(handler)
+                it.registerService<CompetingEchoService>(handler)
                 it.freezeAndConnect()
             }
         }
@@ -50,14 +53,9 @@ class CompetingConsumersTest {
         client.freezeAndConnect()
 
         try {
+            val proxy = client.rpc<CompetingEchoService>(RabbitTarget.ServiceTarget(service))
             val responses = (1..100).map { n ->
-                async {
-                    client.connection.sendRequest(
-                        EchoPacket("msg-$n"),
-                        EchoResponse::class.java,
-                        RabbitTarget.ServiceTarget(service)
-                    )
-                }
+                async { proxy.echo("msg-$n") }
             }.awaitAll()
 
             assertEquals(100, responses.size)

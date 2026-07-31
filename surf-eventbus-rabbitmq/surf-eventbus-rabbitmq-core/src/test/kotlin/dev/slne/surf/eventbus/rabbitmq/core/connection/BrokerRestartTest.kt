@@ -1,13 +1,12 @@
 package dev.slne.surf.eventbus.rabbitmq.core.connection
 
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.api.handler.RabbitHandler
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.common.testing.testConfig
-import dev.slne.surf.eventbus.rabbitmq.core.EchoPacket
-import dev.slne.surf.eventbus.rabbitmq.core.EchoResponse
+import dev.slne.surf.eventbus.rabbitmq.core.rpc.EchoRpcImpl
+import dev.slne.surf.eventbus.rabbitmq.core.rpc.EchoRpcService
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -31,13 +30,6 @@ class BrokerRestartTest {
 
     private val dataPath = Files.createTempDirectory("restart-test")
 
-    private object EchoHandler {
-        @RabbitHandler
-        suspend fun onEcho(packet: EchoPacket) {
-            packet.respond(EchoResponse("echo:${packet.text}"))
-        }
-    }
-
     private fun api(service: String) =
         SurfRabbitApi.builder(service, dataPath).config(testConfig(requestTimeoutSeconds = 20)).build()
 
@@ -46,18 +38,14 @@ class BrokerRestartTest {
         val service = RabbitBrokerExtension.uniqueServiceName("restart")
 
         val server = api(service).also {
-            it.registerRequestHandler(EchoHandler)
+            it.registerService<EchoRpcService>(EchoRpcImpl)
             it.freezeAndConnect()
         }
         val client = api("caller").also { it.freezeAndConnect() }
 
         try {
-            assertEquals(
-                "echo:before",
-                client.connection.sendRequest(
-                    EchoPacket("before"), EchoResponse::class.java, RabbitTarget.ServiceTarget(service)
-                ).text
-            )
+            val proxy = client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget(service))
+            assertEquals("echo:before", proxy.echo("before"))
 
             // Kill the underlying connections and let automatic recovery rebuild them.
             RabbitBrokerExtension.closeAllConnections()
@@ -65,11 +53,7 @@ class BrokerRestartTest {
             val recovered = withTimeoutOrNull(60_000) {
                 while (true) {
                     val result = runCatching {
-                        client.connection.sendRequest(
-                            EchoPacket("after"),
-                            EchoResponse::class.java,
-                            RabbitTarget.ServiceTarget(service)
-                        ).text
+                        proxy.echo("after")
                     }.getOrNull()
 
                     if (result != null) return@withTimeoutOrNull result
@@ -94,22 +78,17 @@ class BrokerRestartTest {
         val service = RabbitBrokerExtension.uniqueServiceName("inflight")
 
         val server = api(service).also {
-            it.registerRequestHandler(EchoHandler)
+            it.registerService<EchoRpcService>(EchoRpcImpl)
             it.freezeAndConnect()
         }
         val client = api("caller").also { it.freezeAndConnect() }
 
         try {
             val start = System.currentTimeMillis()
+            val proxy = client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget(service))
 
             val outcome = async {
-                runCatching {
-                    client.connection.sendRequest(
-                        EchoPacket("in-flight"),
-                        EchoResponse::class.java,
-                        RabbitTarget.ServiceTarget(service)
-                    )
-                }
+                runCatching { proxy.echo("in-flight") }
             }
 
             delay(50)

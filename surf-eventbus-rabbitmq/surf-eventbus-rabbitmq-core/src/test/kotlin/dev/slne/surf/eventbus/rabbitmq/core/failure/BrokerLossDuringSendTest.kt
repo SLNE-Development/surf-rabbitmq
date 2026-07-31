@@ -1,13 +1,13 @@
 package dev.slne.surf.eventbus.rabbitmq.core.failure
 
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.api.handler.RabbitHandler
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.common.testing.testConfig
-import dev.slne.surf.eventbus.rabbitmq.core.EchoPacket
-import dev.slne.surf.eventbus.rabbitmq.core.EchoResponse
+import dev.slne.surf.eventbus.rabbitmq.core.rpc.EchoRpcImpl
+import dev.slne.surf.eventbus.rabbitmq.core.rpc.EchoRpcService
+import dev.slne.surf.eventbus.rabbitmq.core.send.WorkService
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -27,13 +27,6 @@ class BrokerLossDuringSendTest {
 
     private val dataPath = Files.createTempDirectory("broker-loss")
 
-    private object EchoHandler {
-        @RabbitHandler
-        suspend fun onEcho(packet: EchoPacket) {
-            packet.respond(EchoResponse("echo:${packet.text}"))
-        }
-    }
-
     private fun api(service: String) = SurfRabbitApi
         .builder(service, dataPath)
         .config(testConfig(requestTimeoutSeconds = 15))
@@ -44,24 +37,17 @@ class BrokerLossDuringSendTest {
         val service = RabbitBrokerExtension.uniqueServiceName("loss-publish")
 
         val server = api(service).also {
-            it.registerRequestHandler(EchoHandler)
+            it.registerService<EchoRpcService>(EchoRpcImpl)
             it.freezeAndConnect()
         }
         val client = api("caller").also { it.freezeAndConnect() }
 
         try {
             val start = System.currentTimeMillis()
+            val proxy = client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget(service))
 
             val calls = (1..20).map { n ->
-                async {
-                    runCatching {
-                        client.connection.sendRequest(
-                            EchoPacket("msg-$n"),
-                            EchoResponse::class.java,
-                            RabbitTarget.ServiceTarget(service)
-                        )
-                    }
-                }
+                async { runCatching { proxy.echo("msg-$n") } }
             }
 
             delay(20)
@@ -90,23 +76,16 @@ class BrokerLossDuringSendTest {
         val service = RabbitBrokerExtension.uniqueServiceName("loss-await")
 
         val server = api(service).also {
-            it.registerRequestHandler(EchoHandler)
+            it.registerService<EchoRpcService>(EchoRpcImpl)
             it.freezeAndConnect()
         }
         val client = api("caller").also { it.freezeAndConnect() }
 
         try {
             val start = System.currentTimeMillis()
+            val proxy = client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget(service))
 
-            val call = async {
-                runCatching {
-                    client.connection.sendRequest(
-                        EchoPacket("waiting"),
-                        EchoResponse::class.java,
-                        RabbitTarget.ServiceTarget(service)
-                    )
-                }
-            }
+            val call = async { runCatching { proxy.echo("waiting") } }
 
             // Drop the connection while the caller is parked on the reply queue.
             delay(30)
@@ -127,23 +106,22 @@ class BrokerLossDuringSendTest {
     }
 
     @Test
-    fun `publisher confirms are not reported as success after a connection loss`() = runBlocking {
+    fun `fire-and-forget publishes are not reported as success after a connection loss`() = runBlocking {
         val service = RabbitBrokerExtension.uniqueServiceName("loss-confirm")
 
         api(service).also {
-            it.registerRequestHandler(EchoHandler)
+            it.registerService<WorkService>(object : WorkService {
+                override suspend fun doWork(text: String) {}
+            })
             it.freezeAndConnect()
         }.disconnect()
 
         val client = api("caller").also { it.freezeAndConnect() }
 
         try {
+            val proxy = client.rpc<WorkService>(RabbitTarget.ServiceTarget(service))
             val sends = (1..10).map { n ->
-                async {
-                    runCatching {
-                        client.send(EchoPacket("ff-$n"), RabbitTarget.ServiceTarget(service))
-                    }
-                }
+                async { runCatching { proxy.doWork("ff-$n") } }
             }
 
             delay(10)

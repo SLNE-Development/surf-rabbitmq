@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.rabbitmq.rpc.service
 
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.callable.RabbitRpcCallable
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
 import dev.slne.surf.eventbus.rabbitmq.common.rpc.packet.RpcCallRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.common.rpc.packet.RpcCallResponsePacket
@@ -29,9 +30,19 @@ class RpcServiceExecutor<T : Any>(
     private val rpcSerializerCache = RpcSerializerCache()
 
     suspend fun accept(request: RpcCallRequestPacket) {
+        val callable = descriptor.getCallable(request.rpcCallableName)
+
         try {
-            processMessage(request)
+            processMessage(request, callable)
         } catch (e: Throwable) {
+            if (callable?.fireAndForget == true) {
+                // No reply channel exists for this call. Rethrowing (rather than encoding the
+                // failure into a response nobody reads) lets the caller -
+                // RabbitListenerHandlerManager.handleRequest - take the retry ladder.
+                if (e is CancellationException) currentCoroutineContext().ensureActive()
+                throw e
+            }
+
             if (!request.hasResponded()) {
                 request.respond(rpcErrorResponse(e, request.senderVersion))
             }
@@ -44,10 +55,10 @@ class RpcServiceExecutor<T : Any>(
         }
     }
 
-    private suspend fun processMessage(request: RpcCallRequestPacket) {
+    private suspend fun processMessage(request: RpcCallRequestPacket, callableArg: RabbitRpcCallable<T>?) {
         val callId = request.rpcCallId
         val callableName = request.rpcCallableName
-        val callable = descriptor.getCallable(callableName)
+        val callable = callableArg
             ?: error("Service '${service.javaClass.name}' has no method '$callableName'! Are the service and client versions in sync?")
 
         val data = if (callable.parameters.isNotEmpty()) {
@@ -56,6 +67,13 @@ class RpcServiceExecutor<T : Any>(
             serialFormat.decodeFromByteArray(parametersSerializer, request.data)
         } else {
             EMPTY_ANY_ARRAY
+        }
+
+        if (callable.fireAndForget) {
+            // A thrown exception here propagates straight out of accept()'s try, which
+            // rethrows it for a fire-and-forget callable - see the fireAndForget branch there.
+            callable.invoker.call(service, data)
+            return
         }
 
         var failure: Throwable? = null
