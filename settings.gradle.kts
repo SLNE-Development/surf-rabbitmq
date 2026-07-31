@@ -12,19 +12,21 @@ plugins {
 
 rootProject.name = "surf-eventbus"
 
-include("surf-rabbitmq-api")
-include("surf-rabbitmq-core")
-include("surf-circuitbreaker")
+include("surf-eventbus-common")
 
-include("surf-rabbitmq-paper")
-include("surf-rabbitmq-velocity")
-include("surf-rabbitmq-ksp")
+include("surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-api")
+include("surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core")
+
+include("surf-eventbus-ksp")
+
+include("surf-eventbus-platform:surf-eventbus-platform-paper")
+include("surf-eventbus-platform:surf-eventbus-platform-velocity")
 
 val isCi = providers.environmentVariable("CI").isPresent
 
 if (!isCi) {
-    include("surf-rabbitmq-test")
-    include("surf-rabbitmq-test:surf-rabbitmq-test-common")
-    include("surf-rabbitmq-test:surf-rabbitmq-test-paper")
-    include("surf-rabbitmq-test:surf-rabbitmq-test-server")
+    include("surf-eventbus-test")
+    include("surf-eventbus-test:surf-eventbus-test-common")
+    include("surf-eventbus-test:surf-eventbus-test-paper")
+    include("surf-eventbus-test:surf-eventbus-test-server")
 }

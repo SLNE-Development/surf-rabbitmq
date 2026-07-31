@@ -11,7 +11,7 @@ buildscript {
 subprojects {
     afterEvaluate {
         dependencies {
-            "ksp"(rootProject.projects.surfRabbitmqKsp)
+            "ksp"(rootProject.projects.surfEventbusKsp)
         }
     }
 }

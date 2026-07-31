@@ -19,6 +19,6 @@ surfPaperPluginApi {
 }
 
 dependencies {
-    api(projects.surfRabbitmqTest.surfRabbitmqTestCommon)
-    compileOnly(projects.surfRabbitmqApi)
+    api(projects.surfEventbusTest.surfEventbusTestCommon)
+    compileOnly(projects.surfEventbusRabbitmq.surfEventbusRabbitmqApi)
 }

@@ -10,5 +10,5 @@ surfMicroservice {
 }
 
 dependencies {
-    compileOnly(projects.surfRabbitmqApi)
+    compileOnly(projects.surfEventbusRabbitmq.surfEventbusRabbitmqApi)
 }

@@ -5,8 +5,8 @@ plugins {
 }
 
 dependencies {
-    api(projects.surfRabbitmqApi)
-    api(projects.surfCircuitbreaker)
+    api(projects.surfEventbusRabbitmq.surfEventbusRabbitmqApi)
+    api(projects.surfEventbusCommon)
     api(libs.amqp.client)
 
     compileOnly(libs.surf.microservice)
@@ -71,7 +71,7 @@ dependencies {
 
     // Only the test sources use @RpcService - no automated test anywhere else exercises
     // the generated proxy end to end against a real broker.
-    "kspTest"(projects.surfRabbitmqKsp)
+    "kspTest"(projects.surfEventbusKsp)
 }
 
 tasks.test {

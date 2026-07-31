@@ -11,7 +11,7 @@ surfMicroservice {
 }
 
 dependencies {
-    api(projects.surfRabbitmqTest.surfRabbitmqTestCommon)
-    compileOnly(projects.surfRabbitmqApi)
-    runtimeOnly(projects.surfRabbitmqCore)
+    api(projects.surfEventbusTest.surfEventbusTestCommon)
+    compileOnly(projects.surfEventbusRabbitmq.surfEventbusRabbitmqApi)
+    runtimeOnly(projects.surfEventbusRabbitmq.surfEventbusRabbitmqCore)
 }
