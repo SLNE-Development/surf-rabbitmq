@@ -11,7 +11,7 @@ surfMicroservice {
 }
 
 surfPaperPluginApi {
-    mainClass("dev.slne.surf.rabbitmq.test.paper.PaperMain")
+    mainClass("dev.slne.surf.eventbus.rabbitmq.test.paper.PaperMain")
 
     serverDependencies {
         registerRequired("surf-rabbitmq-paper")

@@ -41,14 +41,14 @@ kotlin {
     abiValidation {
         filters {
             exclude {
-                annotatedWith.add("dev.slne.surf.rabbitmq.api.InternalRabbitMQ")
+                annotatedWith.add("dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ")
             }
         }
     }
 }
 
 buildConfig {
-    forClass("dev.slne.surf.rabbitmq.api.version", "BuildVersion") {
+    forClass("dev.slne.surf.eventbus.rabbitmq.api.version", "BuildVersion") {
         buildConfigField("VERSION", provider { version.toString() })
     }
 }

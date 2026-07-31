@@ -10,7 +10,7 @@ plugins {
     id("dev.slne.surf.api.gradle.settings") version "+"
 }
 
-rootProject.name = "surf-rabbitmq"
+rootProject.name = "surf-eventbus"
 
 include("surf-rabbitmq-api")
 include("surf-rabbitmq-core")

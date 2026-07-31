@@ -8,5 +8,5 @@ dependencies {
 }
 
 velocityPluginFile {
-    main = "dev.slne.surf.rabbitmq.velocity.VelocityMain"
+    main = "dev.slne.surf.eventbus.rabbitmq.velocity.VelocityMain"
 }

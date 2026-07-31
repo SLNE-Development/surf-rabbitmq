@@ -1,0 +1,31 @@
+package dev.slne.surf.eventbus.rabbitmq.common
+
+import dev.slne.surf.eventbus.rabbitmq.api.internal.RabbitMQInstance
+import dev.slne.surf.eventbus.rabbitmq.common.connection.client.RabbitClient
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import org.jetbrains.annotations.MustBeInvokedByOverriders
+
+abstract class RabbitMQCommonInstance : RabbitMQInstance {
+
+    @MustBeInvokedByOverriders
+    open suspend fun onLoad() {
+
+    }
+
+    @MustBeInvokedByOverriders
+    open suspend fun onEnable() {
+
+    }
+
+    @MustBeInvokedByOverriders
+    open suspend fun onDisable() {
+        withContext(NonCancellable) {
+            RabbitClient.closeSharedResources()
+        }
+    }
+
+    companion object {
+        fun get(): RabbitMQCommonInstance = RabbitMQInstance.instance as RabbitMQCommonInstance
+    }
+}

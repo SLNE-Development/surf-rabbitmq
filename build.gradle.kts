@@ -18,7 +18,7 @@ buildscript {
 }
 
 allprojects {
-    group = "dev.slne.surf.rabbitmq"
+    group = "dev.slne.surf.eventbus"
     version = findProperty("version") as String
 }
 
@@ -28,7 +28,7 @@ subprojects {
     afterEvaluate {
         extensions.findByType<KotlinJvmExtension>()?.apply {
             compilerOptions {
-                optIn.add("dev.slne.surf.rabbitmq.api.InternalRabbitMQ")
+                optIn.add("dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ")
             }
         }
 
@@ -40,10 +40,10 @@ subprojects {
             exclude("org/slf4j/**")
             exclude("io/ktor/**")
 
-            val base = "dev.slne.surf.rabbitmq.libs."
+            val base = "dev.slne.surf.eventbus.libs."
             relocate("com.rabbitmq", base + "com.rabbitmq")
 
-            val nettyBase = "dev.slne.surf.rabbitmq.shaded." // fails to load if contains "lib"
+            val nettyBase = "dev.slne.surf.eventbus.shaded." // fails to load if contains "lib"
             val mangledPrefix: String = nettyBase
                 .replace("_", "_1")
                 .replace(".", "_")

@@ -1,0 +1,29 @@
+package dev.slne.surf.eventbus.rabbitmq.api.packet
+
+import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitRequestAlreadyRespondedException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
+import kotlin.coroutines.CoroutineContext
+import kotlin.properties.Delegates
+
+@Serializable
+abstract class RabbitRequestPacket<ResponsePacket : RabbitResponsePacket> : RabbitPacket(),
+    CoroutineScope {
+    final override var coroutineContext: CoroutineContext by Delegates.notNull()
+        @InternalRabbitMQ set
+
+    @InternalRabbitMQ
+    @Transient
+    val responseDeferred = CompletableDeferred<ResponsePacket>()
+
+    fun respond(response: ResponsePacket) {
+        if (!responseDeferred.complete(response)) {
+            throw SurfRabbitRequestAlreadyRespondedException()
+        }
+    }
+
+    fun hasResponded(): Boolean = responseDeferred.isCompleted
+}
