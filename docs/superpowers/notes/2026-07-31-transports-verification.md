@@ -117,3 +117,37 @@ collapsing the untyped API into RPC, not something Task 5 flagged explicitly.
 Verified for real (Docker reachable): every rewritten test passed against a live broker,
 including the retry-ladder, competing-consumers, broker-restart, broker-loss, consumer-death, and
 chunking suites.
+
+## Plan 3 Task 6: @QueryService codegen
+
+Built as a parallel, simplified codegen path alongside `@RpcService`'s in `surf-eventbus-ksp`,
+rather than reusing RPC's runtime types (`RabbitRpcCallable`/`RabbitRpcType`/`CallableParametersSerializer`):
+those live in `surf-eventbus-rabbitmq-api`/`-core`, and Query is transport-agnostic bus
+infrastructure — depending on rabbitmq modules from bus-api/bus-core would invert the module
+graph. New types instead: `QueryParameter`/`QueryInvoker`/`QueryCallable`/`QueryServiceDescriptor`
+(bus-api, `dev.slne.surf.eventbus.query.*`), `QueryParametersSerializer`/`QuerySerializerCache`
+(bus-core). Simplified relative to RPC: no per-call-site `@Serializable(with = ...)` custom
+serializer support (nothing in the codebase needs it for queries) — parameter and return-type
+serializers resolve via `SerializersModule.serializer(KType)` directly. The new processor lives at
+`dev.slne.surf.eventbus.ksp.processor.query` rather than under the existing (RabbitMQ-named)
+`dev.slne.surf.eventbus.rabbitmq.processor` package, since Query has nothing to do with RabbitMQ.
+
+`SurfEventBusImpl.query()` now works: it resolves `<Name>Descriptor` via a `ClassValue`-backed
+reflection cache (mirroring `RabbitRpcServiceImpl`'s `ServiceDescriptorCache`) and calls
+`descriptor.createInstance(instanceId, json, transport)`.
+
+**Deviation:** the KSP processor skips (does not error on) a `private`/file-local
+`@QueryService` interface instead of generating a descriptor for it. `QueryServiceRegistryTest`
+already had `private interface Locator`/`FastLocator` fixtures (Plan 2, predating this generator)
+for testing the registry directly, never through a generated proxy — a public-visibility
+requirement would have broken those on the first build that turned on `kspTest` for
+`surf-eventbus-bus-core`. Generating an `internal` descriptor referencing a private interface
+doesn't compile anyway (Kotlin visibility rules), so skipping is the only option that doesn't
+touch pre-existing test fixtures outside this task's scope.
+
+Verified: `QueryServiceValidationTest` (KSP, 5/5 — non-nullable return, `Unit` return,
+`@FireAndForget` on a query, a valid nullable-suspend method, and a non-suspend method) and
+`QueryServiceClientTest` (bus-core, 3/3 — the generated client asks and decodes a real answer, a
+`null` answer means abstain, and the annotation's `timeoutMillis` lands in the descriptor) against
+a `FakeQueryTransport`. Server-side dispatch (turning a registered implementation into answers)
+is Plan 3 Task 7's job, not exercised here.

@@ -18,6 +18,9 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("dev.zacsweers.kctfork:ksp:+")
     testImplementation(projects.surfEventbusRabbitmq.surfEventbusRabbitmqApi)
+    testImplementation(projects.surfEventbusBus.surfEventbusBusApi)
+    testImplementation(projects.surfEventbusBus.surfEventbusBusCore)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0")
 }
 
 tasks.test {

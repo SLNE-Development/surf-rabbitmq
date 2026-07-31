@@ -14,6 +14,7 @@ import dev.slne.surf.eventbus.event.BusEventCodec
 import dev.slne.surf.eventbus.event.EventTopics
 import dev.slne.surf.eventbus.event.SurfBusEvent
 import dev.slne.surf.eventbus.query.QueryService
+import dev.slne.surf.eventbus.query.descriptor.QueryServiceDescriptor
 import dev.slne.surf.eventbus.transport.EventTransport
 import dev.slne.surf.eventbus.transport.QueryTransport
 import io.netty.buffer.Unpooled
@@ -92,10 +93,11 @@ class SurfEventBusImpl(
     }
 
     override fun <T : Any> query(contract: KClass<T>): T {
-        throw NotImplementedError(
-            "query() requires the Plan 3 KSP client-proxy generator, not yet available for " +
-                    (contract.qualifiedName ?: contract.java.name)
-        )
+        val transport = requireQueryTransport("query()")
+        val descriptor = queryDescriptorOf(contract)
+
+        @Suppress("UNCHECKED_CAST")
+        return descriptor.createInstance(instanceId, json, transport) as T
     }
 
     override fun <T : Any> rpc(contract: KClass<T>): T {
@@ -171,6 +173,40 @@ class SurfEventBusImpl(
         -> add .withRedis() to SurfEventBus.builder(...)
         """.trimIndent()
     )
+
+    private fun requireQueryTransport(verb: String): QueryTransport = queryTransport ?: error(
+        """
+        $verb requires the Redis transport,
+        but this bus was built without it.
+        -> add .withRedis() to SurfEventBus.builder(...)
+        """.trimIndent()
+    )
+
+    private fun <T : Any> queryDescriptorOf(contract: KClass<T>): QueryServiceDescriptor<T> {
+        val descriptor = QueryDescriptorCache.get(contract.java)
+            ?: error(
+                "no generated descriptor found for ${contract.qualifiedName ?: contract.java.name}; " +
+                        "is the interface annotated with @QueryService?"
+            )
+
+        @Suppress("UNCHECKED_CAST")
+        return descriptor as QueryServiceDescriptor<T>
+    }
+
+    private object QueryDescriptorCache : ClassValue<Any?>() {
+        override fun computeValue(type: Class<*>): Any? {
+            if (!type.isInterface) return null
+            val descriptorFqName = "${type.packageName}.${type.simpleName}Descriptor"
+
+            return try {
+                Class.forName(descriptorFqName, false, type.classLoader).kotlin.objectInstance
+            } catch (_: ClassNotFoundException) {
+                null
+            } catch (_: LinkageError) {
+                null
+            }
+        }
+    }
 
     private fun serializerOf(eventClass: Class<out SurfBusEvent>) =
         serializerCache.get(eventClass)

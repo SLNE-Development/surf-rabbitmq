@@ -16,6 +16,7 @@ dependencies {
     testImplementation("io.netty:netty-buffer")
     testImplementation("dev.slne.surf.api:surf-api-core:+")
     testRuntimeOnly("dev.slne.surf.api:surf-api-standalone:+")
+    "kspTest"(projects.surfEventbusKsp)
 }
 
 tasks.test {

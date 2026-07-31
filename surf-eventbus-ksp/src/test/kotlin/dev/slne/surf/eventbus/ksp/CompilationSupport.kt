@@ -3,6 +3,7 @@ package dev.slne.surf.eventbus.ksp
 import com.tschuchort.compiletesting.KotlinCompilation
 import com.tschuchort.compiletesting.SourceFile
 import com.tschuchort.compiletesting.configureKsp
+import dev.slne.surf.eventbus.ksp.processor.query.QueryServiceProcessorProvider
 import dev.slne.surf.eventbus.rabbitmq.processor.rpc.RpcServiceProcessorProvider
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import java.io.ByteArrayOutputStream
@@ -18,6 +19,7 @@ fun compile(source: String): CompileResult {
         sources = listOf(SourceFile.kotlin("Source.kt", source))
         configureKsp {
             symbolProcessorProviders.add(RpcServiceProcessorProvider())
+            symbolProcessorProviders.add(QueryServiceProcessorProvider())
         }
         inheritClassPath = true
         messageOutputStream = output

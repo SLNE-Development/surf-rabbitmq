@@ -1,1 +1,2 @@
 dev.slne.surf.eventbus.rabbitmq.processor.rpc.RpcServiceProcessorProvider
+dev.slne.surf.eventbus.ksp.processor.query.QueryServiceProcessorProvider
