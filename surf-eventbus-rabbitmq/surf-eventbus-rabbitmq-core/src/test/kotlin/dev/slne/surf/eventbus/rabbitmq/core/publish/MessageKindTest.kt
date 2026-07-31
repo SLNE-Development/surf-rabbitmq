@@ -30,11 +30,6 @@ class MessageKindTest {
     }
 
     @Test
-    fun `an event never expires`() {
-        assertNull(MessageKind.EVENT.expirationMillis(timeout))
-    }
-
-    @Test
     fun `requests and fire-and-forget follow the persistence setting`() {
         assertEquals(2, MessageKind.RPC_REQUEST.deliveryMode(true, false))
         assertEquals(1, MessageKind.RPC_REQUEST.deliveryMode(false, false))
@@ -45,12 +40,5 @@ class MessageKindTest {
     fun `responses follow the response persistence setting`() {
         assertEquals(2, MessageKind.RPC_RESPONSE.deliveryMode(true, true))
         assertEquals(1, MessageKind.RPC_RESPONSE.deliveryMode(true, false))
-    }
-
-    @Test
-    fun `events are always persistent`() {
-        // A SHARED subscription targets a durable queue; a transient message there would be
-        // lost on broker restart for no benefit.
-        assertEquals(2, MessageKind.EVENT.deliveryMode(false, false))
     }
 }

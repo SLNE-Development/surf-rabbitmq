@@ -10,8 +10,6 @@ public final class dev/slne/surf/eventbus/rabbitmq/api/SurfRabbitApi {
 	public final fun getCbor ()Lkotlinx/serialization/cbor/Cbor;
 	public final fun getIdentity ()Ldev/slne/surf/eventbus/rabbitmq/api/identity/RabbitIdentity;
 	public final fun isFrozen ()Z
-	public final fun publish (Ldev/slne/surf/eventbus/rabbitmq/api/event/RabbitEventPacket;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public final fun registerListener (Ljava/lang/Object;)V
 	public final fun registerRequestHandler (Ljava/lang/Object;)V
 	public final fun registerService (Lkotlin/reflect/KClass;Ljava/lang/Object;)V
 	public final fun rpc (Lkotlin/reflect/KClass;Ljava/lang/String;)Ljava/lang/Object;
@@ -30,35 +28,6 @@ public final class dev/slne/surf/eventbus/rabbitmq/api/SurfRabbitApiBuilder {
 	public final fun configFileName (Ljava/lang/String;)Ldev/slne/surf/eventbus/rabbitmq/api/SurfRabbitApiBuilder;
 	public final fun instanceName (Ljava/lang/String;)Ldev/slne/surf/eventbus/rabbitmq/api/SurfRabbitApiBuilder;
 	public final fun serializers (Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/eventbus/rabbitmq/api/SurfRabbitApiBuilder;
-}
-
-public abstract interface annotation class dev/slne/surf/eventbus/rabbitmq/api/event/RabbitEvent : java/lang/annotation/Annotation {
-	public abstract fun topic ()Ljava/lang/String;
-}
-
-public abstract class dev/slne/surf/eventbus/rabbitmq/api/event/RabbitEventPacket : dev/slne/surf/eventbus/rabbitmq/api/packet/RabbitPacket {
-	public static final field Companion Ldev/slne/surf/eventbus/rabbitmq/api/event/RabbitEventPacket$Companion;
-	public fun <init> ()V
-	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
-	public static final synthetic fun write$Self (Ldev/slne/surf/eventbus/rabbitmq/api/event/RabbitEventPacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
-}
-
-public final class dev/slne/surf/eventbus/rabbitmq/api/event/RabbitEventPacket$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
-public abstract interface annotation class dev/slne/surf/eventbus/rabbitmq/api/event/RabbitSubscribe : java/lang/annotation/Annotation {
-	public abstract fun mode ()Ldev/slne/surf/eventbus/rabbitmq/api/event/SubscriptionMode;
-	public abstract fun retry ()Z
-	public abstract fun topic ()Ljava/lang/String;
-}
-
-public final class dev/slne/surf/eventbus/rabbitmq/api/event/SubscriptionMode : java/lang/Enum {
-	public static final field BROADCAST Ldev/slne/surf/eventbus/rabbitmq/api/event/SubscriptionMode;
-	public static final field SHARED Ldev/slne/surf/eventbus/rabbitmq/api/event/SubscriptionMode;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Ldev/slne/surf/eventbus/rabbitmq/api/event/SubscriptionMode;
-	public static fun values ()[Ldev/slne/surf/eventbus/rabbitmq/api/event/SubscriptionMode;
 }
 
 public final class dev/slne/surf/eventbus/rabbitmq/api/exception/SurfRabbitApiAlreadyFrozenException : java/lang/IllegalStateException {

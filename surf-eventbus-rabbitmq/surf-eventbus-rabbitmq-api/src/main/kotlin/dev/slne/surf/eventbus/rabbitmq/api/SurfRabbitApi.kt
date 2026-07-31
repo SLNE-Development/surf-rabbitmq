@@ -3,7 +3,6 @@ package dev.slne.surf.eventbus.rabbitmq.api
 import dev.slne.surf.api.core.serializer.SurfSerializerModule
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.eventbus.rabbitmq.api.connection.RabbitMQConnection
-import dev.slne.surf.eventbus.rabbitmq.api.event.RabbitEventPacket
 import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitApiAlreadyFrozenException
 import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitApiNotFrozenException
 import dev.slne.surf.eventbus.rabbitmq.api.identity.RabbitIdentity
@@ -155,17 +154,6 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
         rpcService.serviceDescriptorOf(Service::class)
 
     /**
-     * Publishes [event] to every matching subscriber.
-     *
-     * The publisher does not know who listens, and an event with no subscriber is discarded
-     * without error. That is the point: adding or removing a subscriber never touches the
-     * publisher.
-     */
-    suspend fun publish(event: RabbitEventPacket) {
-        connection.publishEvent(event)
-    }
-
-    /**
      * Sends [packet] to one instance of [target] without waiting for a reply.
      *
      * Unlike an event, this is delivered to exactly one instance and waits in a durable queue
@@ -175,12 +163,6 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
      */
     suspend fun send(packet: RabbitRequestPacket<*>, target: RabbitTarget? = null) {
         connection.send(packet, target ?: RabbitTarget.ServiceTarget(identity.serviceName))
-    }
-
-    /** Registers `@RabbitSubscribe` methods on [listener]. */
-    fun registerListener(listener: Any) {
-        if (frozen) throw SurfRabbitApiAlreadyFrozenException()
-        connection.registerListener(listener)
     }
 
     companion object {

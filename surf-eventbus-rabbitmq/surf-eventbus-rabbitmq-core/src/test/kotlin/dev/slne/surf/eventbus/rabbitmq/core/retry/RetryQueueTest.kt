@@ -72,24 +72,6 @@ class RetryQueueTest {
     }
 
     @Test
-    fun `the same tier serves a shared event queue`() {
-        // The reason the tiers dead-letter to the default exchange instead of surf.rpc:
-        // event queues are fed by topic bindings surf.rpc knows nothing about.
-        val service = RabbitBrokerExtension.uniqueServiceName("retry-event")
-        val eventQueue = declarer.declareSharedEventQueue(service, setOf("test.retry.#"))
-
-        channel.basicPublish(
-            RetryTier.TEN_SECONDS.queueName,
-            eventQueue,
-            AMQP.BasicProperties.Builder().deliveryMode(2).build(),
-            "event-retry".toByteArray()
-        )
-
-        val returned = awaitMessage(eventQueue, timeoutMillis = 10_000)
-        assertEquals("event-retry", String(returned))
-    }
-
-    @Test
     fun `the attempt-count header survives the tier round trip untouched`() {
         // RabbitMQ's own x-death only accumulates across a dead-letter chain the broker
         // drives entirely itself; the moment application code republishes a message (which

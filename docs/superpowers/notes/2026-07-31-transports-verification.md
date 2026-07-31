@@ -39,3 +39,16 @@ rekeeping a class with no remaining caller would have been dead code. `RedisEven
 (a generated-invoker template implementing the deleted `RedisEventInvoker` interface) went with it;
 `RedisInvokerLookupProvider.java` stayed, since `RequestResponseBusImpl` still uses it until Plan 3
 Task 7.
+
+## Deviation from Plan 3 Task 3
+
+`surf-eventbus-test-paper`'s manual smoke-test instance (`RabbitMqTestPaperInstance`,
+`TestBroadcastEvent`) demonstrated `@RabbitSubscribe`/`registerListener`/broadcast delivery — not
+in the task's file list, but it doesn't compile without the deleted API. Removed the broadcast
+listener and `TestBroadcastEvent`; Redis-based `@SurfSubscribe` is the replacement demo, added in
+a later plan once the platform module wires up `SurfEventBus`.
+
+`RetryQueueTest`'s `` `the same tier serves a shared event queue` `` asserted that the RabbitMQ
+retry tiers work the same for RPC and events. Events no longer touch the RabbitMQ retry ladder at
+all (they're Redis pub/sub with no dead-lettering), so the test's premise is gone — deleted rather
+than adapted.

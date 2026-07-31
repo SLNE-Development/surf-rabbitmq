@@ -39,7 +39,6 @@ class RabbitTopologyDeclarerTest {
 
         // Passive declare throws if the exchange is absent.
         channel.exchangeDeclarePassive(RabbitTopology.RPC_EXCHANGE)
-        channel.exchangeDeclarePassive(RabbitTopology.EVENTS_EXCHANGE)
         channel.exchangeDeclarePassive(RabbitTopology.DLX_EXCHANGE)
     }
 

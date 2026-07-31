@@ -2,6 +2,7 @@ package dev.slne.surf.eventbus.rabbitmq.common.topology
 
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RabbitTopologyTest {
@@ -9,9 +10,18 @@ class RabbitTopologyTest {
     @Test
     fun `exchange and audit queue names match the specification`() {
         assertEquals("surf.rpc", RabbitTopology.RPC_EXCHANGE)
-        assertEquals("surf.events", RabbitTopology.EVENTS_EXCHANGE)
         assertEquals("surf.dlx", RabbitTopology.DLX_EXCHANGE)
         assertEquals("surf.unroutable", RabbitTopology.UNROUTABLE_QUEUE)
+    }
+
+    @Test
+    fun `there is no events exchange`() {
+        val names = RabbitTopology::class.java.declaredFields.map { it.name }
+
+        assertFalse(
+            names.any { it.contains("EVENTS", ignoreCase = true) },
+            "events live on Redis; a leftover exchange constant would invite a second event path"
+        )
     }
 
     @Test
@@ -20,23 +30,6 @@ class RabbitTopologyTest {
         assertEquals("surf.instance.lobby-3", RabbitTopology.instanceQueue("lobby-3"))
         assertEquals("surf.reply.lobby-3", RabbitTopology.replyQueue("lobby-3"))
         assertEquals("surf.dlq.surf-factions", RabbitTopology.deadLetterQueue("surf-factions"))
-    }
-
-    @Test
-    fun `shared and instance event queues live in separate namespaces`() {
-        // Without the extra segment, a service named "x" and an instance named "x"
-        // would fight over the same queue.
-        assertEquals(
-            "surf.events.shared.surf-factions",
-            RabbitTopology.sharedEventQueue("surf-factions")
-        )
-        assertEquals(
-            "surf.events.instance.surf-factions",
-            RabbitTopology.instanceEventQueue("surf-factions")
-        )
-        assertTrue(
-            RabbitTopology.sharedEventQueue("x") != RabbitTopology.instanceEventQueue("x")
-        )
     }
 
     @Test

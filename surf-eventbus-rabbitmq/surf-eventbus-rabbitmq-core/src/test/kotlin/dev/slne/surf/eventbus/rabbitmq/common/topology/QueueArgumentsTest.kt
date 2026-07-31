@@ -45,28 +45,4 @@ class QueueArgumentsTest {
         assertNull(args["x-queue-type"])
         assertNull(args["x-max-length-bytes"])
     }
-
-    @Test
-    fun `shared event queues pin the dead-letter routing key to the service`() {
-        // Events are delivered with their TOPIC as routing key. Without the pinned key,
-        // a nacked event would dead-letter into the direct surf.dlx with a topic key,
-        // match no binding, and vanish - exactly the P5 message loss this redesign fixes.
-        val args = QueueArguments.sharedEventQueue("surf-stats")
-
-        assertEquals("quorum", args["x-queue-type"])
-        assertEquals(RabbitTopology.DLX_EXCHANGE, args["x-dead-letter-exchange"])
-        assertEquals("surf-stats", args["x-dead-letter-routing-key"])
-    }
-
-    @Test
-    fun `shared event queues drop oldest instead of rejecting publishes`() {
-        // Publisher confirms only ack once EVERY bound queue accepted the message.
-        // reject-publish here would let one full subscriber queue fail every publisher
-        // of matching topics fleet-wide. drop-head keeps the failure local to the
-        // overflowing subscriber.
-        val args = QueueArguments.sharedEventQueue("surf-stats")
-
-        assertEquals(268_435_456L, args["x-max-length-bytes"])
-        assertEquals("drop-head", args["x-overflow"])
-    }
 }

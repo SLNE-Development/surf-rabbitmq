@@ -5,7 +5,6 @@ import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitEnvelopeDeseriali
 import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitEnvelopeSerializationException
 import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitSerializationException
 import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitSerializerNotFoundException
-import dev.slne.surf.eventbus.rabbitmq.api.event.RabbitEventPacket
 import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitPacket
 import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitResponsePacket
@@ -48,14 +47,6 @@ object RabbitPacketSerializer {
         request: RabbitRequestPacket<*>
     ): ByteArray {
         return serialize(api, serializer, request)
-    }
-
-    fun serializeEvent(
-        api: SurfRabbitApi,
-        serializer: KSerializer<RabbitEventPacket>,
-        event: RabbitEventPacket
-    ): ByteArray {
-        return serialize(api, serializer, event)
     }
 
     private fun <P : RabbitPacket> serialize(
@@ -109,14 +100,6 @@ object RabbitPacketSerializer {
         data: ByteArray,
         serializerCache: KotlinSerializerNameCache<RabbitResponsePacket>
     ): RabbitResponsePacket {
-        return deserialize(api, data, serializerCache)
-    }
-
-    fun deserializeEvent(
-        api: SurfRabbitApi,
-        data: ByteArray,
-        serializerCache: KotlinSerializerNameCache<RabbitEventPacket>
-    ): RabbitEventPacket {
         return deserialize(api, data, serializerCache)
     }
 

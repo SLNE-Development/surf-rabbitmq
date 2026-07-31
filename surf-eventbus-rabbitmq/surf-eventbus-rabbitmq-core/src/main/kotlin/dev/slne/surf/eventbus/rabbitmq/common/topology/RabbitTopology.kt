@@ -11,9 +11,6 @@ object RabbitTopology {
     /** Routes RPC and fire-and-forget by target name. Type `direct`. */
     const val RPC_EXCHANGE = "surf.rpc"
 
-    /** Routes events by topic pattern. Type `topic`. */
-    const val EVENTS_EXCHANGE = "surf.events"
-
     /** Dead-letter destination for rejected messages. Type `direct`. */
     const val DLX_EXCHANGE = "surf.dlx"
 
@@ -37,12 +34,6 @@ object RabbitTopology {
 
     /** Per-process RPC reply queue. */
     fun replyQueue(instanceId: String): String = build("surf.reply.", instanceId)
-
-    /** Durable queue shared by all instances of a service. Exactly one instance handles each event. */
-    fun sharedEventQueue(serviceName: String): String = build("surf.events.shared.", serviceName)
-
-    /** Ephemeral queue owned by one instance. Every instance receives its own copy. */
-    fun instanceEventQueue(instanceId: String): String = build("surf.events.instance.", instanceId)
 
     /** Durable queue holding messages a service could not process. */
     fun deadLetterQueue(serviceName: String): String = build("surf.dlq.", serviceName)

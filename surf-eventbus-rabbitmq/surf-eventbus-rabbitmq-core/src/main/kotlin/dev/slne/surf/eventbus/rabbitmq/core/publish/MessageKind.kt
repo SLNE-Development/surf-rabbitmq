@@ -17,10 +17,7 @@ enum class MessageKind {
     RPC_RESPONSE,
 
     /** A message to one service instance with no reply expected. */
-    FIRE_AND_FORGET,
-
-    /** An event published to the topic exchange. */
-    EVENT;
+    FIRE_AND_FORGET;
 
     /**
      * The AMQP `expiration` for this kind, or `null` for no expiry.
@@ -34,7 +31,7 @@ enum class MessageKind {
 
         // No caller is waiting, so there is nothing to go stale. Expiring these would throw
         // away work whenever a service was down longer than a request timeout.
-        FIRE_AND_FORGET, EVENT -> null
+        FIRE_AND_FORGET -> null
     }
 
     /**
@@ -43,9 +40,5 @@ enum class MessageKind {
     fun deliveryMode(persistRequests: Boolean, persistResponses: Boolean): Int = when (this) {
         RPC_REQUEST, FIRE_AND_FORGET -> if (persistRequests) 2 else 1
         RPC_RESPONSE -> if (persistResponses) 2 else 1
-
-        // Events may target a durable shared queue, where a transient message would be
-        // dropped on broker restart without any upside.
-        EVENT -> 2
     }
 }
