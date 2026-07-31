@@ -4,6 +4,9 @@ package dev.slne.surf.eventbus.rabbitmq.listener
 
 import com.rabbitmq.client.AMQP
 import dev.slne.surf.api.core.util.logger
+import dev.slne.surf.eventbus.audit.AuditKind
+import dev.slne.surf.eventbus.audit.AuditReport
+import dev.slne.surf.eventbus.rabbitmq.audit.AuditMessageIdentity
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
 import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitProtocolVersionMismatchException
 import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitRequestPacket
@@ -52,19 +55,20 @@ class RabbitListenerHandlerManager(
     fun retryEnabledFor(requestClass: Class<*>): Boolean = true
 
     /**
-     * Moves a message whose handler failed onto the retry ladder (or the dead-letter queue),
-     * then acks the original delivery.
+     * Moves a message whose handler failed onto the retry ladder (reporting it to the audit
+     * either way), then acks the original delivery.
      *
      * Falls back to `nack(requeue = false)` if the republish itself throws (for instance the
-     * broker went away mid-republish): the origin queue's own dead-letter exchange preserves
-     * the message, so losing a retry rung is acceptable, losing the message is not.
+     * broker went away mid-republish): losing a retry rung is acceptable, losing the message
+     * silently is not — the message still nacks rather than vanishing without any attempt.
      */
     private suspend fun retryOrDeadLetter(
         requestClass: Class<*>,
         body: ByteArray,
         properties: AMQP.BasicProperties,
         originQueue: String,
-        ack: RabbitAck
+        ack: RabbitAck,
+        exception: Throwable? = null
     ) {
         try {
             connection.retryPublisher.handleFailure(
@@ -73,7 +77,8 @@ class RabbitListenerHandlerManager(
                 originQueue = originQueue,
                 serviceName = api.identity.serviceName,
                 retryEnabled = retryEnabledFor(requestClass),
-                rechunkAsRequest = true
+                rechunkAsRequest = true,
+                exception = exception
             )
             ack.ack()
         } catch (t: Throwable) {
@@ -107,7 +112,23 @@ class RabbitListenerHandlerManager(
             log.atSevere()
                 .withCause(e)
                 .log("Failed to deserialize request envelope, discarding message")
-            ack.nack(requeue = false)
+
+            connection.auditSink.report(
+                AuditReport(
+                    messageUuid = AuditMessageIdentity.of(properties),
+                    kind = AuditKind.UNDESERIALIZABLE,
+                    originService = api.identity.serviceName,
+                    originInstance = null,
+                    reportedByService = api.identity.serviceName,
+                    reportedByInstance = api.identity.instanceId,
+                    failedAtEpochMs = System.currentTimeMillis(),
+                    originQueue = originQueue,
+                    correlationId = correlationId,
+                    exceptionClass = e.javaClass.name,
+                    exceptionMessage = e.message,
+                )
+            )
+            ack.ack()
             return
         }
 
@@ -151,7 +172,7 @@ class RabbitListenerHandlerManager(
                 } else {
                     log.atSevere().withCause(cause)
                         .log("Fire-and-forget handler for %s failed", request.javaClass.name)
-                    retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack)
+                    retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, cause)
                 }
                 return
             }
@@ -164,7 +185,7 @@ class RabbitListenerHandlerManager(
                     request.responseDeferred.cancel("Error in handler", cause)
 
                     api.scope.launch {
-                        retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack)
+                        retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, cause)
                     }
                 }
             }
@@ -183,20 +204,20 @@ class RabbitListenerHandlerManager(
                         "Handler for ${request.javaClass.name} did not respond within ${requestTimeoutSeconds}, discarding message"
                     )
                 requestJob.cancel("Handler timed out")
-                retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack)
+                retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, e)
             } catch (e: Throwable) {
                 if (e is CancellationException) throw e
                 log.atSevere()
                     .withCause(e)
                     .log("Error handling request of type ${request.javaClass.name}, discarding message")
-                retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack)
+                retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, e)
             }
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
             log.atSevere()
                 .withCause(e)
                 .log("Error handling request of type ${request.javaClass.name}, discarding message")
-            retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack)
+            retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, e)
         } finally {
             requestJob.cancel("Request handler finished")
             request.responseDeferred.cancel()

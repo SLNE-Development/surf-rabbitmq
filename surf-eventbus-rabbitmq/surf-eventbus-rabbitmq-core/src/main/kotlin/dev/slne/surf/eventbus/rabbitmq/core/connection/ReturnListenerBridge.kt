@@ -3,8 +3,10 @@ package dev.slne.surf.eventbus.rabbitmq.core.connection
 import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.Channel
 import dev.slne.surf.api.core.util.logger
-import dev.slne.surf.eventbus.rabbitmq.common.connection.client.RabbitClient
-import dev.slne.surf.eventbus.rabbitmq.common.topology.RabbitTopology
+import dev.slne.surf.eventbus.audit.AuditKind
+import dev.slne.surf.eventbus.audit.AuditReport
+import dev.slne.surf.eventbus.audit.AuditSink
+import dev.slne.surf.eventbus.rabbitmq.audit.AuditMessageIdentity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
@@ -23,7 +25,10 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class ReturnListenerBridge(
     private val scope: CoroutineScope,
-    private val client: RabbitClient,
+    private val serviceName: String,
+    private val instanceId: String,
+    private val auditServiceName: String,
+    private val auditSink: AuditSink,
     private val onReturned: (messageId: String, routingKey: String, reason: String) -> Unit
 ) {
     companion object {
@@ -43,21 +48,25 @@ class ReturnListenerBridge(
                 "Message to '%s' was returned as unroutable: %s", routingKey, reason
             )
 
-            // The audit copy. surf.rpc has no alternate exchange (it would suppress this
-            // very basic.return), so the copy is produced here instead. Off the listener
-            // thread: publishing suspends.
-            scope.launch {
-                runCatching {
-                    client.publish(
-                        exchange = "",
-                        routingKey = RabbitTopology.UNROUTABLE_QUEUE,
-                        body = body,
-                        properties = properties ?: AMQP.BasicProperties.Builder().build(),
-                        mandatory = false
+            // A message addressed at the audit service is never itself audited: reporting it
+            // would publish another fire-and-forget call to the same unreachable destination,
+            // which would bounce the same way and report again, forever.
+            if (routingKey != auditServiceName) {
+                scope.launch {
+                    auditSink.report(
+                        AuditReport(
+                            messageUuid = AuditMessageIdentity.of(properties ?: AMQP.BasicProperties.Builder().build()),
+                            kind = AuditKind.UNROUTABLE,
+                            originService = serviceName,
+                            originInstance = null,
+                            reportedByService = serviceName,
+                            reportedByInstance = instanceId,
+                            failedAtEpochMs = System.currentTimeMillis(),
+                            routingKey = routingKey,
+                            payloadSizeBytes = body.size,
+                            payload = body,
+                        )
                     )
-                }.onFailure {
-                    log.atWarning().withCause(it)
-                        .log("Could not preserve returned message in %s", RabbitTopology.UNROUTABLE_QUEUE)
                 }
             }
 

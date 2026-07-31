@@ -26,4 +26,12 @@ interface CommonRabbitMQConfig {
      * identity, so all processes sharing a broker must agree on these values.
      */
     fun getRetryTtlMillis(): List<Long> = listOf(10_000L, 60_000L, 300_000L)
+
+    /**
+     * The service name the audit reports are sent to.
+     *
+     * A default member because only the environment and yaml layers ever override it; a test
+     * config with no opinion on auditing should not need to implement it.
+     */
+    fun getAuditServiceName(): String = "surf-eventbus-audit"
 }

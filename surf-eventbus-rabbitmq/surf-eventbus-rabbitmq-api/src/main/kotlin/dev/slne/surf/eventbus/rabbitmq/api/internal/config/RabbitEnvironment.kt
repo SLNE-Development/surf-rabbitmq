@@ -69,5 +69,9 @@ object RabbitEnvironment {
         override fun isOutgoingResponseChunkingEnabled(): Boolean =
             environment.optionalBoolean(PREFIX + "OUTGOING_RESPONSE_CHUNKING_ENABLED")
                 ?: fallback.isOutgoingResponseChunkingEnabled()
+
+        override fun getAuditServiceName(): String =
+            environment.optional("SURF_EVENTBUS_AUDIT_SERVICE") { require("expected a non-blank service name") { it.isNotBlank() } }
+                ?: fallback.getAuditServiceName()
     }
 }

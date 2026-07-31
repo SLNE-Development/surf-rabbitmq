@@ -1,6 +1,12 @@
 package dev.slne.surf.eventbus.rabbitmq.common.packet
 
+import dev.slne.surf.eventbus.audit.AuditKind
+import dev.slne.surf.eventbus.audit.AuditReport
+import dev.slne.surf.eventbus.audit.AuditSink
 import dev.slne.surf.eventbus.rabbitmq.api.exception.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -11,8 +17,15 @@ import kotlin.time.Duration.Companion.seconds
 
 class RabbitPacketChunkAssembler(
     private val expectedKind: RabbitPacketChunking.PacketChunkKind,
-    timeout: Duration
+    timeout: Duration,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+    private val auditSink: AuditSink = NoOpAuditSink,
+    private val serviceName: String = "",
+    private val instanceId: String = "",
 ) {
+    private object NoOpAuditSink : AuditSink {
+        override suspend fun report(report: AuditReport) {}
+    }
     private val timeoutNanos = timeout.inWholeNanoseconds.coerceAtLeast(1L)
 
     private val cleanupIntervalNanos = minOf(timeoutNanos, 1.seconds.inWholeNanoseconds)
@@ -145,8 +158,29 @@ class RabbitPacketChunkAssembler(
     }
 
     private fun cleanupExpired(now: Long) {
-        partialPackets.entries.removeIf { (_, partial) ->
-            partial.isExpired(now, timeoutNanos)
+        partialPackets.entries.removeIf { (key, partial) ->
+            val expired = partial.isExpired(now, timeoutNanos)
+
+            // Previously silent: a series that never completed just aged out of the map with
+            // no trace of the messages it was holding.
+            if (expired) {
+                scope.launch {
+                    auditSink.report(
+                        AuditReport(
+                            messageUuid = key.correlationId,
+                            kind = AuditKind.CHUNK_SERIES_EXPIRED,
+                            originService = serviceName,
+                            originInstance = null,
+                            reportedByService = serviceName,
+                            reportedByInstance = instanceId,
+                            failedAtEpochMs = System.currentTimeMillis(),
+                            correlationId = key.correlationId,
+                        )
+                    )
+                }
+            }
+
+            expired
         }
     }
 

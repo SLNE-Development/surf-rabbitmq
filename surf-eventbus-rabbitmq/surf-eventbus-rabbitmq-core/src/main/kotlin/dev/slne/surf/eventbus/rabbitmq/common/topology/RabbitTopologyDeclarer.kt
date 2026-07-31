@@ -17,15 +17,14 @@ import dev.slne.surf.eventbus.rabbitmq.core.retry.RetryTier
 class RabbitTopologyDeclarer(private val channel: Channel) {
 
     /**
-     * Declares the three exchanges.
+     * Declares `surf.rpc`.
      *
      * Safe to call from every process and on every reconnect: redeclaring with identical
      * properties is a no-op on the broker.
      *
-     * `surf.rpc` deliberately has **no** alternate exchange. Unroutable messages must come
-     * back to the publisher via `basic.return` (`mandatory = true`) so the caller can fail
-     * fast; an AE would swallow the return. The audit copy in [RabbitTopology.UNROUTABLE_QUEUE]
-     * is produced by the return listener republishing (Plan 4), not by the broker.
+     * Deliberately has **no** alternate exchange. Unroutable messages must come back to the
+     * publisher via `basic.return` (`mandatory = true`) so the caller can fail fast, or so the
+     * failure reaches the audit (Plan 4); an AE would swallow the return either way.
      */
     fun declareExchanges() {
         channel.exchangeDeclare(
@@ -33,41 +32,16 @@ class RabbitTopologyDeclarer(private val channel: Channel) {
             BuiltinExchangeType.DIRECT,
             /* durable = */ true
         )
-
-        channel.exchangeDeclare(
-            RabbitTopology.DLX_EXCHANGE,
-            BuiltinExchangeType.DIRECT,
-            /* durable = */ true
-        )
     }
 
     /**
-     * Declares the dead-letter queue for [serviceName] and binds it to [RabbitTopology.DLX_EXCHANGE].
-     *
-     * Called from [declareServiceQueue] and (in Plan 3) from `declareSharedEventQueue`: any
-     * process whose queues dead-letter under this service name must ensure the DLQ exists,
-     * otherwise dead-lettered messages route into `surf.dlx`, match nothing, and vanish.
-     *
-     * @return the queue name
-     */
-    fun declareDeadLetterQueue(serviceName: String): String {
-        val dlq = RabbitTopology.deadLetterQueue(serviceName)
-        channel.queueDeclare(dlq, true, false, false, QueueArguments.deadLetterQueue())
-        channel.queueBind(dlq, RabbitTopology.DLX_EXCHANGE, serviceName)
-
-        return dlq
-    }
-
-    /**
-     * Declares the shared service queue and its dead-letter queue, and binds both.
+     * Declares the shared service queue.
      *
      * Call this only on a process that hosts [serviceName].
      *
      * @return the queue name
      */
     fun declareServiceQueue(serviceName: String): String {
-        declareDeadLetterQueue(serviceName)
-
         val queue = RabbitTopology.serviceQueue(serviceName)
         channel.queueDeclare(queue, true, false, false, QueueArguments.serviceQueue())
         channel.queueBind(queue, RabbitTopology.RPC_EXCHANGE, serviceName)
@@ -98,20 +72,6 @@ class RabbitTopologyDeclarer(private val channel: Channel) {
     fun declareReplyQueue(instanceId: String): String {
         val queue = RabbitTopology.replyQueue(instanceId)
         channel.queueDeclare(queue, false, true, true, QueueArguments.ephemeralQueue())
-
-        return queue
-    }
-
-    /**
-     * Declares the audit queue for returned (unroutable) messages.
-     *
-     * Bound to nothing: the publish-side return listener republishes returned messages into
-     * it by name through the default exchange (Plan 4). Declared by every process at connect,
-     * with identical arguments, so it exists before the first return can happen.
-     */
-    fun declareUnroutableQueue(): String {
-        val queue = RabbitTopology.UNROUTABLE_QUEUE
-        channel.queueDeclare(queue, true, false, false, QueueArguments.deadLetterQueue())
 
         return queue
     }

@@ -94,7 +94,7 @@ Testcontainers (RabbitMQ, Redis, Datenbank), JUnit 5.
   - `class RabbitAuditSink(api, serviceName, instanceId, auditServiceName, enabled) : AuditSink`
   - `object AuditMessageIdentity { const val HEADER = "x-surf-audit-message-id"; fun of(properties: AMQP.BasicProperties): String; fun stamp(properties: AMQP.BasicProperties, id: String): AMQP.BasicProperties }`
 
-- [ ] **Step 1: Identitätstest schreiben**
+- [x] **Step 1: Identitätstest schreiben**
 
 ```kotlin
 package dev.slne.surf.eventbus.rabbitmq.audit
@@ -134,12 +134,12 @@ class AuditMessageIdentityTest {
 }
 ```
 
-- [ ] **Step 2: Test laufen lassen**
+- [x] **Step 2: Test laufen lassen**
 
 Run: `./gradlew :surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core:test --tests '*AuditMessageIdentityTest*'`
 Expected: FAIL, „Unresolved reference: AuditMessageIdentity".
 
-- [ ] **Step 3: Identität implementieren**
+- [x] **Step 3: Identität implementieren**
 
 ```kotlin
 package dev.slne.surf.eventbus.rabbitmq.audit
@@ -171,12 +171,12 @@ object AuditMessageIdentity {
 }
 ```
 
-- [ ] **Step 4: Test laufen lassen**
+- [x] **Step 4: Test laufen lassen**
 
 Run: `./gradlew :surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core:test --tests '*AuditMessageIdentityTest*'`
 Expected: PASS.
 
-- [ ] **Step 5: Senken-Test schreiben**
+- [x] **Step 5: Senken-Test schreiben**
 
 ```kotlin
 package dev.slne.surf.eventbus.rabbitmq.audit
@@ -242,12 +242,12 @@ class RabbitAuditSinkTest {
 Die drei Doubles (`RecordingAuditService`, `ThrowingAuditService`, `BlockingAuditService`)
 implementieren `AuditService` und liegen in derselben Datei.
 
-- [ ] **Step 6: Test laufen lassen**
+- [x] **Step 6: Test laufen lassen**
 
 Run: `./gradlew :surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core:test --tests '*RabbitAuditSinkTest*'`
 Expected: FAIL, „Unresolved reference: RabbitAuditSink".
 
-- [ ] **Step 7: Vertrag und Senke schreiben**
+- [x] **Step 7: Vertrag und Senke schreiben**
 
 ```kotlin
 package dev.slne.surf.eventbus.audit
@@ -315,12 +315,12 @@ Regel 1 — Meldungen werden nie selbst auditiert — steckt im Publish: der gen
 kein `basic.return` und damit keine `UNROUTABLE`-Meldung über eine Meldung erzeugen. Das gehört als
 Kommentar an die Stelle im Codegen, die `mandatory` setzt.
 
-- [ ] **Step 8: Test laufen lassen**
+- [x] **Step 8: Test laufen lassen**
 
 Run: `./gradlew :surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core:test --tests '*RabbitAuditSinkTest*'`
 Expected: PASS, alle vier.
 
-- [ ] **Step 9: Die fünf Rabbit-Meldepfade verdrahten**
+- [x] **Step 9: Die fünf Rabbit-Meldepfade verdrahten**
 
 | Ort | `kind` | Was sich ändert |
 |---|---|---|
@@ -330,7 +330,7 @@ Expected: PASS, alle vier.
 | `RabbitPacketChunkAssembler.cleanupExpiredIfDue` | `CHUNK_SERIES_EXPIRED` | meldet je verfallener Serie — vorher spurlos |
 | `RabbitConsumer` (Handler-Ausnahme) | `HANDLER_FAILED` mit `attempt` | stempelt die Identität beim ersten Fehlschlag |
 
-- [ ] **Step 10: Dead-Letter-Topologie entfernen**
+- [x] **Step 10: Dead-Letter-Topologie entfernen**
 
 Erst den Test anpassen, der die Argumente festhält:
 
@@ -358,7 +358,7 @@ Dann `x-dead-letter-exchange` aus `QueueArguments.serviceQueue()` entfernen und
 Run: `./gradlew :surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core:test`
 Expected: PASS.
 
-- [ ] **Step 11: Rollout-Falle festhalten**
+- [x] **Step 11: Rollout-Falle festhalten**
 
 Die Argumentänderung macht die Neudeklaration einer bestehenden Queue unmöglich
 (`PRECONDITION_FAILED (406)`). Ein Test hält die Erwartung fest, damit sie nicht in einem Kommentar
@@ -373,7 +373,7 @@ verhungert — `@RequiresDocker`, in `surf-eventbus-test`:
     }
 ```
 
-- [ ] **Step 12: ABI und Commit**
+- [x] **Step 12: ABI und Commit**
 
 Run: `./gradlew updateLegacyAbi && ./gradlew checkLegacyAbi`
 

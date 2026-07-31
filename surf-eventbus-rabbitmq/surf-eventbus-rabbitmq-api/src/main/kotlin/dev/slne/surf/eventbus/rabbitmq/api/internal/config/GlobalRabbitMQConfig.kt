@@ -7,6 +7,7 @@ import dev.slne.surf.api.core.config.constraints.Trimmed
 import dev.slne.surf.api.core.config.createSpongeYmlConfig
 import dev.slne.surf.api.core.config.surfConfigApi
 import dev.slne.surf.api.core.config.type.BooleanOrDefault
+import dev.slne.surf.api.core.config.type.StringOrDefault
 import dev.slne.surf.api.core.config.type.number.IntOr
 import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
 import org.spongepowered.configurate.objectmapping.ConfigSerializable
@@ -135,6 +136,14 @@ data class GlobalRabbitMQConfig(
     )
     @JvmField
     val outgoingResponseChunkingEnabled: BooleanOrDefault = BooleanOrDefault.USE_DEFAULT,
+
+    @field:Comment(
+        "The service name audit reports (failed handlers, unroutable messages, expired chunk " +
+                "series) are sent to."
+    )
+    @Trimmed
+    @JvmField
+    val auditServiceName: StringOrDefault = StringOrDefault.USE_DEFAULT,
 ) : CommonRabbitMQConfig {
 
     override fun getHost(): String = host
@@ -162,6 +171,8 @@ data class GlobalRabbitMQConfig(
             default = true,
         )
     }
+
+    override fun getAuditServiceName(): String = auditServiceName or "surf-eventbus-audit"
 
     override fun toString(): String {
         return "GlobalRabbitMQConfig(host=$host, port=$port, username=$username, password=<redacted>, " +

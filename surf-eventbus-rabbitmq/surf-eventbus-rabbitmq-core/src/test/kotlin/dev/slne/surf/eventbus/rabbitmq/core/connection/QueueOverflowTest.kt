@@ -48,7 +48,6 @@ class QueueOverflowTest {
             queue, true, false, false,
             mapOf(
                 "x-queue-type" to "quorum",
-                "x-dead-letter-exchange" to RabbitTopology.DLX_EXCHANGE,
                 "x-max-length" to 5L,
                 "x-overflow" to "reject-publish"
             )
@@ -107,7 +106,6 @@ class QueueOverflowTest {
             queue, true, false, false,
             mapOf(
                 "x-queue-type" to "quorum",
-                "x-dead-letter-exchange" to RabbitTopology.DLX_EXCHANGE,
                 "x-max-length" to 3L,
                 "x-overflow" to "reject-publish"
             )

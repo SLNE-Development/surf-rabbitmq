@@ -39,7 +39,6 @@ class RabbitTopologyDeclarerTest {
 
         // Passive declare throws if the exchange is absent.
         channel.exchangeDeclarePassive(RabbitTopology.RPC_EXCHANGE)
-        channel.exchangeDeclarePassive(RabbitTopology.DLX_EXCHANGE)
     }
 
     @Test
@@ -85,18 +84,6 @@ class RabbitTopologyDeclarerTest {
             "orphan",
             returned.get(5, java.util.concurrent.TimeUnit.SECONDS),
             "an unroutable mandatory publish must come back via basic.return"
-        )
-    }
-
-    @Test
-    fun `the unroutable audit queue is declared unbound and redeclarable`() {
-        val queue = declarer.declareUnroutableQueue()
-
-        assertEquals(RabbitTopology.UNROUTABLE_QUEUE, queue)
-
-        // Identical redeclaration must succeed - every process declares this queue.
-        assertNotNull(
-            channel.queueDeclare(queue, true, false, false, QueueArguments.deadLetterQueue())
         )
     }
 
@@ -155,6 +142,24 @@ class RabbitTopologyDeclarerTest {
 
         // Redeclaring with identical arguments succeeds; with different ones it would fail.
         // This is the cheapest way to assert the stored arguments without the HTTP API.
+        val ok = channel.queueDeclare(
+            RabbitTopology.serviceQueue(service),
+            true, false, false,
+            QueueArguments.serviceQueue()
+        )
+
+        assertNotNull(ok)
+    }
+
+    @Test
+    fun `a freshly declared service queue carries the new arguments`() {
+        // Existing 1.6.x queues cannot be redeclared: arguments are part of a queue's identity.
+        // The rollout note says to delete them before upgrading; this proves what a fresh
+        // declare looks like now that there is no dead-letter exchange in the arguments.
+        declarer.declareExchanges()
+        val service = RabbitBrokerExtension.uniqueServiceName("fresh-args")
+        declarer.declareServiceQueue(service)
+
         val ok = channel.queueDeclare(
             RabbitTopology.serviceQueue(service),
             true, false, false,

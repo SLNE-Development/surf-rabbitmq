@@ -11,18 +11,6 @@ object RabbitTopology {
     /** Routes RPC and fire-and-forget by target name. Type `direct`. */
     const val RPC_EXCHANGE = "surf.rpc"
 
-    /** Dead-letter destination for rejected messages. Type `direct`. */
-    const val DLX_EXCHANGE = "surf.dlx"
-
-    /**
-     * Audit queue for messages the broker returned as unroutable.
-     *
-     * Bound to nothing. The publish-side return listener republishes returned messages
-     * here (Plan 4). Deliberately not an alternate exchange: an AE would swallow the
-     * `basic.return` that the fail-fast path depends on.
-     */
-    const val UNROUTABLE_QUEUE = "surf.unroutable"
-
     private const val MAX_NAME_LENGTH = 255
     private val illegalCharacter = "[^a-zA-Z0-9._-]".toRegex()
 
@@ -34,9 +22,6 @@ object RabbitTopology {
 
     /** Per-process RPC reply queue. */
     fun replyQueue(instanceId: String): String = build("surf.reply.", instanceId)
-
-    /** Durable queue holding messages a service could not process. */
-    fun deadLetterQueue(serviceName: String): String = build("surf.dlq.", serviceName)
 
     /**
      * Replaces characters that are not valid in AMQP names.

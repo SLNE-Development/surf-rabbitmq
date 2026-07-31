@@ -136,6 +136,14 @@ data class PluginRabbitMQConfig(
     )
     @JvmField
     val outgoingResponseChunkingEnabled: BooleanOrDefault = BooleanOrDefault.USE_DEFAULT,
+
+    @field:Comment(
+        "The service name audit reports (failed handlers, unroutable messages, expired chunk " +
+                "series) are sent to."
+    )
+    @Trimmed
+    @JvmField
+    val auditServiceName: StringOrDefault = StringOrDefault.USE_DEFAULT,
 ) : CommonRabbitMQConfig {
 
     override fun getHost(): String = host or GlobalRabbitMQConfig.getConfig().getHost()
@@ -164,6 +172,9 @@ data class PluginRabbitMQConfig(
     override fun isOutgoingResponseChunkingEnabled(): Boolean {
         return outgoingResponseChunkingEnabled or GlobalRabbitMQConfig.getConfig().isOutgoingResponseChunkingEnabled()
     }
+
+    override fun getAuditServiceName(): String =
+        auditServiceName or GlobalRabbitMQConfig.getConfig().getAuditServiceName()
 
     override fun toString(): String {
         return "PluginRabbitMQConfig(host=$host, port=$port, username=$username, password=<redacted>, " +

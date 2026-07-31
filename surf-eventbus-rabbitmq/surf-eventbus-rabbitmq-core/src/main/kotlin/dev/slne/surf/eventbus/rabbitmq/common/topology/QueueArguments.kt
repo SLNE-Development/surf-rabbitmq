@@ -12,39 +12,21 @@ object QueueArguments {
     /**
      * Upper bound on a bounded queue, in bytes.
      *
-     * On service queues (combined with `reject-publish`) this stops a service that has been
-     * down for days from exhausting broker memory and taking every other service down with it.
-     * On audit queues (combined with `drop-head`) it caps queues nobody consumes.
+     * Stops a service that has been down for days from exhausting broker memory and taking
+     * every other service down with it.
      */
     const val MAX_QUEUE_BYTES = 268_435_456L
 
     /**
-     * Durable, replicated, bounded, dead-lettered.
+     * Durable, replicated, bounded.
      *
-     * No `x-dead-letter-routing-key` is set on purpose: a nacked message keeps the routing
-     * key it was delivered with — the service name — which is exactly what the
-     * `surf.dlq.<service>` binding on `surf.dlx` matches.
+     * No dead-letter exchange: a failed message is reported to the audit and then simply
+     * acked or dropped, not parked in a second queue nobody reads.
      */
     fun serviceQueue(): Map<String, Any> = mapOf(
         "x-queue-type" to "quorum",
-        "x-dead-letter-exchange" to RabbitTopology.DLX_EXCHANGE,
         "x-max-length-bytes" to MAX_QUEUE_BYTES,
         "x-overflow" to "reject-publish"
-    )
-
-    /**
-     * Durable and replicated, bounded, but **not** dead-lettered.
-     *
-     * Not dead-lettered: a dead-letter queue that dead-letters would cycle messages
-     * endlessly. Bounded with `drop-head` rather than `reject-publish`: nothing consumes
-     * this queue, and rejecting would make the dead-letter path itself fail.
-     *
-     * Also used for the `surf.unroutable` audit queue, which has the same lifecycle.
-     */
-    fun deadLetterQueue(): Map<String, Any> = mapOf(
-        "x-queue-type" to "quorum",
-        "x-max-length-bytes" to MAX_QUEUE_BYTES,
-        "x-overflow" to "drop-head"
     )
 
     /**

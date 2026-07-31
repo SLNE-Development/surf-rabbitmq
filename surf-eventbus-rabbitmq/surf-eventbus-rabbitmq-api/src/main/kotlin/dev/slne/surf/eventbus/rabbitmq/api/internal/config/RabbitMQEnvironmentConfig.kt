@@ -38,4 +38,7 @@ private class PluginWithGlobalFallback(
 
     override fun isOutgoingResponseChunkingEnabled(): Boolean =
         plugin.outgoingResponseChunkingEnabled or global.isOutgoingResponseChunkingEnabled()
+
+    override fun getAuditServiceName(): String =
+        plugin.auditServiceName or global.getAuditServiceName()
 }

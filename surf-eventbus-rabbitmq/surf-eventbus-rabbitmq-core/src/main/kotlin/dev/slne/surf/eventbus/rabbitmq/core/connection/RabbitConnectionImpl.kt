@@ -7,6 +7,10 @@ import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.ShutdownSignalException
 import com.sksamuel.aedile.core.expireAfterWrite
 import dev.slne.surf.api.core.util.logger
+import dev.slne.surf.eventbus.audit.AuditReport
+import dev.slne.surf.eventbus.audit.AuditService
+import dev.slne.surf.eventbus.audit.AuditSink
+import dev.slne.surf.eventbus.rabbitmq.audit.RabbitAuditSink
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
 import dev.slne.surf.eventbus.rabbitmq.api.connection.RabbitMQConnection
 import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitRequestException
@@ -63,7 +67,24 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
     }
 
     private val client = RabbitClient.create(api.config, api.identity.instanceId)
-    val retryPublisher = RetryPublisher(client)
+
+    private val auditServiceName = api.config.getAuditServiceName()
+
+    // Lazy: creating the generated proxy touches api.connection, which is this very instance
+    // while it is still being constructed. Deferred behind an AuditSink wrapper so no
+    // constructor-time code forces it - the first report (if any) resolves it lazily instead.
+    private val auditSinkDelegate: RabbitAuditSink by lazy {
+        RabbitAuditSink(
+            proxy = api.rpc<AuditService>(target = RabbitTarget.ServiceTarget(auditServiceName)),
+            serviceName = api.identity.serviceName,
+            auditServiceName = auditServiceName,
+        )
+    }
+    val auditSink: AuditSink = object : AuditSink {
+        override suspend fun report(report: AuditReport) = auditSinkDelegate.report(report)
+    }
+
+    val retryPublisher = RetryPublisher(client, auditSink, api.identity.instanceId)
 
     /**
      * The registry's predicate is the same closed transport list [BreakerGuardedRpc] retries
@@ -84,7 +105,13 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
      * waiting out the full request timeout. `messageId == correlationId` for the RPC path;
      * `send()` (fire-and-forget) mints its own.
      */
-    private val returnListener = ReturnListenerBridge(api.scope, client) { messageId, routingKey, reason ->
+    private val returnListener = ReturnListenerBridge(
+        api.scope,
+        api.identity.serviceName,
+        api.identity.instanceId,
+        auditServiceName,
+        auditSink
+    ) { messageId, routingKey, reason ->
         val pending = pendingRequests.asMap().remove(messageId) ?: return@ReturnListenerBridge
         pending.second?.completeExceptionally(
             SurfRabbitServiceUnavailableException(routingKey, reason)
@@ -131,12 +158,20 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
 
     private val responseChunkAssembler = RabbitPacketChunkAssembler(
         expectedKind = RabbitPacketChunking.PacketChunkKind.RESPONSE,
-        timeout = requestTimeoutSeconds * 2
+        timeout = requestTimeoutSeconds * 2,
+        scope = api.scope,
+        auditSink = auditSink,
+        serviceName = api.identity.serviceName,
+        instanceId = api.identity.instanceId
     )
 
     private val requestChunkAssembler = RabbitPacketChunkAssembler(
         expectedKind = RabbitPacketChunking.PacketChunkKind.REQUEST,
-        timeout = requestTimeoutSeconds
+        timeout = requestTimeoutSeconds,
+        scope = api.scope,
+        auditSink = auditSink,
+        serviceName = api.identity.serviceName,
+        instanceId = api.identity.instanceId
     )
 
     private val requestSerializerCache =
@@ -178,14 +213,11 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
     override suspend fun connect() {
         val declareConsumer = client.newConsumer("declare")
 
-        // Every process declares the exchanges and the unroutable audit queue; both are
-        // idempotent. The audit queue must exist before the first basic.return can be
-        // republished into it (Plan 4).
+        // Every process declares the exchange and the retry tiers; both are idempotent.
         declareConsumer.withChannel { channel ->
             val declarer = RabbitTopologyDeclarer(channel)
             declarer.declareExchanges()
             declarer.declareRetryTiers(api.config.getRetryTtlMillis())
-            declarer.declareUnroutableQueue()
         }
 
         // Reply and instance queues get their own consumer, and therefore their own channel.

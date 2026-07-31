@@ -7,7 +7,6 @@ import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.common.testing.testConfig
-import dev.slne.surf.eventbus.rabbitmq.common.topology.RabbitTopology
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -72,8 +71,9 @@ class RetryIntegrationTest {
     }
 
     @Test
-    fun `a failing handler climbs the full ladder and lands in the DLQ`() = runBlocking {
-        // Spec test 6, end to end: first delivery plus three retries, then the DLQ.
+    fun `a failing handler climbs the full ladder and then gives up`() = runBlocking {
+        // Spec test 6, end to end: first delivery plus three retries, then the audit has the
+        // terminal record (Plan 4) - there is no DLQ left to land in.
         // Feasible only because testConfig shrinks the tiers to 500ms/1s/1.5s.
         val service = RabbitBrokerExtension.uniqueServiceName("full-ladder")
         val handler = AlwaysFailing()
@@ -92,10 +92,6 @@ class RetryIntegrationTest {
                 handler.attempts.get() == 4
             }
 
-            awaitCondition("the message reaches the DLQ", timeoutMillis = 10_000) {
-                messageCount(RabbitTopology.deadLetterQueue(service)) == 1
-            }
-
             // Give a runaway ladder time to disprove itself.
             delay(3_000)
 
@@ -109,13 +105,6 @@ class RetryIntegrationTest {
             server.disconnect()
         }
     }
-
-    private fun messageCount(queue: String): Int =
-        RabbitBrokerExtension.newConnection("depth-check").use { connection ->
-            connection.createChannel().use { channel ->
-                channel.queueDeclarePassive(queue).messageCount
-            }
-        }
 
     private suspend fun awaitCondition(
         description: String,

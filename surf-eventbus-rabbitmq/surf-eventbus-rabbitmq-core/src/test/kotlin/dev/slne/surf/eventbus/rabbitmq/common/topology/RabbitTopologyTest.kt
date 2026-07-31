@@ -8,10 +8,8 @@ import kotlin.test.assertTrue
 class RabbitTopologyTest {
 
     @Test
-    fun `exchange and audit queue names match the specification`() {
+    fun `the exchange name matches the specification`() {
         assertEquals("surf.rpc", RabbitTopology.RPC_EXCHANGE)
-        assertEquals("surf.dlx", RabbitTopology.DLX_EXCHANGE)
-        assertEquals("surf.unroutable", RabbitTopology.UNROUTABLE_QUEUE)
     }
 
     @Test
@@ -29,7 +27,6 @@ class RabbitTopologyTest {
         assertEquals("surf.service.surf-factions", RabbitTopology.serviceQueue("surf-factions"))
         assertEquals("surf.instance.lobby-3", RabbitTopology.instanceQueue("lobby-3"))
         assertEquals("surf.reply.lobby-3", RabbitTopology.replyQueue("lobby-3"))
-        assertEquals("surf.dlq.surf-factions", RabbitTopology.deadLetterQueue("surf-factions"))
     }
 
     @Test

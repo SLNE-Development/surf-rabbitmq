@@ -20,6 +20,8 @@ include("surf-eventbus-bus:surf-eventbus-bus-core")
 include("surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-api")
 include("surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core")
 
+include("surf-eventbus-audit:surf-eventbus-audit-api")
+
 include("surf-eventbus-ksp")
 
 include("surf-eventbus-redis:surf-eventbus-redis-api")

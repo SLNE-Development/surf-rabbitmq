@@ -3,13 +3,10 @@ package dev.slne.surf.eventbus.rabbitmq.core.connection
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
 import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitServiceUnavailableException
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
-import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.common.testing.testConfig
-import dev.slne.surf.eventbus.rabbitmq.common.topology.RabbitTopology
 import dev.slne.surf.eventbus.rabbitmq.core.rpc.EchoRpcService
 import dev.slne.surf.eventbus.rabbitmq.core.send.WorkService
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
@@ -60,34 +57,6 @@ class UnroutableTest {
             }
 
             assertTrue(thrown.target == target, "the message must name the target to be useful")
-        } finally {
-            client.disconnect()
-        }
-    }
-
-    @Test
-    fun `an unroutable message is also preserved in the unroutable queue`() = runBlocking {
-        val client = api("caller")
-        client.freezeAndConnect()
-
-        try {
-            runCatching {
-                client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget("nonexistent-${System.nanoTime()}"))
-                    .echo("x")
-            }
-
-            delay(1_000)
-
-            val depth = RabbitBrokerExtension.newConnection("depth").use { connection ->
-                connection.createChannel().use { channel ->
-                    channel.queueDeclarePassive(RabbitTopology.UNROUTABLE_QUEUE).messageCount
-                }
-            }
-
-            assertTrue(
-                depth >= 1,
-                "the return listener must republish a copy so a misrouted message can be diagnosed"
-            )
         } finally {
             client.disconnect()
         }

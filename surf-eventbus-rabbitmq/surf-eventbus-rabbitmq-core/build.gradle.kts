@@ -7,6 +7,7 @@ plugins {
 dependencies {
     api(projects.surfEventbusRabbitmq.surfEventbusRabbitmqApi)
     api(projects.surfEventbusCommon)
+    api(projects.surfEventbusAudit.surfEventbusAuditApi)
     api(libs.amqp.client)
 
     compileOnly(libs.surf.microservice)
