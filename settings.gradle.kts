@@ -19,8 +19,12 @@ include("surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core")
 
 include("surf-eventbus-ksp")
 
+include("surf-eventbus-redis:surf-eventbus-redis-api")
+include("surf-eventbus-redis:surf-eventbus-redis-core")
+
 include("surf-eventbus-platform:surf-eventbus-platform-paper")
 include("surf-eventbus-platform:surf-eventbus-platform-velocity")
+include("surf-eventbus-platform:surf-eventbus-platform-standalone")
 
 val isCi = providers.environmentVariable("CI").isPresent
 
