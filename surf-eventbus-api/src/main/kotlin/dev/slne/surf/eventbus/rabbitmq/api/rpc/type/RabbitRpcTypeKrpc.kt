@@ -1,11 +1,11 @@
 package dev.slne.surf.eventbus.rabbitmq.api.rpc.type
 
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 import kotlinx.serialization.KSerializer
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
 
-@InternalRabbitMQ
+@InternalEventBusApi
 class RabbitRpcTypeKrpc(
     override val kType: KType,
     override val annotations: List<Annotation>,

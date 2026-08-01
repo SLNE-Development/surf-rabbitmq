@@ -2,6 +2,7 @@ package dev.slne.surf.eventbus.rabbitmq.api
 
 import dev.slne.surf.api.core.serializer.SurfSerializerModule
 import dev.slne.surf.api.core.util.logger
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.rabbitmq.api.connection.RabbitMQConnection
 import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitApiAlreadyFrozenException
 import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitApiNotFrozenException
@@ -39,13 +40,13 @@ import kotlin.reflect.KClass
  * ```
  */
 @OptIn(ExperimentalSerializationApi::class)
-class SurfRabbitApi @InternalRabbitMQ constructor(
+class SurfRabbitApi @InternalEventBusApi constructor(
     val identity: RabbitIdentity,
-    @InternalRabbitMQ val config: CommonRabbitMQConfig,
+    @InternalEventBusApi val config: CommonRabbitMQConfig,
     val cbor: Cbor,
     private val standalone: Boolean = false
 ) {
-    @InternalRabbitMQ
+    @InternalEventBusApi
     val scope = CoroutineScope(
         Dispatchers.Default +
                 CoroutineName("SurfRabbitApi-${identity.instanceId}") +
@@ -61,10 +62,10 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
     // must not require a broker-facing implementation to already be registered. Eagerly
     // creating these here would force every builder.build() through a ServiceLoader lookup
     // that only surf-rabbitmq-core satisfies.
-    @InternalRabbitMQ
+    @InternalEventBusApi
     val rpcService by lazy { RabbitRpcServiceFactory.instance.createRpcService(this) }
 
-    @InternalRabbitMQ
+    @InternalEventBusApi
     val connection: RabbitMQConnection by lazy { RabbitMQConnection.create(this) }
 
     private var frozen = false
@@ -141,7 +142,7 @@ class SurfRabbitApi @InternalRabbitMQ constructor(
         fun builder(serviceName: String, dataPath: Path): SurfRabbitApiBuilder =
             SurfRabbitApiBuilder(serviceName, dataPath)
 
-        @InternalRabbitMQ
+        @InternalEventBusApi
         fun createCbor(additionalSerializerModule: SerializersModule): Cbor = Cbor {
             ignoreUnknownKeys = true
             serializersModule = SurfSerializerModule.all.overwriteWith(additionalSerializerModule)

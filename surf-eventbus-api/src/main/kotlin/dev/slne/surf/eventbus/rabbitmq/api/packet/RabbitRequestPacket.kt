@@ -1,6 +1,6 @@
 package dev.slne.surf.eventbus.rabbitmq.api.packet
 
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitRequestAlreadyRespondedException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -13,9 +13,9 @@ import kotlin.properties.Delegates
 abstract class RabbitRequestPacket<ResponsePacket : RabbitResponsePacket> : RabbitPacket(),
     CoroutineScope {
     final override var coroutineContext: CoroutineContext by Delegates.notNull()
-        @InternalRabbitMQ set
+        @InternalEventBusApi set
 
-    @InternalRabbitMQ
+    @InternalEventBusApi
     @Transient
     val responseDeferred = CompletableDeferred<ResponsePacket>()
 

@@ -1,6 +1,6 @@
 package dev.slne.surf.eventbus.core.testing
 
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.rabbitmq.api.internal.StandaloneLifecycleHook
 import java.nio.file.Path
 
@@ -18,7 +18,7 @@ import java.nio.file.Path
  * processor alongside `surfEventbusKsp` on the same `kspTest` task triggers a KSP2
  * analysis-API lifetime bug (`KaInvalidLifetimeOwnerAccessException`) in this Kotlin version.
  */
-@OptIn(InternalRabbitMQ::class)
+@OptIn(InternalEventBusApi::class)
 class FakeStandaloneLifecycleHook : StandaloneLifecycleHook {
     override fun onInit(dataPath: Path) = Unit
     override suspend fun beforeConnect() = Unit

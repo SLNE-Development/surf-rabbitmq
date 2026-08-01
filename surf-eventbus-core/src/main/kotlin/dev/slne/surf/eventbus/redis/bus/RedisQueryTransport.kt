@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.bus
 
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.redis.RedisApi
-import dev.slne.surf.eventbus.redis.util.InternalRedisAPI
 import dev.slne.surf.eventbus.transport.QueryFrame
 import dev.slne.surf.eventbus.transport.QueryTransport
 import kotlinx.coroutines.CompletableDeferred
@@ -23,7 +23,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * `correlationId` and lets the first reply on the instance's own reply channel complete it;
  * every later reply for the same id is simply not waited for anymore - "first answer wins".
  */
-@OptIn(InternalRedisAPI::class)
+@OptIn(InternalEventBusApi::class)
 class RedisQueryTransport(
     private val redis: RedisApi,
     private val json: Json,

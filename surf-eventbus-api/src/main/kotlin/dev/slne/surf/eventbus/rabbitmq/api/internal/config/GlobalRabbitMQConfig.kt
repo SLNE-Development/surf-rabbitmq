@@ -9,14 +9,14 @@ import dev.slne.surf.api.core.config.surfConfigApi
 import dev.slne.surf.api.core.config.type.BooleanOrDefault
 import dev.slne.surf.api.core.config.type.StringOrDefault
 import dev.slne.surf.api.core.config.type.number.IntOr
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 import org.spongepowered.configurate.objectmapping.ConfigSerializable
 import org.spongepowered.configurate.objectmapping.meta.Comment
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
 
-@InternalRabbitMQ
+@InternalEventBusApi
 @ConfigSerializable
 data class GlobalRabbitMQConfig(
     @field:Comment("RabbitMQ server hostname or IP address.")
@@ -183,7 +183,7 @@ data class GlobalRabbitMQConfig(
                 "outgoingResponseChunkingEnabled=$outgoingResponseChunkingEnabled)"
     }
 
-    @InternalRabbitMQ
+    @InternalEventBusApi
     companion object {
         // Keyed by (path, fileName) rather than a single instance: the first load used to win
         // and every later (path, fileName) was silently ignored, which made configFileName()

@@ -1,8 +1,9 @@
 package dev.slne.surf.eventbus.redis.util
 
+import dev.slne.surf.eventbus.InternalEventBusApi
 import reactor.core.publisher.Mono
 
-@InternalRedisAPI
+@InternalEventBusApi
 interface Initializable {
     fun init(): Mono<Void>
 }

@@ -1,6 +1,6 @@
 package dev.slne.surf.eventbus.rabbitmq.api.rpc
 
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import kotlin.reflect.KClass
@@ -12,7 +12,7 @@ import kotlin.reflect.KClass
  * [Service], [registerService] makes it a host. A single process can be both for the same or
  * different services over one connection.
  */
-@InternalRabbitMQ
+@InternalEventBusApi
 interface RabbitRpcService {
     suspend fun <T> call(call: RabbitRpcCall): T
 

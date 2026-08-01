@@ -1,10 +1,10 @@
 package dev.slne.surf.eventbus.redis.bus
 
 import dev.slne.surf.api.core.util.logger
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.core.envelope.EventEnvelope
 import dev.slne.surf.eventbus.event.EventTopics
 import dev.slne.surf.eventbus.redis.RedisApi
-import dev.slne.surf.eventbus.redis.util.InternalRedisAPI
 import dev.slne.surf.eventbus.transport.EventTransport
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.reactive.awaitFirstOrNull
@@ -22,7 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * `EventTopics`, because Redis glob and the documented topic semantics disagree and the
  * documented one wins.
  */
-@OptIn(InternalRedisAPI::class)
+@OptIn(InternalEventBusApi::class)
 class RedisEventTransport(
     private val redis: RedisApi,
     private val json: Json,

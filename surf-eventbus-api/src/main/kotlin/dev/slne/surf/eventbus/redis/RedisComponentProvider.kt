@@ -1,6 +1,7 @@
 package dev.slne.surf.eventbus.redis
 
 import dev.slne.surf.api.core.util.requiredService
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.redis.cache.RedisSetIndexes
 import dev.slne.surf.eventbus.redis.cache.SimpleRedisCache
 import dev.slne.surf.eventbus.redis.cache.SimpleSetRedisCache
@@ -10,14 +11,13 @@ import dev.slne.surf.eventbus.redis.sync.list.SyncList
 import dev.slne.surf.eventbus.redis.sync.map.SyncMap
 import dev.slne.surf.eventbus.redis.sync.set.SyncSet
 import dev.slne.surf.eventbus.redis.sync.value.SyncValue
-import dev.slne.surf.eventbus.redis.util.InternalRedisAPI
 import io.netty.channel.MultiThreadIoEventLoopGroup
 import kotlinx.serialization.KSerializer
 import org.redisson.config.Config
 import java.util.concurrent.ExecutorService
 import kotlin.time.Duration
 
-@InternalRedisAPI
+@InternalEventBusApi
 interface RedisComponentProvider {
 
     val eventLoopGroup: MultiThreadIoEventLoopGroup

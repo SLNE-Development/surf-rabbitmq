@@ -1,6 +1,6 @@
 package dev.slne.surf.eventbus.rabbitmq.api.packet
 
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.rabbitmq.api.version.RabbitMqVersion
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
@@ -19,5 +19,5 @@ abstract class RabbitPacket {
      */
     @Transient
     var senderVersion: RabbitMqVersion = RabbitMqVersion.UNKNOWN
-        @InternalRabbitMQ set
+        @InternalEventBusApi set
 }

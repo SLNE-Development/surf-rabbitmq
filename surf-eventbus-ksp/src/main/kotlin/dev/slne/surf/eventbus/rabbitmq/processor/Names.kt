@@ -27,7 +27,7 @@ object ClassNames {
     val rpcRabbitCall = ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc", "RabbitRpcCall")
 
     val rabbitMqApi = ClassName("dev.slne.surf.eventbus.rabbitmq.api", "SurfRabbitApi")
-    val internalRabbitMqApi = ClassName("dev.slne.surf.eventbus.rabbitmq.api", "InternalRabbitMQ")
+    val internalEventBusApi = ClassName("dev.slne.surf.eventbus", "InternalEventBusApi")
     val rabbitTarget = ClassName("dev.slne.surf.eventbus.rabbitmq.api.target", "RabbitTarget")
 
     val kotlinKClass = ClassName("kotlin.reflect", "KClass")

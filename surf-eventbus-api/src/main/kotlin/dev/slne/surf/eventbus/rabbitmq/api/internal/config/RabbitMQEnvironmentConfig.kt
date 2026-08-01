@@ -1,10 +1,10 @@
 package dev.slne.surf.eventbus.rabbitmq.api.internal.config
 
 import dev.slne.surf.api.core.environment.EnvironmentVariables
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 
 /** Resolves YAML and process-environment configuration layers. */
-@InternalRabbitMQ
+@InternalEventBusApi
 fun resolveRabbitMQConfig(
     global: GlobalRabbitMQConfig,
     plugin: PluginRabbitMQConfig? = null,

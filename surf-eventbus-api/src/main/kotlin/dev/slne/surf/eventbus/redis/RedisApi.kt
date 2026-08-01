@@ -6,6 +6,7 @@ import dev.slne.surf.api.core.serializer.SurfSerializerModule
 import dev.slne.surf.api.core.serializer.java.uuid.JavaUUIDStringSerializer
 import dev.slne.surf.api.core.util.getCallerClass
 import dev.slne.surf.api.core.util.logger
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.redis.RedisApi.Companion.create
 import dev.slne.surf.eventbus.redis.cache.RedisSetIndexes
 import dev.slne.surf.eventbus.redis.cache.SimpleRedisCache
@@ -19,7 +20,6 @@ import dev.slne.surf.eventbus.redis.sync.map.SyncMap
 import dev.slne.surf.eventbus.redis.sync.set.SyncSet
 import dev.slne.surf.eventbus.redis.sync.value.SyncValue
 import dev.slne.surf.eventbus.redis.util.Initializable
-import dev.slne.surf.eventbus.redis.util.InternalRedisAPI
 import kotlinx.coroutines.*
 import kotlinx.coroutines.reactive.awaitFirstOrNull
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -181,7 +181,7 @@ class RedisApi private constructor(
      *
      * **Internal API** — not intended for use outside of surf-redis internals.
      */
-    @InternalRedisAPI
+    @InternalEventBusApi
     val redisListenerScope = CoroutineScope(
         Dispatchers.Default
                 + SupervisorJob()

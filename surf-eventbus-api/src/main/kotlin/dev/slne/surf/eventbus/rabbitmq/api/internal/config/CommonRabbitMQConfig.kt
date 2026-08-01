@@ -1,8 +1,9 @@
 package dev.slne.surf.eventbus.rabbitmq.api.internal.config
 
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 
-@InternalRabbitMQ
+
+@InternalEventBusApi
 interface CommonRabbitMQConfig {
     fun getHost(): String
     fun getPort(): Int

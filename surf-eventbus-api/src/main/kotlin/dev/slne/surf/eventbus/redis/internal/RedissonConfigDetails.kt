@@ -1,10 +1,10 @@
 package dev.slne.surf.eventbus.redis.internal
 
-import dev.slne.surf.eventbus.redis.util.InternalRedisAPI
+import dev.slne.surf.eventbus.InternalEventBusApi
 import kotlinx.serialization.modules.SerializersModule
 import org.redisson.misc.RedisURI
 
-@InternalRedisAPI
+@InternalEventBusApi
 data class RedissonConfigDetails(
     val redisURI: RedisURI,
     val serializerModule: SerializersModule,

@@ -1,10 +1,10 @@
 package dev.slne.surf.eventbus.rabbitmq.api.rpc
 
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 
-@InternalRabbitMQ
+@InternalEventBusApi
 class RabbitRpcCall(
     val descriptor: RabbitRpcServiceDescriptor<*>,
     val callableName: String,

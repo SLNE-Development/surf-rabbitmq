@@ -1,10 +1,10 @@
 package dev.slne.surf.eventbus.redis.credentials
 
 import dev.slne.surf.api.core.util.requiredService
-import dev.slne.surf.eventbus.redis.util.InternalRedisAPI
+import dev.slne.surf.eventbus.InternalEventBusApi
 import org.redisson.misc.RedisURI
 
-@InternalRedisAPI
+@InternalEventBusApi
 interface RedisCredentialsProvider {
 
     fun redisURI(): RedisURI

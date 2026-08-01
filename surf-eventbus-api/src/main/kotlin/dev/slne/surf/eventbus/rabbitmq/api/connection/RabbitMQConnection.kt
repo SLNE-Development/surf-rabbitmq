@@ -1,12 +1,12 @@
 package dev.slne.surf.eventbus.rabbitmq.api.connection
 
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
 import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.api.packet.RabbitResponsePacket
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 
-@InternalRabbitMQ
+@InternalEventBusApi
 interface RabbitMQConnection {
     suspend fun connect()
     suspend fun disconnect()
@@ -19,7 +19,7 @@ interface RabbitMQConnection {
 
     suspend fun send(packet: RabbitRequestPacket<*>, target: RabbitTarget)
 
-    @InternalRabbitMQ
+    @InternalEventBusApi
     companion object {
         fun create(api: SurfRabbitApi): RabbitMQConnection =
             RabbitMQConnectionFactory.createConnection(api)

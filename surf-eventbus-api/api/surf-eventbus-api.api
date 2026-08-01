@@ -278,8 +278,6 @@ public abstract class dev/slne/surf/eventbus/event/SurfBusEvent {
 	public synthetic fun <init> (ILjava/lang/String;JLkotlinx/serialization/internal/SerializationConstructorMarker;)V
 	public final fun getOriginInstanceId ()Ljava/lang/String;
 	public final fun getPublishedAtEpochMs ()J
-	public final fun setOriginInstanceId (Ljava/lang/String;)V
-	public final fun setPublishedAtEpochMs (J)V
 	public static final synthetic fun write$Self (Ldev/slne/surf/eventbus/event/SurfBusEvent;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
 }
 
@@ -294,47 +292,6 @@ public abstract interface annotation class dev/slne/surf/eventbus/event/SurfSubs
 
 public abstract interface annotation class dev/slne/surf/eventbus/query/QueryService : java/lang/annotation/Annotation {
 	public abstract fun timeoutMillis ()J
-}
-
-public abstract interface class dev/slne/surf/eventbus/query/callable/QueryCallable {
-	public abstract fun getInvoker ()Ldev/slne/surf/eventbus/query/callable/QueryInvoker;
-	public abstract fun getName ()Ljava/lang/String;
-	public abstract fun getParameters ()[Ldev/slne/surf/eventbus/query/callable/QueryParameter;
-	public abstract fun getReturnType ()Lkotlin/reflect/KType;
-}
-
-public final class dev/slne/surf/eventbus/query/callable/QueryCallableDefault : dev/slne/surf/eventbus/query/callable/QueryCallable {
-	public fun <init> (Ljava/lang/String;Lkotlin/reflect/KType;Ldev/slne/surf/eventbus/query/callable/QueryInvoker;[Ldev/slne/surf/eventbus/query/callable/QueryParameter;)V
-	public fun getInvoker ()Ldev/slne/surf/eventbus/query/callable/QueryInvoker;
-	public fun getName ()Ljava/lang/String;
-	public fun getParameters ()[Ldev/slne/surf/eventbus/query/callable/QueryParameter;
-	public fun getReturnType ()Lkotlin/reflect/KType;
-}
-
-public abstract interface class dev/slne/surf/eventbus/query/callable/QueryInvoker {
-	public abstract fun call (Ljava/lang/Object;[Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-}
-
-public abstract interface class dev/slne/surf/eventbus/query/callable/QueryParameter {
-	public abstract fun getName ()Ljava/lang/String;
-	public abstract fun getType ()Lkotlin/reflect/KType;
-}
-
-public final class dev/slne/surf/eventbus/query/callable/QueryParameterDefault : dev/slne/surf/eventbus/query/callable/QueryParameter {
-	public fun <init> (Ljava/lang/String;Lkotlin/reflect/KType;)V
-	public fun getName ()Ljava/lang/String;
-	public fun getType ()Lkotlin/reflect/KType;
-}
-
-public abstract interface class dev/slne/surf/eventbus/query/descriptor/QueryServiceDescriptor {
-	public abstract fun createInstance (Ljava/lang/String;Lkotlinx/serialization/json/Json;Ldev/slne/surf/eventbus/transport/QueryTransport;)Ljava/lang/Object;
-	public abstract fun getCallable (Ljava/lang/String;)Ldev/slne/surf/eventbus/query/callable/QueryCallable;
-	public abstract fun getCallables ()Ljava/util/Map;
-	public abstract fun getFqName ()Ljava/lang/String;
-	public abstract fun getTimeoutMillis ()J
-}
-
-public abstract interface annotation class dev/slne/surf/eventbus/rabbitmq/api/InternalRabbitMQ : java/lang/annotation/Annotation {
 }
 
 public final class dev/slne/surf/eventbus/rabbitmq/api/SurfRabbitApi {
@@ -1185,9 +1142,6 @@ public final class dev/slne/surf/eventbus/redis/sync/value/SyncValueChange$Updat
 	public final fun getOld ()Ljava/lang/Object;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
-}
-
-public abstract interface annotation class dev/slne/surf/eventbus/redis/util/InternalRedisAPI : java/lang/annotation/Annotation {
 }
 
 public final class dev/slne/surf/eventbus/redis/util/UtilKt {

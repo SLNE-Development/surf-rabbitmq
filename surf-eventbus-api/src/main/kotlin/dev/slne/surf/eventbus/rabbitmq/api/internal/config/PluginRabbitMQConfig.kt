@@ -10,14 +10,14 @@ import dev.slne.surf.api.core.config.surfConfigApi
 import dev.slne.surf.api.core.config.type.BooleanOrDefault
 import dev.slne.surf.api.core.config.type.StringOrDefault
 import dev.slne.surf.api.core.config.type.number.IntOr
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.rabbitmq.api.internal.config.migration.plugin.ClearCompleteConfigPluginMigration
 import org.spongepowered.configurate.objectmapping.ConfigSerializable
 import org.spongepowered.configurate.objectmapping.meta.Comment
 import java.nio.file.Path
 
 @ConfigSerializable
-@InternalRabbitMQ
+@InternalEventBusApi
 data class PluginRabbitMQConfig(
     @field:Comment("RabbitMQ server hostname or IP address.")
     @Trimmed
@@ -185,7 +185,7 @@ data class PluginRabbitMQConfig(
                 "outgoingResponseChunkingEnabled=$outgoingResponseChunkingEnabled)"
     }
 
-    @InternalRabbitMQ
+    @InternalEventBusApi
     companion object {
         fun create(path: Path): PluginRabbitMQConfig {
             val manager = surfConfigApi.createSpongeYmlConfigManager<PluginRabbitMQConfig>(

@@ -1,8 +1,9 @@
 package dev.slne.surf.eventbus.rabbitmq.api.rpc.type
 
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 
-@InternalRabbitMQ
+
+@InternalEventBusApi
 class RabbitRpcParameterDefault(
     override val name: String,
     override val type: RabbitRpcType,

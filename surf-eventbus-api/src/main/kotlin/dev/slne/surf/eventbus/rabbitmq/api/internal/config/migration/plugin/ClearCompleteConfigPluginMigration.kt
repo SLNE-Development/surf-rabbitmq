@@ -1,10 +1,10 @@
 package dev.slne.surf.eventbus.rabbitmq.api.internal.config.migration.plugin
 
 import dev.slne.surf.api.core.config.migration.ConfigMigration
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 import org.spongepowered.configurate.ConfigurationNode
 
-@InternalRabbitMQ
+@InternalEventBusApi
 object ClearCompleteConfigPluginMigration : ConfigMigration {
     override fun migrate(node: ConfigurationNode) {
         node.raw(null)

@@ -2,7 +2,7 @@ package dev.slne.surf.eventbus.rabbitmq.api.internal.config
 
 import dev.slne.surf.api.core.environment.EnvironmentVariables
 import dev.slne.surf.api.core.environment.requireIn
-import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
+import dev.slne.surf.eventbus.InternalEventBusApi
 
 /**
  * The environment layer of the RabbitMQ configuration.
@@ -11,7 +11,7 @@ import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ
  * with surf-api-core's resolver, which brings conversion, range validation and — for the
  * password — keeping the value out of failure messages.
  */
-@InternalRabbitMQ
+@InternalEventBusApi
 object RabbitEnvironment {
 
     private const val PREFIX = "SURF_EVENTBUS_RABBITMQ_"

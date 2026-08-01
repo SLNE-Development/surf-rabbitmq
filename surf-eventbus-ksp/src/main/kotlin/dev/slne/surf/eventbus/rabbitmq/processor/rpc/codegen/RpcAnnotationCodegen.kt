@@ -15,7 +15,7 @@ import dev.slne.surf.eventbus.rabbitmq.processor.Types
 fun FileSpec.Builder.optInInternalRabbitApi() = apply {
     addAnnotation(
         AnnotationSpec.builder(ClassNames.kotlinOptIn)
-            .addMember("%T::class", ClassNames.internalRabbitMqApi)
+            .addMember("%T::class", ClassNames.internalEventBusApi)
             .build()
     )
 }

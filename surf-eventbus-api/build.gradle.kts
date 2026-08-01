@@ -16,8 +16,7 @@ kotlin {
     abiValidation {
         filters {
             exclude {
-                annotatedWith.add("dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ")
-                annotatedWith.add("dev.slne.surf.eventbus.redis.util.InternalRedisAPI")
+                annotatedWith.add("dev.slne.surf.eventbus.InternalEventBusApi")
             }
         }
     }
