@@ -17,11 +17,16 @@ import kotlin.test.fail
  */
 class PackageNamingTest {
 
+    private val repositoryRoot: java.nio.file.Path =
+        generateSequence(java.io.File(".").absoluteFile) { it.parentFile }
+            .first { java.io.File(it, "settings.gradle.kts").isFile }
+            .toPath()
+
+
     private val allowedPrefix = "package dev.slne.surf.eventbus"
 
     @Test
     fun `every source file declares a package under dev slne surf eventbus`() {
-        val repositoryRoot = Path.of("..").toAbsolutePath().normalize()
         val offenders = Files.walk(repositoryRoot).asSequence()
             .filter { it.extension == "kt" }
             .filterNot { it.toString().contains("${java.io.File.separator}build${java.io.File.separator}") }

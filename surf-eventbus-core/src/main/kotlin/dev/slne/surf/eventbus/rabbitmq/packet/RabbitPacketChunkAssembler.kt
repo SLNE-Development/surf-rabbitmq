@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReferenceArray
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import dev.slne.surf.eventbus.rabbitmq.audit.AuditReports
 
 class RabbitPacketChunkAssembler(
     private val expectedKind: RabbitPacketChunking.PacketChunkKind,
@@ -33,6 +34,7 @@ class RabbitPacketChunkAssembler(
 
     private data class PartialKey(val correlationId: String, val seriesId: Long)
 
+    private val reports = AuditReports(serviceName, instanceId, AuditReports.DEFAULT_MAX_PAYLOAD_BYTES)
     private val partialPackets = ConcurrentHashMap<PartialKey, PartialPacket>()
 
     fun accept(
@@ -166,15 +168,11 @@ class RabbitPacketChunkAssembler(
             if (expired) {
                 scope.launch {
                     auditSink.report(
-                        AuditReport(
+                        reports.chunkSeriesExpired(
                             messageUuid = key.correlationId,
-                            kind = AuditKind.CHUNK_SERIES_EXPIRED,
-                            originService = serviceName,
-                            originInstance = null,
-                            reportedByService = serviceName,
-                            reportedByInstance = instanceId,
-                            failedAtEpochMs = System.currentTimeMillis(),
-                            correlationId = key.correlationId,
+                            originQueue = null,
+                            receivedChunks = partial.receivedCount(),
+                            expectedChunks = partial.totalChunks,
                         )
                     )
                 }
@@ -209,6 +207,8 @@ class RabbitPacketChunkAssembler(
                 receivedChunks.incrementAndGet()
             }
         }
+
+        fun receivedCount(): Int = receivedChunks.get()
 
         fun isComplete(): Boolean = receivedChunks.get() == totalChunks
 

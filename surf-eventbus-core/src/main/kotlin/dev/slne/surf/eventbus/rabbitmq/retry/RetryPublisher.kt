@@ -9,6 +9,7 @@ import dev.slne.surf.eventbus.rabbitmq.audit.AuditMessageIdentity
 import dev.slne.surf.eventbus.rabbitmq.connection.RabbitClient
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitPacketChunking
 import it.unimi.dsi.fastutil.objects.ObjectList
+import dev.slne.surf.eventbus.rabbitmq.audit.AuditReports
 
 /**
  * Moves a message whose handler failed onto the retry ladder, reporting every attempt to the
@@ -59,21 +60,20 @@ class RetryPublisher(
         val attempts = RetryPolicy.attemptsFrom(properties.headers)
         val decision = RetryPolicy.decide(attempts, retryEnabled)
         val messageId = AuditMessageIdentity.of(properties)
+        val reports = AuditReports(serviceName, instanceId, AuditReports.DEFAULT_MAX_PAYLOAD_BYTES)
 
         auditSink.report(
-            AuditReport(
-                messageUuid = messageId,
-                kind = AuditKind.HANDLER_FAILED,
-                originService = serviceName,
-                originInstance = null,
-                reportedByService = serviceName,
-                reportedByInstance = instanceId,
-                failedAtEpochMs = System.currentTimeMillis(),
+            reports.handlerFailed(
+                properties = properties,
+                body = body,
+                exchange = null,
+                routingKey = null,
                 originQueue = originQueue,
+                handler = null,
                 attempt = attempts + 1,
                 terminal = decision is RetryDecision.DeadLetter,
-                exceptionClass = exception?.javaClass?.name,
-                exceptionMessage = exception?.message,
+                retryTier = (decision as? RetryDecision.Retry)?.tier?.queueName,
+                throwable = exception,
             )
         )
 

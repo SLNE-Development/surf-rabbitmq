@@ -11,6 +11,7 @@ import dev.slne.surf.eventbus.transport.QueryTransport
 import kotlinx.serialization.modules.SerializersModule
 import java.nio.file.Path
 import java.util.UUID
+import dev.slne.surf.eventbus.platform.StandaloneLifecycleHook
 
 internal class SurfEventBusBuilderImpl(
     private val serviceName: String,
@@ -22,12 +23,15 @@ internal class SurfEventBusBuilderImpl(
     private var eventTransport: EventTransport? = null
     private var queryTransport: QueryTransport? = null
     private var redisApi: RedisApi? = null
+    private var standaloneHook: StandaloneLifecycleHook? = null
 
     override fun instanceName(name: String) = apply { instanceName = name }
 
     override fun serializers(module: SerializersModule) = apply { serializers = module }
 
     override fun withRabbit() = apply { rabbitEnabled = true }
+
+    override fun withStandaloneHook(hook: StandaloneLifecycleHook) = apply { standaloneHook = hook }
 
     override fun withRedis() = apply {
         eventTransport = RedisTransportLocator.event()
@@ -55,6 +59,7 @@ internal class SurfEventBusBuilderImpl(
             SurfRabbitApi.builder(serviceName, dataPath)
                 .instanceName(resolvedInstanceId)
                 .serializers(serializers)
+                .apply { standaloneHook?.let { standaloneHook(it) } }
                 .build()
         } else {
             null

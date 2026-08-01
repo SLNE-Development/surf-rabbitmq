@@ -32,6 +32,7 @@ public abstract interface class dev/slne/surf/eventbus/SurfEventBusBuilder {
 	public abstract fun withRabbit ()Ldev/slne/surf/eventbus/SurfEventBusBuilder;
 	public abstract fun withRedis ()Ldev/slne/surf/eventbus/SurfEventBusBuilder;
 	public abstract fun withRedis (Ldev/slne/surf/eventbus/transport/EventTransport;Ldev/slne/surf/eventbus/transport/QueryTransport;)Ldev/slne/surf/eventbus/SurfEventBusBuilder;
+	public abstract fun withStandaloneHook (Ldev/slne/surf/eventbus/platform/StandaloneLifecycleHook;)Ldev/slne/surf/eventbus/SurfEventBusBuilder;
 }
 
 public final class dev/slne/surf/eventbus/SurfEventBusBuilder$DefaultImpls {

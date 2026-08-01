@@ -70,10 +70,12 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
 
     private val auditServiceName = api.config.auditServiceName
 
-    // TODO(surf-eventbus-audit-microservice): reports queue durably (or vanish, if the queue
-    // was never declared) until something registers AuditService on this service name. See
-    // docs/superpowers/notes/2026-08-01-audit-microservice-blocked.md - the microservice itself
-    // is blocked on a shading defect in surf-database-r2dbc.
+    // Reports queue durably, or vanish if the queue was never declared, until something
+    // registers AuditService on this name. That is the intended state for 2.0, not an
+    // oversight: audit is best effort, and a missing audit row is therefore not evidence that
+    // nothing went wrong. docs/rollout-2.0.md step 3 says so to operators; the writing
+    // microservice is tracked in
+    // docs/superpowers/notes/2026-08-01-audit-microservice-blocked.md.
     //
     // Lazy: creating the generated proxy touches api.connection, which is this very instance
     // while it is still being constructed. Deferred behind an AuditSink wrapper so no

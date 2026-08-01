@@ -16,7 +16,13 @@ import kotlin.test.assertTrue
  */
 class RelocationBaseTest {
 
-    private val rootBuildFile = Path.of("..", "build.gradle.kts")
+    private val repositoryRoot: java.nio.file.Path =
+        generateSequence(java.io.File(".").absoluteFile) { it.parentFile }
+            .first { java.io.File(it, "settings.gradle.kts").isFile }
+            .toPath()
+
+
+    private val rootBuildFile = repositoryRoot.resolve("build.gradle.kts")
 
     @Test
     fun `the netty relocation base is declared once and contains no lib`() {
@@ -32,7 +38,7 @@ class RelocationBaseTest {
 
     @Test
     fun `no module declares its own netty relocation`() {
-        val rootDir = Path.of("..").toAbsolutePath().normalize()
+        val rootDir = repositoryRoot
         val rootBuild = rootDir.resolve("build.gradle.kts")
 
         val offenders = rootDir.toFile()

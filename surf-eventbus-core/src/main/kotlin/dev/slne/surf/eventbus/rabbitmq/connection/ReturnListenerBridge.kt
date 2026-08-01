@@ -10,6 +10,7 @@ import dev.slne.surf.eventbus.rabbitmq.audit.AuditMessageIdentity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import dev.slne.surf.eventbus.rabbitmq.audit.AuditReports
 
 /**
  * Surfaces messages the broker sent back as unroutable.
@@ -35,12 +36,13 @@ class ReturnListenerBridge(
         private val log = logger()
     }
 
+    private val reports = AuditReports(serviceName, instanceId, AuditReports.DEFAULT_MAX_PAYLOAD_BYTES)
     private val pending = ConcurrentHashMap.newKeySet<String>()
     private val returned = ConcurrentHashMap<String, String>()
 
     /** Installs the listener on [channel]. Call once per publisher channel. */
     fun install(channel: Channel) {
-        channel.addReturnListener { replyCode, replyText, _, routingKey, properties, body ->
+        channel.addReturnListener { replyCode, replyText, exchange, routingKey, properties, body ->
             val messageId = properties?.messageId
             val reason = "$replyCode $replyText"
 
@@ -54,17 +56,12 @@ class ReturnListenerBridge(
             if (routingKey != auditServiceName) {
                 scope.launch {
                     auditSink.report(
-                        AuditReport(
-                            messageUuid = AuditMessageIdentity.of(properties ?: AMQP.BasicProperties.Builder().build()),
-                            kind = AuditKind.UNROUTABLE,
-                            originService = serviceName,
-                            originInstance = null,
-                            reportedByService = serviceName,
-                            reportedByInstance = instanceId,
-                            failedAtEpochMs = System.currentTimeMillis(),
+                        reports.unroutable(
+                            properties = properties ?: AMQP.BasicProperties.Builder().build(),
+                            body = body,
+                            exchange = exchange,
                             routingKey = routingKey,
-                            payloadSizeBytes = body.size,
-                            payload = body,
+                            replyText = reason,
                         )
                     )
                 }

@@ -101,11 +101,32 @@ class RabbitListenerHandlerManager(
     ) {
         val request = try {
             RabbitPacketSerializer.deserializeRequest(api, body, requestSerializerCache)
-        } catch (e: SurfRabbitProtocolVersionMismatchException) { // TODO: correctly handle protocol version mismatch
+        } catch (e: SurfRabbitProtocolVersionMismatchException) {
+            // A version mismatch is not retryable: the peer speaks a different protocol and
+            // will speak it again on the next attempt. Treated exactly like a deserialization
+            // failure, because that is what it is - the bytes cannot be read by this process.
+            // Acked rather than nacked so it is not redelivered to a sibling that would fail
+            // identically; the audit row is the record that it happened.
             log.atWarning()
                 .withCause(e)
                 .log("Protocol version mismatch, discarding request")
-            ack.nack(requeue = false)
+
+            connection.auditSink.report(
+                AuditReport(
+                    messageUuid = AuditMessageIdentity.of(properties),
+                    kind = AuditKind.UNDESERIALIZABLE,
+                    originService = api.identity.serviceName,
+                    originInstance = null,
+                    reportedByService = api.identity.serviceName,
+                    reportedByInstance = api.identity.instanceId,
+                    failedAtEpochMs = System.currentTimeMillis(),
+                    originQueue = originQueue,
+                    correlationId = correlationId,
+                    exceptionClass = e.javaClass.name,
+                    exceptionMessage = e.message,
+                )
+            )
+            ack.ack()
             return
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
