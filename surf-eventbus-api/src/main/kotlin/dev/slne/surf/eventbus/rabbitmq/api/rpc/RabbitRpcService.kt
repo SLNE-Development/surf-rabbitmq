@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.rabbitmq.api.rpc
 
 import dev.slne.surf.eventbus.InternalEventBusApi
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RpcServiceDescriptor
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import kotlin.reflect.KClass
 
@@ -16,7 +16,7 @@ import kotlin.reflect.KClass
 interface RabbitRpcService {
     suspend fun <T> call(call: RabbitRpcCall): T
 
-    fun <Service : Any> serviceDescriptorOf(kClass: KClass<Service>): RabbitRpcServiceDescriptor<Service>
+    fun <Service : Any> serviceDescriptorOf(kClass: KClass<Service>): RpcServiceDescriptor<Service>
 
     /**
      * Creates a client proxy for [serviceKClass], addressed at [target].

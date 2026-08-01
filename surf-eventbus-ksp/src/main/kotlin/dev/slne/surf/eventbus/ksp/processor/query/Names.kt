@@ -14,16 +14,18 @@ object Names {
 
 object ClassNames {
     val queryServiceDescriptor = ClassName("dev.slne.surf.eventbus.query.descriptor", "QueryServiceDescriptor")
-    val queryInvoker = ClassName("dev.slne.surf.eventbus.query.callable", "QueryInvoker")
-    val queryCallable = ClassName("dev.slne.surf.eventbus.query.callable", "QueryCallable")
-    val queryCallableDefault = ClassName("dev.slne.surf.eventbus.query.callable", "QueryCallableDefault")
-    val queryParameter = ClassName("dev.slne.surf.eventbus.query.callable", "QueryParameter")
-    val queryParameterDefault = ClassName("dev.slne.surf.eventbus.query.callable", "QueryParameterDefault")
+    val queryInvoker = ClassName("dev.slne.surf.eventbus.service", "ServiceInvoker")
+    val queryCallable = ClassName("dev.slne.surf.eventbus.service", "ServiceCallable")
+    val queryCallableDefault = ClassName("dev.slne.surf.eventbus.service", "ServiceCallableDefault")
+    val queryParameter = ClassName("dev.slne.surf.eventbus.service", "ServiceParameter")
+    val queryParameterDefault = ClassName("dev.slne.surf.eventbus.service", "ServiceParameterDefault")
+    val queryTypeDefault = ClassName("dev.slne.surf.eventbus.service", "ServiceTypeDefault")
 
     val queryTransport = ClassName("dev.slne.surf.eventbus.transport", "QueryTransport")
     val queryFrame = ClassName("dev.slne.surf.eventbus.transport", "QueryFrame")
 
-    val querySerializerCache = ClassName("dev.slne.surf.eventbus.core.query.serialization", "QuerySerializerCache")
+    val querySerializerCache =
+        ClassName("dev.slne.surf.eventbus.service.serialization", "ServiceSerializerCache")
 
     val json = ClassName("kotlinx.serialization.json", "Json")
 
@@ -42,6 +44,8 @@ object MemberNames {
 
     val arrayOf = MemberName("kotlin", "arrayOf")
     val emptyArray = MemberName("kotlin", "emptyArray")
+
+    val emptyList = MemberName("kotlin.collections", "emptyList")
 }
 
 object Types {

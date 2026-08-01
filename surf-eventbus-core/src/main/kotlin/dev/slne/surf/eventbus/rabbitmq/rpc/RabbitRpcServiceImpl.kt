@@ -4,12 +4,12 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.RabbitRpcCall
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.RabbitRpcService
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.callable.RabbitRpcCallable
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
+import dev.slne.surf.eventbus.service.ServiceCallable
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RpcServiceDescriptor
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.common.rpc.packet.RpcCallRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.common.rpc.packet.RpcCallResponsePacket
-import dev.slne.surf.eventbus.rabbitmq.common.rpc.serialization.RpcSerializerCache
+import dev.slne.surf.eventbus.service.serialization.ServiceSerializerCache
 import dev.slne.surf.eventbus.rabbitmq.rpc.service.RpcServiceExecutor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -37,7 +37,7 @@ class RabbitRpcServiceImpl(private val api: SurfRabbitApi) : RabbitRpcService {
 
     private val serviceIdCounter = AtomicLong(0)
     private val callCounter = AtomicLong(0)
-    private val rpcSerializerCache = RpcSerializerCache()
+    private val rpcSerializerCache = ServiceSerializerCache()
 
     private val rpcServices = Caffeine.newBuilder()
         .build<String, RpcServiceExecutor<*>>()
@@ -55,15 +55,15 @@ class RabbitRpcServiceImpl(private val api: SurfRabbitApi) : RabbitRpcService {
         api.scope.coroutineContext + SupervisorJob(api.scope.coroutineContext.job)
     )
 
-    override fun <Service : Any> serviceDescriptorOf(kClass: KClass<Service>): RabbitRpcServiceDescriptor<Service> {
+    override fun <Service : Any> serviceDescriptorOf(kClass: KClass<Service>): RpcServiceDescriptor<Service> {
         val descriptor = findServiceDescriptor(kClass) ?: error("Unable to find a service descriptor of the $kClass.")
 
-        if (descriptor !is RabbitRpcServiceDescriptor<*>) {
-            error("Located service descriptor is not a RabbitRpcServiceDescriptor: $descriptor but $kClass")
+        if (descriptor !is RpcServiceDescriptor<*>) {
+            error("Located service descriptor is not a RpcServiceDescriptor: $descriptor but $kClass")
         }
 
         @Suppress("UNCHECKED_CAST")
-        return descriptor as RabbitRpcServiceDescriptor<Service>
+        return descriptor as RpcServiceDescriptor<Service>
     }
 
     private fun <Service : Any> findServiceDescriptor(kClass: KClass<Service>): Any? {
@@ -142,7 +142,7 @@ class RabbitRpcServiceImpl(private val api: SurfRabbitApi) : RabbitRpcService {
     private fun serializeRequest(
         callId: String,
         call: RabbitRpcCall,
-        callable: RabbitRpcCallable<*>,
+        callable: ServiceCallable<*>,
         serialFormat: BinaryFormat
     ): RpcCallRequestPacket {
         val data = if (callable.parameters.isNotEmpty()) {

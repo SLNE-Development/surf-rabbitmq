@@ -4,7 +4,7 @@ import dev.slne.surf.eventbus.audit.AuditKind
 import dev.slne.surf.eventbus.audit.AuditReport
 import dev.slne.surf.eventbus.audit.AuditSink
 import dev.slne.surf.eventbus.core.FakeQueryTransport
-import dev.slne.surf.eventbus.core.query.serialization.QuerySerializerCache
+import dev.slne.surf.eventbus.service.serialization.ServiceSerializerCache
 import dev.slne.surf.eventbus.core.registry.QueryServiceRegistry
 import dev.slne.surf.eventbus.query.QueryService
 import dev.slne.surf.eventbus.transport.QueryFrame
@@ -72,7 +72,7 @@ class QueryDispatcherTest {
 
     private fun frameFor(player: String): QueryFrame {
         val callable = LocatorDescriptor.getCallable("whereIs")!!
-        val argumentsSerializer = QuerySerializerCache().getParameterSerializer(callable, json.serializersModule)
+        val argumentsSerializer = ServiceSerializerCache().getParameterSerializer(callable, json.serializersModule)
         val payload = json.encodeToString(argumentsSerializer, arrayOf(player))
 
         return QueryFrame(

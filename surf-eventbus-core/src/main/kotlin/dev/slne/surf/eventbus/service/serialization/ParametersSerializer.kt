@@ -1,22 +1,33 @@
-package dev.slne.surf.eventbus.rabbitmq.common.rpc.serialization
+package dev.slne.surf.eventbus.service.serialization
 
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.callable.RabbitRpcCallable
+import dev.slne.surf.eventbus.service.ServiceCallable
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.MissingFieldException
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
-import kotlinx.serialization.encoding.*
+import kotlinx.serialization.encoding.CompositeDecoder
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.encoding.decodeStructure
+import kotlinx.serialization.encoding.encodeStructure
 import kotlinx.serialization.modules.SerializersModule
 
-class CallableParametersSerializer(
-    private val callable: RabbitRpcCallable<*>,
+/**
+ * Encodes the argument array of one contract callable as a single object.
+ *
+ * One class for queries and for RPC. They had two, differing in whether an optional parameter
+ * may be omitted and in whether contextual serializers are consulted — differences that were
+ * accidents of which sub-project wrote them, not of what the transports need.
+ */
+class ParametersSerializer(
+    private val callable: ServiceCallable<*>,
     private val module: SerializersModule
 ) : KSerializer<Array<Any?>> {
     private val callableSerializers = Array(callable.parameters.size) { i ->
         module.buildContextual(callable.parameters[i].type)
     }
 
-    override val descriptor = buildClassSerialDescriptor("surf.rabbitmq.CallableParametersSerializer") {
+    override val descriptor = buildClassSerialDescriptor("surf.eventbus.ParametersSerializer") {
         for ((index, serializer) in callableSerializers.withIndex()) {
             val parameter = callable.parameters[index]
             element(

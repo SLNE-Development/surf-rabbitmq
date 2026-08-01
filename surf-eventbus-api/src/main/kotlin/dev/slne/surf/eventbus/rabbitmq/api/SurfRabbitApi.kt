@@ -11,7 +11,7 @@ import dev.slne.surf.eventbus.rabbitmq.api.internal.config.CommonRabbitMQConfig
 import dev.slne.surf.eventbus.rabbitmq.api.internal.StandaloneLifecycleHook
 import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.api.rpc.RabbitRpcServiceFactory
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RpcServiceDescriptor
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
@@ -133,7 +133,7 @@ class SurfRabbitApi @InternalEventBusApi constructor(
         rpc(Service::class, target)
 
     /** The generated descriptor for an `@RpcService` interface, e.g. to read its `defaultService`. */
-    inline fun <reified Service : Any> serviceDescriptorOf(): RabbitRpcServiceDescriptor<Service> =
+    inline fun <reified Service : Any> serviceDescriptorOf(): RpcServiceDescriptor<Service> =
         rpcService.serviceDescriptorOf(Service::class)
 
     companion object {

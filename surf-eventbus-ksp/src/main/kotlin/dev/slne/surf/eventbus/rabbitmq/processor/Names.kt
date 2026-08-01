@@ -9,7 +9,7 @@ object Names {
     const val RPC_SERVICE_ANNOTATION_FQ = "dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService"
     const val RPC_SERVICE_ANNOTATION = "RpcService"
 
-    const val RPC_SERVICE_DESCRIPTOR_FQ = "dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor"
+    const val RPC_SERVICE_DESCRIPTOR_FQ = "dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RpcServiceDescriptor"
 
     const val FIRE_AND_FORGET_ANNOTATION_FQ = "dev.slne.surf.eventbus.rabbitmq.api.rpc.FireAndForget"
 
@@ -17,13 +17,13 @@ object Names {
 }
 
 object ClassNames {
-    val rpcServiceDescriptor = ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor", "RabbitRpcServiceDescriptor")
-    val rpcInvoker = ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc.invoker", "RabbitRpcInvoker")
-    val rpcCallable = ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc.callable", "RabbitRpcCallable")
-    val rpcCallableDefault = ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc.callable", "RabbitRpcCallableDefault")
-    val rpcTypeKrpc = ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc.type", "RabbitRpcTypeKrpc")
-    val rpcTypeDefault = ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc.type", "RabbitRpcTypeDefault")
-    val rpcParameterDefault = ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc.type", "RabbitRpcParameterDefault")
+    val rpcServiceDescriptor = ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor", "RpcServiceDescriptor")
+    val rpcInvoker = ClassName("dev.slne.surf.eventbus.service", "ServiceInvoker")
+    val rpcCallable = ClassName("dev.slne.surf.eventbus.service", "ServiceCallable")
+    val rpcCallableDefault = ClassName("dev.slne.surf.eventbus.service", "ServiceCallableDefault")
+    val rpcTypeKrpc = ClassName("dev.slne.surf.eventbus.service", "ServiceTypeKrpc")
+    val rpcTypeDefault = ClassName("dev.slne.surf.eventbus.service", "ServiceTypeDefault")
+    val rpcParameterDefault = ClassName("dev.slne.surf.eventbus.service", "ServiceParameterDefault")
     val rpcRabbitCall = ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc", "RabbitRpcCall")
 
     val rabbitMqApi = ClassName("dev.slne.surf.eventbus.rabbitmq.api", "SurfRabbitApi")

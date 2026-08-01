@@ -31,6 +31,12 @@ class QueryDescriptorCodegen(private val codeGenerator: CodeGenerator) {
             .addModifiers(KModifier.INTERNAL)
             .addSuperinterface(ClassNames.queryServiceDescriptor.parameterizedBy(service.serviceClassName))
             .addProperty(
+                PropertySpec.builder("simpleName", String::class)
+                    .addModifiers(KModifier.OVERRIDE)
+                    .initializer("%S", service.simpleName)
+                    .build()
+            )
+            .addProperty(
                 PropertySpec.builder("fqName", String::class)
                     .addModifiers(KModifier.OVERRIDE)
                     .initializer("%S", service.fqName)
@@ -128,9 +134,11 @@ class QueryDescriptorCodegen(private val codeGenerator: CodeGenerator) {
             .withIndent {
                 add("name = %S,\n", function.name)
                 add(
-                    "returnType = %M<%T>(),\n",
+                    "returnType = %T(%M<%T>(), %M()),\n",
+                    ClassNames.queryTypeDefault,
                     MemberNames.kotlinTypeOf,
                     function.returnType.toTypeName(function.typeParameterResolver),
+                    MemberNames.emptyList,
                 )
                 add("invoker = %N,\n", function.invokerName)
                 add("parameters = %L,\n", createParametersArray(function))
@@ -153,11 +161,15 @@ class QueryDescriptorCodegen(private val codeGenerator: CodeGenerator) {
                         ?: error("Cannot generate function ${function.name}: parameter name is null")
 
                     add(
-                        "%T(name = %S, type = %M<%T>())",
+                        "%T(name = %S, type = %T(%M<%T>(), %M()), isOptional = %L, annotations = %M())",
                         ClassNames.queryParameterDefault,
                         name,
+                        ClassNames.queryTypeDefault,
                         MemberNames.kotlinTypeOf,
                         parameter.type.toTypeName(function.typeParameterResolver),
+                        MemberNames.emptyList,
+                        parameter.hasDefault,
+                        MemberNames.emptyList,
                     )
                 }
             }

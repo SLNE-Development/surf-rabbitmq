@@ -1,7 +1,7 @@
-package dev.slne.surf.eventbus.rabbitmq.common.rpc.serialization
+package dev.slne.surf.eventbus.service.serialization
 
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.type.RabbitRpcType
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.type.RabbitRpcTypeKrpc
+import dev.slne.surf.eventbus.service.ServiceType
+import dev.slne.surf.eventbus.service.ServiceTypeKrpc
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -11,13 +11,13 @@ import kotlinx.serialization.serializer
 import kotlin.reflect.KType
 import kotlin.reflect.jvm.jvmErasure
 
-fun SerializersModule.buildContextual(type: RabbitRpcType): KSerializer<Any?> {
+fun SerializersModule.buildContextual(type: ServiceType): KSerializer<Any?> {
     return type.annotations
         .filterIsInstance<Serializable>()
         .lastOrNull()
         ?.let { serializable ->
             @Suppress("UNCHECKED_CAST")
-            (type as? RabbitRpcTypeKrpc)
+            (type as? ServiceTypeKrpc)
                 ?.serializers
                 ?.get(serializable.with) as? KSerializer<Any?>
         }

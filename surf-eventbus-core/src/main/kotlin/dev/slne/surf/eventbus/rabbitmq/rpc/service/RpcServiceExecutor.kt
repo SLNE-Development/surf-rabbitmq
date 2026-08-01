@@ -1,10 +1,10 @@
 package dev.slne.surf.eventbus.rabbitmq.rpc.service
 
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.callable.RabbitRpcCallable
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RabbitRpcServiceDescriptor
+import dev.slne.surf.eventbus.service.ServiceCallable
+import dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor.RpcServiceDescriptor
 import dev.slne.surf.eventbus.rabbitmq.common.rpc.packet.RpcCallRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.common.rpc.packet.RpcCallResponsePacket
-import dev.slne.surf.eventbus.rabbitmq.common.rpc.serialization.RpcSerializerCache
+import dev.slne.surf.eventbus.service.serialization.ServiceSerializerCache
 import dev.slne.surf.eventbus.rabbitmq.rpc.rpcErrorResponse
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -17,7 +17,7 @@ import kotlin.reflect.typeOf
 
 class RpcServiceExecutor<T : Any>(
     val service: T,
-    private val descriptor: RabbitRpcServiceDescriptor<T>,
+    private val descriptor: RpcServiceDescriptor<T>,
     private val serverScope: CoroutineScope,
     private val serialFormat: BinaryFormat
 ) {
@@ -27,7 +27,7 @@ class RpcServiceExecutor<T : Any>(
     }
 
     private val logger = ComponentLogger.logger(service.javaClass)
-    private val rpcSerializerCache = RpcSerializerCache()
+    private val rpcSerializerCache = ServiceSerializerCache()
 
     suspend fun accept(request: RpcCallRequestPacket) {
         val callable = descriptor.getCallable(request.rpcCallableName)
@@ -55,7 +55,7 @@ class RpcServiceExecutor<T : Any>(
         }
     }
 
-    private suspend fun processMessage(request: RpcCallRequestPacket, callableArg: RabbitRpcCallable<T>?) {
+    private suspend fun processMessage(request: RpcCallRequestPacket, callableArg: ServiceCallable<T>?) {
         val callId = request.rpcCallId
         val callableName = request.rpcCallableName
         val callable = callableArg

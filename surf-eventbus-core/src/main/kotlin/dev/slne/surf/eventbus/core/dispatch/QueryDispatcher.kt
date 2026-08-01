@@ -4,9 +4,9 @@ import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.eventbus.audit.AuditKind
 import dev.slne.surf.eventbus.audit.AuditReport
 import dev.slne.surf.eventbus.audit.AuditSink
-import dev.slne.surf.eventbus.core.query.serialization.QuerySerializerCache
+import dev.slne.surf.eventbus.service.serialization.ServiceSerializerCache
 import dev.slne.surf.eventbus.core.registry.QueryServiceRegistry
-import dev.slne.surf.eventbus.query.callable.QueryInvoker
+import dev.slne.surf.eventbus.service.ServiceInvoker
 import dev.slne.surf.eventbus.query.descriptor.QueryServiceDescriptor
 import dev.slne.surf.eventbus.transport.QueryFrame
 import dev.slne.surf.eventbus.transport.QueryTransport
@@ -27,7 +27,7 @@ class QueryDispatcher(
     private val json: Json,
     private val transport: QueryTransport
 ) {
-    private val serializerCache = QuerySerializerCache()
+    private val serializerCache = ServiceSerializerCache()
 
     suspend fun dispatch(frame: QueryFrame) {
         val implementation = registry.implementationOf(frame.contract) ?: return
@@ -59,7 +59,7 @@ class QueryDispatcher(
         val arguments = json.decodeFromString(argumentsSerializer, frame.payload)
 
         @Suppress("UNCHECKED_CAST")
-        val result = (callable.invoker as QueryInvoker<Any>)
+        val result = (callable.invoker as ServiceInvoker<Any>)
             .call(implementation, arguments)
             ?: return null
 

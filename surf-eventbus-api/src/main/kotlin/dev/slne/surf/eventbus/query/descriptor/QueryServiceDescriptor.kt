@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.query.descriptor
 
 import dev.slne.surf.eventbus.InternalEventBusApi
-import dev.slne.surf.eventbus.query.callable.QueryCallable
+import dev.slne.surf.eventbus.service.ServiceDescriptor
 import dev.slne.surf.eventbus.transport.QueryTransport
 import kotlinx.serialization.json.Json
 
@@ -13,11 +13,8 @@ import kotlinx.serialization.json.Json
  * from the same descriptor guarantees.
  */
 @InternalEventBusApi
-interface QueryServiceDescriptor<Service : Any> {
-    val fqName: String
+interface QueryServiceDescriptor<Service : Any> : ServiceDescriptor<Service> {
     val timeoutMillis: Long
-    val callables: Map<String, QueryCallable<Service>>
 
-    fun getCallable(name: String): QueryCallable<Service>?
     fun createInstance(instanceId: String, json: Json, transport: QueryTransport): Service
 }
