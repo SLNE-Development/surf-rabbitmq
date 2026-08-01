@@ -1,4 +1,4 @@
-package dev.slne.surf.eventbus.rabbitmq.processor
+package dev.slne.surf.eventbus.ksp.codegen
 
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind

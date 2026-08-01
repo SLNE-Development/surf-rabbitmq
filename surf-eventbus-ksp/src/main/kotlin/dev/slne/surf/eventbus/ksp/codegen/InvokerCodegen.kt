@@ -1,47 +1,49 @@
-package dev.slne.surf.eventbus.rabbitmq.processor.rpc.codegen
+package dev.slne.surf.eventbus.ksp.codegen
 
-import com.squareup.kotlinpoet.*
+import com.squareup.kotlinpoet.ANY
+import com.squareup.kotlinpoet.AnnotationSpec
+import com.squareup.kotlinpoet.CodeBlock
+import com.squareup.kotlinpoet.FunSpec
+import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
+import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.ksp.toTypeName
-import dev.slne.surf.eventbus.rabbitmq.processor.ClassNames
-import dev.slne.surf.eventbus.rabbitmq.processor.rpc.model.RpcFunctionModel
-import dev.slne.surf.eventbus.rabbitmq.processor.rpc.model.RpcServiceModel
+import com.squareup.kotlinpoet.withIndent
+import dev.slne.surf.eventbus.ksp.model.ServiceFunctionModel
+import dev.slne.surf.eventbus.ksp.model.ServiceModel
 
-class RpcInvokerCodegen {
+/** Emits the generated method handle a descriptor invokes an implementation through. */
+class InvokerCodegen {
+
     fun createInvokerProperty(
-        service: RpcServiceModel,
-        function: RpcFunctionModel,
+        service: ServiceModel,
+        function: ServiceFunctionModel,
     ): PropertySpec {
-        val invokerType = ClassNames.rpcInvoker.parameterizedBy(service.serviceClassName)
+        val invokerType = ClassNames.serviceInvoker.parameterizedBy(service.serviceClassName)
 
         return PropertySpec.builder(function.invokerName, invokerType)
             .addModifiers(KModifier.PRIVATE)
-            .initializer(
-                "%T(::%N)",
-                invokerType,
-                function.invokerFunctionName,
-            )
+            .initializer("%T(::%N)", invokerType, function.invokerFunctionName)
             .build()
     }
 
     fun createInvokerFunction(
-        service: RpcServiceModel,
-        function: RpcFunctionModel,
+        service: ServiceModel,
+        function: ServiceFunctionModel,
     ): FunSpec {
-        val argsType = ARRAY.parameterizedBy(ANY.copy(nullable = true))
-
         return FunSpec.builder(function.invokerFunctionName)
             .addModifiers(KModifier.PRIVATE, KModifier.SUSPEND)
-            .addAnnotation(AnnotationSpec.builder(Suppress::class).addMember("%S", "UNCHECKED_CAST").build())
+            .addAnnotation(
+                AnnotationSpec.builder(Suppress::class).addMember("%S", "UNCHECKED_CAST").build()
+            )
             .addParameter("service", service.serviceClassName)
-            .addParameter("args", argsType)
+            .addParameter("args", Types.anyNullableArray)
             .returns(ANY.copy(nullable = true))
             .addCode(createInvokerFunctionBody(function))
             .build()
     }
 
-
-    private fun createInvokerFunctionBody(function: RpcFunctionModel): CodeBlock {
+    private fun createInvokerFunctionBody(function: ServiceFunctionModel): CodeBlock {
         return CodeBlock.builder()
             .add("return service.%N(", function.name)
             .apply {

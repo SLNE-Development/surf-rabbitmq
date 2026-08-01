@@ -1,4 +1,4 @@
-package dev.slne.surf.eventbus.rabbitmq.processor.rpc.codegen
+package dev.slne.surf.eventbus.ksp.codegen
 
 import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotation
@@ -7,12 +7,8 @@ import com.google.devtools.ksp.symbol.KSType
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ksp.toClassName
 import com.squareup.kotlinpoet.ksp.toTypeName
-import dev.slne.surf.eventbus.rabbitmq.processor.ClassNames
-import dev.slne.surf.eventbus.rabbitmq.processor.MemberNames
-import dev.slne.surf.eventbus.rabbitmq.processor.Names
-import dev.slne.surf.eventbus.rabbitmq.processor.Types
 
-fun FileSpec.Builder.optInInternalRabbitApi() = apply {
+fun FileSpec.Builder.optInInternalEventBusApi() = apply {
     addAnnotation(
         AnnotationSpec.builder(ClassNames.kotlinOptIn)
             .addMember("%T::class", ClassNames.internalEventBusApi)

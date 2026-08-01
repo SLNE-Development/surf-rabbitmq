@@ -1,4 +1,4 @@
-package dev.slne.surf.eventbus.rabbitmq.processor.rpc.model
+package dev.slne.surf.eventbus.ksp.model
 
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.symbol.ClassKind
@@ -7,21 +7,35 @@ import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.Modifier
 import com.squareup.kotlinpoet.ksp.toClassName
 import com.squareup.kotlinpoet.ksp.toTypeParameterResolver
-import dev.slne.surf.eventbus.rabbitmq.processor.Names
 
-class RpcServiceModelFactory(private val logger: KSPLogger) {
-    fun create(declaration: KSClassDeclaration): RpcServiceModel? {
+/**
+ * Reads one contract interface into a [ServiceModel].
+ *
+ * Reading is identical for both kinds — that is the whole reason there is one factory. What
+ * differs is which shapes are allowed, and that lives in [ContractRules].
+ */
+class ServiceModelFactory(private val logger: KSPLogger) {
+
+    fun create(declaration: KSClassDeclaration, kind: ContractKind): ServiceModel? {
+        val rules = when (kind) {
+            ContractKind.QUERY -> QueryRules
+            ContractKind.RPC -> RpcRules
+        }
+
         if (declaration.classKind != ClassKind.INTERFACE) {
             logger.error(
-                "Only interfaces can be annotated with @${Names.RPC_SERVICE_ANNOTATION}",
+                "Only interfaces can be annotated with @${kind.annotationSimpleName}",
                 declaration,
             )
             return null
         }
 
+        if (!rules.acceptsContract(declaration, logger)) return null
+
         if (declaration.typeParameters.isNotEmpty()) {
             logger.error(
-                "Type parameters are not allowed on interfaces annotated with @${Names.RPC_SERVICE_ANNOTATION}",
+                "Type parameters are not allowed on interfaces annotated with " +
+                        "@${kind.annotationSimpleName}",
                 declaration,
             )
             return null
@@ -44,25 +58,15 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
             return null
         }
 
-        val packageName = fqName.substringBeforeLast('.', "")
         val serviceClassName = declaration.toClassName()
-        val descriptorClassName = serviceClassName.peerClass("${simpleName}Descriptor")
-        val clientImplClassName = serviceClassName.peerClass("${simpleName}ClientImpl")
-
-        val defaultService = declaration.annotations
-            .firstOrNull { it.shortName.asString() == "RpcService" }
-            ?.arguments
-            ?.firstOrNull { it.name?.asString() == "service" }
-            ?.value as? String
-            ?: ""
-
         val classTypeParameterResolver = declaration.typeParameters.toTypeParameterResolver()
         val seenFunctionNames = mutableSetOf<String>()
-        val functions = mutableListOf<RpcFunctionModel>()
+        val functions = mutableListOf<ServiceFunctionModel>()
 
         for (property in declaration.getAllProperties()) {
             logger.error(
-                "Cannot generate descriptor for property ${property.simpleName.asString()}: properties are not allowed",
+                "Cannot generate descriptor for property ${property.simpleName.asString()}: " +
+                        "properties are not allowed",
                 property,
             )
         }
@@ -80,10 +84,7 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
             }
 
             if (!function.modifiers.contains(Modifier.SUSPEND)) {
-                logger.error(
-                    "Cannot generate descriptor for function $functionName: must be suspend",
-                    function,
-                )
+                logger.error(suspendMessage(kind, functionName), function)
                 continue
             }
 
@@ -95,53 +96,73 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
                 continue
             }
 
-            val returnType = function.returnType
-            if (returnType == null) {
+            val returnType = function.returnType ?: run {
                 logger.error(
                     "Cannot generate descriptor for function $functionName: no return type",
                     function,
                 )
-                continue
-            }
+                null
+            } ?: continue
 
             val fireAndForget = function.annotations.any {
                 it.shortName.asString() == "FireAndForget"
             }
 
-            if (fireAndForget && returnType.resolve().declaration.qualifiedName?.asString() != "kotlin.Unit") {
-                logger.error(
-                    "@FireAndForget on $functionName requires the return type Unit: nobody " +
-                            "sends an answer, so nothing can be returned.",
-                    function,
-                )
-                continue
-            }
+            if (!rules.acceptsFunction(function, returnType, fireAndForget, logger)) continue
 
-            functions += RpcFunctionModel(
+            functions += ServiceFunctionModel(
                 declaration = function,
                 name = functionName,
                 invokerName = "${functionName}Invoker",
                 invokerFunctionName = "invoke${functionName.replaceFirstChar { it.uppercaseChar() }}",
                 returnType = returnType,
                 parameters = function.parameters,
-                typeParameterResolver = function.typeParameters.toTypeParameterResolver(classTypeParameterResolver),
+                typeParameterResolver = function.typeParameters
+                    .toTypeParameterResolver(classTypeParameterResolver),
                 fireAndForget = fireAndForget,
             )
         }
 
-        return RpcServiceModel(
+        return ServiceModel(
+            kind = kind,
             declaration = declaration,
             containingFile = ksFile,
             simpleName = simpleName,
             fqName = fqName,
-            packageName = packageName,
+            packageName = fqName.substringBeforeLast('.', ""),
             serviceClassName = serviceClassName,
-            descriptorClassName = descriptorClassName,
-            clientImplClassName = clientImplClassName,
+            descriptorClassName = serviceClassName.peerClass("${simpleName}Descriptor"),
+            clientImplClassName = serviceClassName.peerClass("${simpleName}ClientImpl"),
             functions = functions,
-            defaultService = defaultService,
+            defaultService = if (kind == ContractKind.RPC) readServiceAttribute(declaration) else "",
+            timeoutMillis = if (kind == ContractKind.QUERY) readTimeoutAttribute(declaration) else 0L,
         )
     }
+
+    private fun suspendMessage(kind: ContractKind, functionName: String): String = when (kind) {
+        ContractKind.QUERY ->
+            "@QueryService method $functionName must be suspend: a broadcast query is " +
+                    "always asynchronous."
+
+        ContractKind.RPC ->
+            "Cannot generate descriptor for function $functionName: must be suspend"
+    }
+
+    private fun readServiceAttribute(declaration: KSClassDeclaration): String =
+        declaration.annotations
+            .firstOrNull { it.shortName.asString() == ContractKind.RPC.annotationSimpleName }
+            ?.arguments
+            ?.firstOrNull { it.name?.asString() == "service" }
+            ?.value as? String
+            ?: ""
+
+    private fun readTimeoutAttribute(declaration: KSClassDeclaration): Long =
+        declaration.annotations
+            .firstOrNull { it.shortName.asString() == ContractKind.QUERY.annotationSimpleName }
+            ?.arguments
+            ?.firstOrNull { it.name?.asString() == "timeoutMillis" }
+            ?.value as? Long
+            ?: DEFAULT_TIMEOUT_MILLIS
 
     private fun KSFunctionDeclaration.isObjectMethod(): Boolean {
         val name = simpleName.asString()
@@ -151,5 +172,9 @@ class RpcServiceModelFactory(private val logger: KSPLogger) {
             "hashCode" if parameters.isEmpty() -> true
             else -> false
         }
+    }
+
+    private companion object {
+        const val DEFAULT_TIMEOUT_MILLIS = 5_000L
     }
 }
