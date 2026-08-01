@@ -23,8 +23,6 @@ allprojects {
 }
 
 subprojects {
-    if (name.contains("surf-eventbus-test")) return@subprojects
-
     afterEvaluate {
         extensions.findByType<KotlinJvmExtension>()?.apply {
             compilerOptions {

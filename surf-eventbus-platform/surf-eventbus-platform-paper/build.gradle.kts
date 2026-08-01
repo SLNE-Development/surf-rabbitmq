@@ -9,6 +9,5 @@ surfPaperPluginApi {
 }
 
 dependencies {
-    api(projects.surfEventbusRabbitmq.surfEventbusRabbitmqApi)
-    api(projects.surfEventbusRabbitmq.surfEventbusRabbitmqCore)
+    api(projects.surfEventbusCore)
 }

@@ -12,30 +12,11 @@ plugins {
 
 rootProject.name = "surf-eventbus"
 
-include("surf-eventbus-common")
-
-include("surf-eventbus-bus:surf-eventbus-bus-api")
-include("surf-eventbus-bus:surf-eventbus-bus-core")
-
-include("surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-api")
-include("surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core")
-
-include("surf-eventbus-audit:surf-eventbus-audit-api")
+include("surf-eventbus-api")
+include("surf-eventbus-core")
 
 include("surf-eventbus-ksp")
-
-include("surf-eventbus-redis:surf-eventbus-redis-api")
-include("surf-eventbus-redis:surf-eventbus-redis-core")
 
 include("surf-eventbus-platform:surf-eventbus-platform-paper")
 include("surf-eventbus-platform:surf-eventbus-platform-velocity")
 include("surf-eventbus-platform:surf-eventbus-platform-standalone")
-
-val isCi = providers.environmentVariable("CI").isPresent
-
-if (!isCi) {
-    include("surf-eventbus-test")
-    include("surf-eventbus-test:surf-eventbus-test-common")
-    include("surf-eventbus-test:surf-eventbus-test-paper")
-    include("surf-eventbus-test:surf-eventbus-test-server")
-}

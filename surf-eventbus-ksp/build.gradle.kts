@@ -17,9 +17,8 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(kotlin("test"))
     testImplementation("dev.zacsweers.kctfork:ksp:+")
-    testImplementation(projects.surfEventbusRabbitmq.surfEventbusRabbitmqApi)
-    testImplementation(projects.surfEventbusBus.surfEventbusBusApi)
-    testImplementation(projects.surfEventbusBus.surfEventbusBusCore)
+    testImplementation(projects.surfEventbusApi)
+    testImplementation(projects.surfEventbusCore)
     testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0")
 }
 

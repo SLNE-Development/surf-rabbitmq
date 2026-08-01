@@ -5,7 +5,7 @@ plugins {
 }
 
 dependencies {
-    api(projects.surfEventbusRedis.surfEventbusRedisCore)
+    api(projects.surfEventbusCore)
 }
 
 publishing {

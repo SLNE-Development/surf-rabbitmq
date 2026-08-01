@@ -390,6 +390,12 @@ outage from becoming two, and the identity header groups ladder attempts."
 
 ## Task 2: Audit-Microservice
 
+> **BLOCKED:** siehe `docs/superpowers/notes/2026-08-01-audit-microservice-blocked.md`.
+> `surf-database-r2dbc` (2.3.0 und 2.3.1) shaded ihre Exposed-Abhängigkeiten, ohne die
+> eingebetteten Kotlin-`@Metadata`-Annotationen auf die verschobenen Pakete anzupassen — dadurch
+> sind `suspendTransaction`, `insert`, `select`, `deleteWhere` u.a. aus Kotlin-Quellcode heraus
+> nicht auflösbar. Die Arbeit an diesem Task wurde zurückgerollt; kein Schritt ist umgesetzt.
+
 **Files:**
 - Create: `surf-eventbus-audit/surf-eventbus-audit-microservice/build.gradle.kts`
 - Create: `…/db/tables/AuditMessagesTable.kt`, `AuditFailuresTable.kt`, `AuditHeadersTable.kt`
