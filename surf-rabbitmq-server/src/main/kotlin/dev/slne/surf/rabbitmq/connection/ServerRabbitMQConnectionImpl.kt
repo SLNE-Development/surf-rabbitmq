@@ -47,7 +47,8 @@ class ServerRabbitMQConnectionImpl(
             queue = queueName,
             autoAck = false,
             prefetchCount = prefetchCount,
-            requeueOnHandlerError = false
+            requeueOnHandlerError = false,
+            handlerTimeout = config.getRequestTimeoutSeconds().seconds + 5.seconds
         ) { consumerTag, message, ack ->
             val property = message.properties
             val body = message.body
@@ -134,6 +135,15 @@ class ServerRabbitMQConnectionImpl(
             )
         }
 
-        ack?.ack()
+        val acknowledged = ack?.ack() ?: true
+
+        if (!acknowledged) {
+            log.atWarning()
+                .log(
+                    "RabbitMQ response for correlationId $correlationId was published, " +
+                            "but the original request could not be acknowledged. " +
+                            "The request may be redelivered."
+                )
+        }
     }
 }

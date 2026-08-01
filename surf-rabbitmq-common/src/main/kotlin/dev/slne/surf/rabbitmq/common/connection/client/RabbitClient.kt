@@ -146,16 +146,21 @@ class RabbitClient private constructor(
                  * reducing synchronized retry spikes and avoiding a thundering-herd effect.
                  */
                 recoveryDelayHandler = RecoveryDelayHandler { attempts ->
-                    val exponent = attempts.coerceIn(0, 6)
+                    val exponent = attempts.coerceIn(0, 4)
                     val maximum = minOf(
                         30_000L,
-                        1_000L shl exponent
+                        2_000L shl exponent
+                    )
+
+                    val minimum = maxOf(
+                        2_000L,
+                        maximum / 2
                     )
 
                     ThreadLocalRandom
                         .current()
                         .nextLong(
-                            maximum / 2,
+                            minimum,
                             maximum + 1
                         )
                 }
