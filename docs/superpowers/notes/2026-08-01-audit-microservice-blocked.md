@@ -68,3 +68,51 @@ otherwise reach the (nonexistent) microservice:
   (Task 1), it just has nothing listening on `surf-eventbus-audit` yet.
 - `docs/superpowers/plans/2026-07-31-eventbus-4-audit-plattform-doku.md`, Task 2 — steps
   unchecked, with a pointer back to this note.
+
+---
+
+## Nachgeprüft am 2026-08-01: mit 2.3.2 aufgehoben
+
+`surf-database-r2dbc:2.3.2` ist erschienen (diese Notiz prüfte 2.3.0 und 2.3.1). Die
+`@Metadata`-Annotationen sind darin korrekt reloziert.
+
+Geprüft nicht durch Lesen der Bytes — die Typdeskriptoren sahen schon in 2.3.1 richtig aus —
+sondern durch echtes Übersetzen einer Kotlin-Quelle gegen die Abhängigkeit, innerhalb von
+`surf-eventbus-core` und damit mit der Toolchain des Projekts:
+
+```kotlin
+import ….v1.core.dao.id.LongIdTable
+import ….v1.r2dbc.deleteWhere
+import ….v1.r2dbc.insert
+import ….v1.r2dbc.select
+import ….v1.r2dbc.transactions.suspendTransaction
+
+object ProbeTable : LongIdTable("probe") { val name = varchar("name", 32) }
+
+suspend fun probe(): Int = suspendTransaction {
+    ProbeTable.insert { it[name] = "x" }
+    ProbeTable.select(ProbeTable.name)
+    ProbeTable.deleteWhere { ProbeTable.name eq "x" }
+    1
+}
+```
+
+**Alle vier oben als blockiert genannten Funktionen lösen auf.** Übrig bleiben nur
+Deprecation-Warnungen (`SqlExpressionBuilder.eq` wird nach 1.0.0 durch eine Top-Level-Funktion
+ersetzt) — inhaltlich nichts, was Task 2 aufhält.
+
+Zwei Randbedingungen, die beim Wiederaufnehmen zählen:
+
+- **`deleteWhere` liegt in `….v1.r2dbc`, nicht in `….v1.core`.** Der falsche Import ist das
+  Erste, was beim Wiederaufnehmen wie der alte Fehler aussieht, und ist keiner.
+- **Das Artefakt ist für JVM 25 veröffentlicht.** `surf-eventbus` übersetzt bereits nach 25
+  (Bytecode-Major 69), also passt es hier; ein Consumer mit niedrigerem Target bekommt beim
+  Auflösen „only compatible with JVM runtime version 25 or newer" und darf das nicht mit der
+  Metadata-Frage verwechseln.
+
+Der zweite Punkt der Notiz — das fehlende `withSurfDatabaseR2dbc(...)`-DSL-Helferlein — wurde
+**nicht** erneut geprüft. Der dort genannte Ersatz (`implementation("dev.slne.surf:surf-database-r2dbc:…")`)
+ist genau das, was der Probe-Aufbau oben benutzt hat, und er funktioniert.
+
+**Damit ist Plan 4 Task 2 entblockt.** Er wird dort abgearbeitet, nicht in diesem Plan; die
+Audit-Suite (Spec 38–49) und `AuditSuiteTest` entstehen zusammen mit dem Microservice.
