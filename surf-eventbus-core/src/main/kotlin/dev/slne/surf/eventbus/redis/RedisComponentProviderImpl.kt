@@ -4,6 +4,7 @@ import com.google.auto.service.AutoService
 import dev.slne.surf.eventbus.redis.cache.*
 import dev.slne.surf.eventbus.redis.codec.RedisCodec
 import dev.slne.surf.eventbus.redis.config.redisConfig
+import dev.slne.surf.eventbus.platform.EventBusInstance
 import dev.slne.surf.eventbus.redis.internal.RedissonConfigDetails
 import dev.slne.surf.eventbus.redis.sync.BinarySyncValueCodec
 import dev.slne.surf.eventbus.redis.sync.JsonSyncValueCodec
@@ -28,8 +29,8 @@ import kotlin.time.toJavaDuration
 @AutoService(RedisComponentProvider::class)
 class RedisComponentProviderImpl : RedisComponentProvider {
 
-    override val eventLoopGroup get() = RedisInstance.instance.eventLoopGroup
-    override val redissonExecutorService get() = RedisInstance.instance.redissonExecutorService
+    override val eventLoopGroup get() = RedisRuntime.instance.eventLoopGroup
+    override val redissonExecutorService get() = RedisRuntime.instance.redissonExecutorService
     override val clientId = UUID.randomUUID().toString()
         .split("-")
         .take(2)
@@ -67,7 +68,7 @@ class RedisComponentProviderImpl : RedisComponentProvider {
     }
 
     override fun tryExtractPluginNameFromClass(clazz: Class<*>): String {
-        return RedisInstance.get().tryExtractPluginNameFromClass(clazz)
+        return EventBusInstance.instance.tryExtractPluginName(clazz)
     }
 
     override fun <K : Any, V : Any> createSimpleCache(

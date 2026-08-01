@@ -3,7 +3,7 @@ package dev.slne.surf.eventbus.rabbitmq.topology
 import com.rabbitmq.client.Channel
 import com.rabbitmq.client.Connection
 import dev.slne.surf.eventbus.rabbitmq.testing.RabbitBrokerExtension
-import dev.slne.surf.eventbus.rabbitmq.testing.RequiresDocker
+import dev.slne.surf.eventbus.testing.RequiresDocker
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test

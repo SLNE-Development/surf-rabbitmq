@@ -4,7 +4,8 @@ import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.ConnectionFactory
 import com.rabbitmq.client.RecoveryDelayHandler
 import dev.slne.surf.api.core.util.logger
-import dev.slne.surf.eventbus.rabbitmq.config.CommonRabbitMQConfig
+import dev.slne.surf.eventbus.config.RabbitMQSettings
+import dev.slne.surf.eventbus.credentials.RabbitCredentialsProvider
 import dev.slne.surf.eventbus.rabbitmq.connection.RabbitConnectionListener
 import dev.slne.surf.eventbus.rabbitmq.connection.RabbitConnectionProvider
 import dev.slne.surf.eventbus.rabbitmq.consumer.RabbitConsumer
@@ -124,16 +125,20 @@ class RabbitClient private constructor(
         }
 
         fun create(
-            config: CommonRabbitMQConfig,
+            config: RabbitMQSettings,
             connectionName: String,
             publisherOptions: RabbitPublisherOptions = RabbitPublisherOptions()
         ): RabbitClient {
+            // Address and secret come from the credentials seam, so an operator can source the
+            // password from somewhere other than the config file.
+            val credentials = RabbitCredentialsProvider.credentials(config)
+
             val connectionFactory = ConnectionFactory().apply {
-                host = config.getHost()
-                port = config.getPort()
-                username = config.getUsername()
-                password = config.getPassword()
-                virtualHost = config.getVhost()
+                host = credentials.host
+                port = credentials.port
+                username = credentials.username
+                password = credentials.password
+                virtualHost = credentials.vhost
 
                 isAutomaticRecoveryEnabled = true
                 isTopologyRecoveryEnabled = true
@@ -161,7 +166,7 @@ class RabbitClient private constructor(
                 }
 
                 requestedHeartbeat = 60
-                connectionTimeout = config.getTimeout().seconds.inWholeMilliseconds.toInt()
+                connectionTimeout = config.timeout.seconds.inWholeMilliseconds.toInt()
 
                 setSharedExecutor(sharedConsumerExecutor)
                 netty().eventLoopGroup(sharedEventLoopGroup)
@@ -177,7 +182,7 @@ class RabbitClient private constructor(
 
             val publisherPool = RabbitPublisherPool(
                 connectionProvider = connectionProvider,
-                size = config.getPublisherPoolSize(),
+                size = config.publisherPoolSize,
                 options = publisherOptions
             )
 

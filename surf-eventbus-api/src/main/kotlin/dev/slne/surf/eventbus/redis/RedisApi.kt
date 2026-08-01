@@ -12,7 +12,7 @@ import dev.slne.surf.eventbus.redis.cache.RedisSetIndexes
 import dev.slne.surf.eventbus.redis.cache.SimpleRedisCache
 import dev.slne.surf.eventbus.redis.cache.SimpleSetRedisCache
 import dev.slne.surf.eventbus.redis.codec.RedisCodec
-import dev.slne.surf.eventbus.redis.credentials.RedisCredentialsProvider
+import dev.slne.surf.eventbus.credentials.RedisCredentialsProvider
 import dev.slne.surf.eventbus.redis.internal.RedissonConfigDetails
 import dev.slne.surf.eventbus.redis.sync.SyncStructure
 import dev.slne.surf.eventbus.redis.sync.list.SyncList

@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.redis.codec
 
+import dev.slne.surf.eventbus.redis.SurfRedisException
 import java.io.Serial
 
 /**
@@ -11,7 +12,7 @@ import java.io.Serial
 class RedisCodecException @JvmOverloads constructor(
     message: String,
     cause: Throwable? = null
-) : RuntimeException(message, cause) {
+) : SurfRedisException(message, cause) {
     companion object {
         @Serial
         private const val serialVersionUID: Long = -1076029492684152080L

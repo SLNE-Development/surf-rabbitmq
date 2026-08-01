@@ -94,16 +94,6 @@ class SurfEventBusLifecycleTest {
         bus.disconnect()
     }
 
-    @Test
-    fun `a legacy environment variable fails the build`() {
-        // LegacyEnvironmentGuard is wired into build(); this asserts the wiring, not the guard,
-        // which has its own tests in surf-eventbus-common.
-        val failure = assertFailsWith<IllegalStateException> {
-            builder().withRabbit().build(environment = mapOf("SURF_RABBITMQ_HOST" to "x"))
-        }
-
-        assertContains(failure.message!!, "SURF_EVENTBUS_RABBITMQ_HOST")
-    }
 }
 
 @Serializable

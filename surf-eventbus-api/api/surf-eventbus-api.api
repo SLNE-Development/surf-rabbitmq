@@ -181,10 +181,40 @@ public final class dev/slne/surf/eventbus/circuitbreaker/CircuitState : java/lan
 	public static fun values ()[Ldev/slne/surf/eventbus/circuitbreaker/CircuitState;
 }
 
-public final class dev/slne/surf/eventbus/config/LegacyEnvironmentGuard {
-	public static final field INSTANCE Ldev/slne/surf/eventbus/config/LegacyEnvironmentGuard;
-	public final fun check (Ldev/slne/surf/api/core/environment/EnvironmentVariables;)V
-	public static synthetic fun check$default (Ldev/slne/surf/eventbus/config/LegacyEnvironmentGuard;Ldev/slne/surf/api/core/environment/EnvironmentVariables;ILjava/lang/Object;)V
+public abstract interface class dev/slne/surf/eventbus/credentials/CredentialsProvider {
+}
+
+public final class dev/slne/surf/eventbus/credentials/RabbitCredentials {
+	public fun <init> (Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ldev/slne/surf/eventbus/credentials/RabbitCredentials;
+	public static synthetic fun copy$default (Ldev/slne/surf/eventbus/credentials/RabbitCredentials;Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/slne/surf/eventbus/credentials/RabbitCredentials;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHost ()Ljava/lang/String;
+	public final fun getPassword ()Ljava/lang/String;
+	public final fun getPort ()I
+	public final fun getUsername ()Ljava/lang/String;
+	public final fun getVhost ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/slne/surf/eventbus/credentials/RabbitCredentialsProvider : dev/slne/surf/eventbus/credentials/CredentialsProvider {
+	public static final field Companion Ldev/slne/surf/eventbus/credentials/RabbitCredentialsProvider$Companion;
+	public abstract fun credentials (Ldev/slne/surf/eventbus/config/RabbitMQSettings;)Ldev/slne/surf/eventbus/credentials/RabbitCredentials;
+}
+
+public final class dev/slne/surf/eventbus/credentials/RabbitCredentialsProvider$Companion : dev/slne/surf/eventbus/credentials/RabbitCredentialsProvider {
+	public fun credentials (Ldev/slne/surf/eventbus/config/RabbitMQSettings;)Ldev/slne/surf/eventbus/credentials/RabbitCredentials;
+}
+
+public final class dev/slne/surf/eventbus/credentials/RedisCredentialsProvider$Companion : dev/slne/surf/eventbus/credentials/RedisCredentialsProvider {
+	public final fun getINSTANCE ()Ldev/slne/surf/eventbus/credentials/RedisCredentialsProvider;
+	public fun redisURI ()Lorg/redisson/misc/RedisURI;
 }
 
 public abstract interface annotation class dev/slne/surf/eventbus/event/BusEvent : java/lang/annotation/Annotation {
@@ -220,6 +250,27 @@ public final class dev/slne/surf/eventbus/event/SurfBusEvent$Companion {
 public abstract interface annotation class dev/slne/surf/eventbus/event/SurfSubscribe : java/lang/annotation/Annotation {
 	public abstract fun includeSelf ()Z
 	public abstract fun topic ()Ljava/lang/String;
+}
+
+public abstract class dev/slne/surf/eventbus/exception/SurfEventBusException : java/lang/RuntimeException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public abstract interface class dev/slne/surf/eventbus/platform/EventBusInstance {
+	public static final field Companion Ldev/slne/surf/eventbus/platform/EventBusInstance$Companion;
+	public abstract fun getDataPath ()Ljava/nio/file/Path;
+	public fun getResourceAsStream (Ljava/lang/String;)Ljava/io/InputStream;
+	public abstract fun tryExtractPluginName (Ljava/lang/Class;)Ljava/lang/String;
+}
+
+public final class dev/slne/surf/eventbus/platform/EventBusInstance$Companion {
+	public final fun getInstance ()Ldev/slne/surf/eventbus/platform/EventBusInstance;
+	public final fun orNull ()Ldev/slne/surf/eventbus/platform/EventBusInstance;
+}
+
+public final class dev/slne/surf/eventbus/platform/EventBusInstance$DefaultImpls {
+	public static fun getResourceAsStream (Ldev/slne/surf/eventbus/platform/EventBusInstance;Ljava/lang/String;)Ljava/io/InputStream;
 }
 
 public abstract interface class dev/slne/surf/eventbus/platform/JavaPluginLoaderProxy {
@@ -268,10 +319,11 @@ public final class dev/slne/surf/eventbus/rabbitmq/SurfRabbitApi$Companion {
 
 public final class dev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder {
 	public final fun build ()Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApi;
-	public final fun config (Ldev/slne/surf/eventbus/rabbitmq/config/CommonRabbitMQConfig;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
+	public final fun config (Ldev/slne/surf/eventbus/config/RabbitMQSettings;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
 	public final fun configFileName (Ljava/lang/String;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
 	public final fun instanceName (Ljava/lang/String;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
 	public final fun serializers (Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
+	public final fun standaloneHook (Ldev/slne/surf/eventbus/platform/StandaloneLifecycleHook;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
 }
 
 public final class dev/slne/surf/eventbus/rabbitmq/exception/SurfRabbitApiAlreadyFrozenException : java/lang/IllegalStateException {
@@ -329,7 +381,7 @@ public final class dev/slne/surf/eventbus/rabbitmq/exception/SurfRabbitEnvelopeS
 	public synthetic fun <init> (Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 }
 
-public abstract class dev/slne/surf/eventbus/rabbitmq/exception/SurfRabbitException : java/lang/RuntimeException {
+public abstract class dev/slne/surf/eventbus/rabbitmq/exception/SurfRabbitException : dev/slne/surf/eventbus/exception/SurfEventBusException {
 	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 }
@@ -601,6 +653,11 @@ public final class dev/slne/surf/eventbus/redis/RedisComponentProvider$Companion
 	public fun tryExtractPluginNameFromClass (Ljava/lang/Class;)Ljava/lang/String;
 }
 
+public abstract class dev/slne/surf/eventbus/redis/SurfRedisException : dev/slne/surf/eventbus/exception/SurfEventBusException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
 public final class dev/slne/surf/eventbus/redis/cache/RedisSetIndex {
 	public final fun getName ()Ljava/lang/String;
 	public fun toString ()Ljava/lang/String;
@@ -760,7 +817,7 @@ public final class dev/slne/surf/eventbus/redis/codec/RedisCodec$DefaultImpls {
 	public static fun getVersion (Ldev/slne/surf/eventbus/redis/codec/RedisCodec;)I
 }
 
-public final class dev/slne/surf/eventbus/redis/codec/RedisCodecException : java/lang/RuntimeException {
+public final class dev/slne/surf/eventbus/redis/codec/RedisCodecException : dev/slne/surf/eventbus/redis/SurfRedisException {
 	public static final field Companion Ldev/slne/surf/eventbus/redis/codec/RedisCodecException$Companion;
 	public fun <init> (Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
@@ -845,11 +902,6 @@ public final class dev/slne/surf/eventbus/redis/codec/default/VarLongBinaryCodec
 	public static final field INSTANCE Ldev/slne/surf/eventbus/redis/codec/default/VarLongBinaryCodec;
 	public synthetic fun read (Lio/netty/buffer/ByteBuf;)Ljava/lang/Object;
 	public synthetic fun write (Lio/netty/buffer/ByteBuf;Ljava/lang/Object;)V
-}
-
-public final class dev/slne/surf/eventbus/redis/credentials/RedisCredentialsProvider$Companion : dev/slne/surf/eventbus/redis/credentials/RedisCredentialsProvider {
-	public final fun getINSTANCE ()Ldev/slne/surf/eventbus/redis/credentials/RedisCredentialsProvider;
-	public fun redisURI ()Lorg/redisson/misc/RedisURI;
 }
 
 public abstract interface class dev/slne/surf/eventbus/redis/sync/SyncStructure : dev/slne/surf/eventbus/redis/util/Initializable, reactor/core/Disposable {

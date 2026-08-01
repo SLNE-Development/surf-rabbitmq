@@ -4,7 +4,6 @@ import dev.slne.surf.api.core.environment.EnvironmentVariables
 import dev.slne.surf.eventbus.core.RedisTransportLocator
 import dev.slne.surf.eventbus.SurfEventBus
 import dev.slne.surf.eventbus.SurfEventBusBuilder
-import dev.slne.surf.eventbus.config.LegacyEnvironmentGuard
 import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
 import dev.slne.surf.eventbus.redis.RedisApi
 import dev.slne.surf.eventbus.transport.EventTransport
@@ -42,10 +41,6 @@ internal class SurfEventBusBuilderImpl(
     }
 
     override fun build(environment: Map<String, String>?): SurfEventBus {
-        LegacyEnvironmentGuard.check(
-            if (environment == null) EnvironmentVariables.system else EnvironmentVariables.from(environment)
-        )
-
         check(rabbitEnabled || eventTransport != null) {
             "a bus needs at least one transport: add .withRabbit(), .withRedis(), or both to " +
                     "SurfEventBus.builder(\"$serviceName\", …)"

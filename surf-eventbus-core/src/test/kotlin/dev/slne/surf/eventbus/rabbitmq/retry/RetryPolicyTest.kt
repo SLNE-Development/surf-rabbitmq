@@ -68,23 +68,9 @@ class RetryPolicyTest {
 
     @Test
     fun `the default tier ttls match the specification`() {
-        // The config interface default is what production runs on; tests override it.
-        val config = object : dev.slne.surf.eventbus.rabbitmq.config.CommonRabbitMQConfig {
-            override fun getHost() = ""
-            override fun getPort() = 0
-            override fun getUsername() = ""
-            override fun getPassword() = ""
-            override fun getVhost() = ""
-            override fun getTimeout() = 0
-            override fun getRequestTimeoutSeconds() = 0
-            override fun getPublisherPoolSize() = 0
-            override fun getServerPrefetchCount() = 0
-            override fun isPersistRequests() = false
-            override fun isPersistResponses() = false
-            override fun isOutgoingRequestChunkingEnabled() = false
-            override fun isOutgoingResponseChunkingEnabled() = false
-        }
+        // The built-in default is what production runs on; tests override it.
+        val config = dev.slne.surf.eventbus.config.RabbitMQSettings()
 
-        assertEquals(listOf(10_000L, 60_000L, 300_000L), config.getRetryTtlMillis())
+        assertEquals(listOf(10_000L, 60_000L, 300_000L), config.retryTtlMillis)
     }
 }

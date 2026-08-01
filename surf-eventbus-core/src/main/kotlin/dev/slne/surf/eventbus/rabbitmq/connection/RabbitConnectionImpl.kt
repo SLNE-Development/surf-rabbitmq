@@ -68,7 +68,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
 
     private val client = RabbitClient.create(api.config, api.identity.instanceId)
 
-    private val auditServiceName = api.config.getAuditServiceName()
+    private val auditServiceName = api.config.auditServiceName
 
     // TODO(surf-eventbus-audit-microservice): reports queue durably (or vanish, if the queue
     // was never declared) until something registers AuditService on this service name. See
@@ -124,10 +124,10 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
     }
     private val listenerHandler = RabbitListenerHandlerManager(api, this)
 
-    private val requestTimeoutSeconds = api.config.getRequestTimeoutSeconds().seconds
-    private val persistRequests = api.config.isPersistRequests()
-    private val persistResponses = api.config.isPersistResponses()
-    private val prefetchCount = api.config.getServerPrefetchCount()
+    private val requestTimeoutSeconds = api.config.requestTimeoutSeconds.seconds
+    private val persistRequests = api.config.persistRequests
+    private val persistResponses = api.config.persistResponses
+    private val prefetchCount = api.config.serverPrefetchCount
 
     private lateinit var replyConsumer: RabbitConsumer
     private lateinit var replyQueueName: String
@@ -222,7 +222,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
         declareConsumer.withChannel { channel ->
             val declarer = RabbitTopologyDeclarer(channel)
             declarer.declareExchanges()
-            declarer.declareRetryTiers(api.config.getRetryTtlMillis())
+            declarer.declareRetryTiers(api.config.retryTtlMillis)
         }
 
         // Reply and instance queues get their own consumer, and therefore their own channel.
@@ -271,7 +271,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
         val correlationId = nextCorrelationId()
 
         val bodies =
-            if (RabbitPacketChunking.shouldChunk(body, api.config.isOutgoingRequestChunkingEnabled())) {
+            if (RabbitPacketChunking.shouldChunk(body, api.config.outgoingRequestChunkingEnabled)) {
                 RabbitPacketChunking.splitRequest(body)
             } else {
                 ObjectList.of(body)
@@ -478,7 +478,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
                 RabbitPacketChunking.supportsChunkedResponses(correlationId) &&
                 RabbitPacketChunking.shouldChunk(
                     body,
-                    api.config.isOutgoingResponseChunkingEnabled()
+                    api.config.outgoingResponseChunkingEnabled
                 )
             ) {
                 RabbitPacketChunking.splitResponse(body)
@@ -561,7 +561,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
             val requestBodies =
                 if (RabbitPacketChunking.shouldChunk(
                         requestBytes,
-                        api.config.isOutgoingRequestChunkingEnabled()
+                        api.config.outgoingRequestChunkingEnabled
                     )
                 ) {
                     RabbitPacketChunking.splitRequest(requestBytes)

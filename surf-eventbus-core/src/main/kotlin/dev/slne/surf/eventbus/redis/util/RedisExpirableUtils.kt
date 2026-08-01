@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.util
 
 import dev.slne.surf.api.core.util.logger
-import dev.slne.surf.eventbus.redis.RedisInstance
+import dev.slne.surf.eventbus.redis.RedisRuntime
 import org.redisson.api.RExpirableReactive
 import reactor.core.Disposable
 import reactor.core.Disposables
@@ -23,7 +23,7 @@ object RedisExpirableUtils {
         val refresh = Mono.`when`(objects.map { it.expire(javaTtl) }).then()
         val interval = Mono.delay(
             java.time.Duration.ofSeconds(delay),
-            RedisInstance.get().ttlRefreshScheduler
+            RedisRuntime.instance.ttlRefreshScheduler
         )
 
         return refresh

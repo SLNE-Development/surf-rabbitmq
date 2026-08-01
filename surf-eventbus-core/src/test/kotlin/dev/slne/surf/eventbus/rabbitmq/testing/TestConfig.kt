@@ -1,28 +1,31 @@
 package dev.slne.surf.eventbus.rabbitmq.testing
 
-import dev.slne.surf.eventbus.rabbitmq.config.CommonRabbitMQConfig
+import dev.slne.surf.eventbus.config.RabbitMQSettings
 
-/** Points a [CommonRabbitMQConfig] at the Testcontainers broker with test-sized timeouts. */
+/** Points a [RabbitMQSettings] at the Testcontainers broker with test-sized timeouts. */
 fun testConfig(
     requestTimeoutSeconds: Int = 10,
     prefetch: Int = 16,
     requestChunking: Boolean = false,
     responseChunking: Boolean = true
-): CommonRabbitMQConfig = object : CommonRabbitMQConfig {
-    private val factory = RabbitBrokerExtension.connectionFactory()
+): RabbitMQSettings {
+    val factory = RabbitBrokerExtension.connectionFactory()
 
-    override fun getHost() = factory.host
-    override fun getPort() = factory.port
-    override fun getUsername() = factory.username
-    override fun getPassword() = factory.password
-    override fun getVhost() = factory.virtualHost
-    override fun getTimeout() = 10
-    override fun getRequestTimeoutSeconds() = requestTimeoutSeconds
-    override fun getPublisherPoolSize() = 2
-    override fun getServerPrefetchCount() = prefetch
-    override fun isPersistRequests() = true
-    override fun isPersistResponses() = false
-    override fun isOutgoingRequestChunkingEnabled() = requestChunking
-    override fun isOutgoingResponseChunkingEnabled() = responseChunking
-    override fun getRetryTtlMillis() = listOf(500L, 1_000L, 1_500L)
+    return RabbitMQSettings(
+        host = factory.host,
+        port = factory.port,
+        username = factory.username,
+        password = factory.password,
+        vhost = factory.virtualHost,
+        timeout = 10,
+        requestTimeoutSeconds = requestTimeoutSeconds,
+        publisherPoolSize = 2,
+        serverPrefetchCount = prefetch,
+        persistRequests = true,
+        persistResponses = false,
+        outgoingRequestChunkingEnabled = requestChunking,
+        outgoingResponseChunkingEnabled = responseChunking,
+        // Sub-second tiers keep the retry ladder testable; the real one spans five minutes.
+        retryTtlMillis = listOf(500L, 1_000L, 1_500L),
+    )
 }

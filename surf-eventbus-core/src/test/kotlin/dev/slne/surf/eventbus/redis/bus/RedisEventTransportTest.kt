@@ -2,7 +2,7 @@ package dev.slne.surf.eventbus.redis.bus
 
 import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.redis.RedisApi
-import dev.slne.surf.eventbus.redis.testing.RequiresDocker
+import dev.slne.surf.eventbus.testing.RequiresDocker
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout

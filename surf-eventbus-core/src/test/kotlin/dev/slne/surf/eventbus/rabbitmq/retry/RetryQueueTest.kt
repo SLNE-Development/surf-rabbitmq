@@ -4,7 +4,7 @@ import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.Channel
 import com.rabbitmq.client.Connection
 import dev.slne.surf.eventbus.rabbitmq.testing.RabbitBrokerExtension
-import dev.slne.surf.eventbus.rabbitmq.testing.RequiresDocker
+import dev.slne.surf.eventbus.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.topology.QueueArguments
 import dev.slne.surf.eventbus.rabbitmq.topology.RabbitTopologyDeclarer
 import org.junit.jupiter.api.AfterEach

@@ -3,8 +3,8 @@ plugins {
 }
 
 surfPaperPluginApi {
-    mainClass("dev.slne.surf.eventbus.rabbitmq.paper.PaperMain")
-    bootstrapper("dev.slne.surf.eventbus.rabbitmq.paper.PaperBootstrap")
+    mainClass("dev.slne.surf.eventbus.platform.paper.PaperMain")
+    bootstrapper("dev.slne.surf.eventbus.platform.paper.PaperBootstrap")
     foliaSupported(true)
 }
 

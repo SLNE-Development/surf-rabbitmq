@@ -1,6 +1,6 @@
 package dev.slne.surf.eventbus.rabbitmq
 
-import dev.slne.surf.eventbus.rabbitmq.config.CommonRabbitMQConfig
+import dev.slne.surf.eventbus.config.RabbitMQSettings
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import kotlin.test.assertEquals
@@ -14,21 +14,14 @@ class SurfRabbitApiBuilderTest {
     // Builder tests always inject a config stub. Default config loading touches the
     // filesystem and, standalone, the StandaloneLifecycleHook - both are exercised by the
     // integration tests in core, not here.
-    private fun stubConfig(): CommonRabbitMQConfig = object : CommonRabbitMQConfig {
-        override fun getHost() = "localhost"
-        override fun getPort() = 5672
-        override fun getUsername() = "guest"
-        override fun getPassword() = "guest"
-        override fun getVhost() = "/"
-        override fun getTimeout() = 5
-        override fun getRequestTimeoutSeconds() = 5
-        override fun getPublisherPoolSize() = 1
-        override fun getServerPrefetchCount() = 1
-        override fun isPersistRequests() = false
-        override fun isPersistResponses() = false
-        override fun isOutgoingRequestChunkingEnabled() = false
-        override fun isOutgoingResponseChunkingEnabled() = false
-    }
+    private fun stubConfig() = RabbitMQSettings(
+        timeout = 5,
+        requestTimeoutSeconds = 5,
+        publisherPoolSize = 1,
+        serverPrefetchCount = 1,
+        persistRequests = false,
+        outgoingResponseChunkingEnabled = false,
+    )
 
     private fun builder(serviceName: String) =
         SurfRabbitApi.builder(serviceName, dataPath).config(stubConfig())

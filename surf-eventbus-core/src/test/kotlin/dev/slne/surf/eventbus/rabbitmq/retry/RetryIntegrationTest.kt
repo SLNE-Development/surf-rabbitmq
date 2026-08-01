@@ -5,7 +5,7 @@ import dev.slne.surf.eventbus.rabbitmq.rpc.FireAndForget
 import dev.slne.surf.eventbus.rabbitmq.rpc.RpcService
 import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.testing.RabbitBrokerExtension
-import dev.slne.surf.eventbus.rabbitmq.testing.RequiresDocker
+import dev.slne.surf.eventbus.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.testing.testConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking

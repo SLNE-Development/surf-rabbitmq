@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.bus
 
 import dev.slne.surf.eventbus.redis.RedisApi
-import dev.slne.surf.eventbus.redis.testing.RequiresDocker
+import dev.slne.surf.eventbus.testing.RequiresDocker
 import dev.slne.surf.eventbus.transport.QueryFrame
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterAll

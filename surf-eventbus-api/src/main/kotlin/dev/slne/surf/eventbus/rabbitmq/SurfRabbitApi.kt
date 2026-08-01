@@ -7,7 +7,7 @@ import dev.slne.surf.eventbus.rabbitmq.connection.RabbitMQConnection
 import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitApiAlreadyFrozenException
 import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitApiNotFrozenException
 import dev.slne.surf.eventbus.rabbitmq.identity.RabbitIdentity
-import dev.slne.surf.eventbus.rabbitmq.config.CommonRabbitMQConfig
+import dev.slne.surf.eventbus.config.RabbitMQSettings
 import dev.slne.surf.eventbus.platform.StandaloneLifecycleHook
 import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.rpc.RabbitRpcServiceFactory
@@ -42,9 +42,16 @@ import kotlin.reflect.KClass
 @OptIn(ExperimentalSerializationApi::class)
 class SurfRabbitApi @InternalEventBusApi constructor(
     val identity: RabbitIdentity,
-    @InternalEventBusApi val config: CommonRabbitMQConfig,
+    @InternalEventBusApi val config: RabbitMQSettings,
     val cbor: Cbor,
-    private val standalone: Boolean = false
+    private val standalone: Boolean = false,
+    /**
+     * What to run around connect/disconnect when [standalone].
+     *
+     * Injected rather than looked up globally, so a test can pass a double instead of
+     * registering one in `META-INF/services`.
+     */
+    private val standaloneHook: StandaloneLifecycleHook = StandaloneLifecycleHook.NoOp,
 ) {
     @InternalEventBusApi
     val scope = CoroutineScope(
@@ -88,7 +95,7 @@ class SurfRabbitApi @InternalEventBusApi constructor(
 
         // Preserves the former ServerRabbitMQApi lifecycle for standalone microservices;
         // on Paper/Velocity the platform manages the lifecycle and the hook must not run.
-        if (standalone) StandaloneLifecycleHook.beforeConnect()
+        if (standalone) standaloneHook.beforeConnect()
 
         connection.connect()
     }
@@ -102,7 +109,7 @@ class SurfRabbitApi @InternalEventBusApi constructor(
         connection.disconnect()
         scope.cancel("SurfRabbitApi disconnected")
 
-        if (standalone) StandaloneLifecycleHook.afterDisconnect()
+        if (standalone) standaloneHook.afterDisconnect()
     }
 
     /** Registers the server-side implementation of an `@RpcService` interface. */

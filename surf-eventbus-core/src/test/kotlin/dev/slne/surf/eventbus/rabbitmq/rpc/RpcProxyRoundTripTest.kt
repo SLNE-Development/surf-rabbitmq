@@ -4,7 +4,7 @@ import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
 import dev.slne.surf.eventbus.rabbitmq.rpc.RpcService
 import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.testing.RabbitBrokerExtension
-import dev.slne.surf.eventbus.rabbitmq.testing.RequiresDocker
+import dev.slne.surf.eventbus.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.testing.testConfig
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test

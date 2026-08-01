@@ -3,7 +3,7 @@ package dev.slne.surf.eventbus.rabbitmq.connection
 import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
 import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.testing.RabbitBrokerExtension
-import dev.slne.surf.eventbus.rabbitmq.testing.RequiresDocker
+import dev.slne.surf.eventbus.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.testing.testConfig
 import dev.slne.surf.eventbus.rabbitmq.rpc.EchoRpcImpl
 import dev.slne.surf.eventbus.rabbitmq.rpc.EchoRpcService

@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.rabbitmq.testing
 
+import dev.slne.surf.eventbus.testing.RequiresDocker
 import org.junit.jupiter.api.Test
 import kotlin.test.assertTrue
 

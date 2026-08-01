@@ -1,6 +1,6 @@
 package dev.slne.surf.eventbus.redis.util
 
-import dev.slne.surf.eventbus.redis.RedisInstance
+import dev.slne.surf.eventbus.redis.RedisRuntime
 import org.redisson.api.RStreamReactive
 import org.redisson.api.stream.StreamMessageId
 import org.redisson.api.stream.StreamRangeArgs
@@ -41,6 +41,6 @@ fun <K : Any, V : Any> RStreamReactive<K, V>.pollContinuously(
         handler(Result.failure(e))
         Mono.empty()
     }
-    .then(Mono.delay(pollInterval.toJavaDuration(), RedisInstance.get().streamPollScheduler))
+    .then(Mono.delay(pollInterval.toJavaDuration(), RedisRuntime.instance.streamPollScheduler))
     .repeat()
     .subscribe()

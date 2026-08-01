@@ -89,7 +89,7 @@ class RabbitTopologyDeclarer(private val channel: Channel) {
      * Nothing ever consumes these queues; messages leave by TTL expiry only.
      *
      * @param ttlMillis per-tier TTLs, index-aligned with [RetryTier.entries]; from
-     *   `CommonRabbitMQConfig.getRetryTtlMillis()`, so every process on a broker agrees
+     *   `RabbitMQSettings.retryTtlMillis`, so every process on a broker agrees
      */
     fun declareRetryTiers(ttlMillis: List<Long>) {
         require(ttlMillis.size == RetryTier.entries.size) {

@@ -10,7 +10,7 @@ package dev.slne.surf.eventbus.rabbitmq.retry
  * by the preserved key — straight back into the origin queue, whichever service or shared
  * event queue that was.
  *
- * TTLs are configuration (`CommonRabbitMQConfig.getRetryTtlMillis()`), index-aligned with
+ * TTLs are configuration (`RabbitMQSettings.retryTtlMillis`), index-aligned with
  * [entries], so tests can run the full ladder in seconds. The names keep their production
  * labels either way.
  */

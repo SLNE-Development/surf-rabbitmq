@@ -1,17 +1,15 @@
 package dev.slne.surf.eventbus.rabbitmq
 
-import dev.slne.surf.eventbus.rabbitmq.identity.RabbitIdentity
-import dev.slne.surf.eventbus.rabbitmq.internal.RabbitMQInstance
+import dev.slne.surf.eventbus.config.EventBusConfigFiles
+import dev.slne.surf.eventbus.config.RabbitMQSettings
+import dev.slne.surf.eventbus.config.resolveEventBusConfig
+import dev.slne.surf.eventbus.platform.EventBusInstance
 import dev.slne.surf.eventbus.platform.StandaloneLifecycleHook
-import dev.slne.surf.eventbus.rabbitmq.config.CommonRabbitMQConfig
-import dev.slne.surf.eventbus.rabbitmq.config.GlobalRabbitMQConfig
-import dev.slne.surf.eventbus.rabbitmq.config.PluginRabbitMQConfig
-import dev.slne.surf.eventbus.rabbitmq.config.resolveRabbitMQConfig
+import dev.slne.surf.eventbus.rabbitmq.identity.RabbitIdentity
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.modules.EmptySerializersModule
 import kotlinx.serialization.modules.SerializersModule
 import java.nio.file.Path
-import java.util.ServiceLoader
 
 /**
  * Builds a [SurfRabbitApi].
@@ -28,9 +26,10 @@ class SurfRabbitApiBuilder internal constructor(
     private val dataPath: Path
 ) {
     private var serializers: SerializersModule = EmptySerializersModule()
-    private var configOverride: CommonRabbitMQConfig? = null
-    private var configFileName: String = "rabbitmq.yml"
+    private var configOverride: RabbitMQSettings? = null
+    private var configFileName: String = EventBusConfigFiles.GLOBAL_FILE_NAME
     private var instanceName: String? = null
+    private var standaloneHook: StandaloneLifecycleHook? = null
 
     /** Additional serializers for packet, event and RPC payload types. */
     fun serializers(module: SerializersModule): SurfRabbitApiBuilder = apply {
@@ -54,47 +53,63 @@ class SurfRabbitApiBuilder internal constructor(
         configFileName = name
     }
 
-    /** Supplies a config directly, bypassing file loading. Intended for tests. */
-    fun config(config: CommonRabbitMQConfig): SurfRabbitApiBuilder = apply {
+    /** Supplies settings directly, bypassing file loading. Intended for tests. */
+    fun config(config: RabbitMQSettings): SurfRabbitApiBuilder = apply {
         configOverride = config
+    }
+
+    /**
+     * Uses [hook] instead of looking one up via `ServiceLoader`.
+     *
+     * Without it a unit test had to register a double in `META-INF/services` by hand, because
+     * running `@AutoService`'s processor next to this project's own on one `kspTest` task hits
+     * a KSP2 analysis-API lifetime bug. Injection removes the reason to run either.
+     */
+    fun standaloneHook(hook: StandaloneLifecycleHook): SurfRabbitApiBuilder = apply {
+        standaloneHook = hook
     }
 
     fun build(): SurfRabbitApi {
         require(serviceName.isNotBlank()) { "serviceName must not be blank" }
 
-        val platform = platformInstanceOrNull()
-        val config = configOverride ?: resolveConfig(platform)
+        val platform = EventBusInstance.orNull()
+        val standalone = platform == null && configOverride == null
+        val hook = standaloneHook
+            ?: StandaloneLifecycleHook.discover()
+            ?: StandaloneLifecycleHook.NoOp
+        val config = configOverride ?: resolveConfig(platform, hook)
 
         return SurfRabbitApi(
             identity = RabbitIdentity.create(serviceName, instanceName),
             config = config,
             cbor = SurfRabbitApi.createCbor(serializers),
-            standalone = platform == null && configOverride == null
+            standalone = standalone,
+            standaloneHook = hook,
         )
     }
 
     /**
-     * Resolution stays four-layered, exactly as before the client/server merge:
-     * `env > plugin YAML > global YAML > default`.
+     * Resolution stays four-layered: `env > plugin yaml > global yaml > default`.
      *
-     * On Paper/Velocity the global YAML lives in the platform plugin's data folder
-     * ([RabbitMQInstance.dataPath], file `config.yml`) and the per-plugin overrides in this
-     * builder's [dataPath] — the former `ClientRabbitMQApi.create` behaviour. Standalone
-     * there is no plugin layer and the global YAML lives in [dataPath] — the former
-     * `ServerRabbitMQApi.create` behaviour, including the [StandaloneLifecycleHook] init.
+     * On Paper/Velocity the global file lives in the platform plugin's data folder
+     * ([EventBusInstance.dataPath]) and the per-plugin overrides in this builder's [dataPath].
+     * Standalone there is no plugin layer and the global file lives in [dataPath], along with
+     * the [StandaloneLifecycleHook] init.
      */
-    private fun resolveConfig(platform: RabbitMQInstance?): CommonRabbitMQConfig {
+    private fun resolveConfig(
+        platform: EventBusInstance?,
+        hook: StandaloneLifecycleHook,
+    ): RabbitMQSettings {
         return if (platform != null) {
-            resolveRabbitMQConfig(
-                GlobalRabbitMQConfig.getOrLoad(platform.dataPath, "config.yml"),
-                PluginRabbitMQConfig.create(dataPath)
-            )
+            resolveEventBusConfig(
+                global = EventBusConfigFiles.global(platform.dataPath),
+                plugin = EventBusConfigFiles.plugin(dataPath),
+            ).rabbitmq
         } else {
-            StandaloneLifecycleHook.onInit(dataPath)
-            resolveRabbitMQConfig(GlobalRabbitMQConfig.getOrLoad(dataPath, configFileName))
+            hook.onInit(dataPath)
+            resolveEventBusConfig(
+                global = EventBusConfigFiles.global(dataPath, configFileName),
+            ).rabbitmq
         }
     }
-
-    private fun platformInstanceOrNull(): RabbitMQInstance? =
-        ServiceLoader.load(RabbitMQInstance::class.java).firstOrNull()
 }
