@@ -72,6 +72,8 @@ dependencies {
     testImplementation(libs.testcontainers.core)
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.rabbitmq)
+    // For the audit suite's database; the suite itself is still blocked.
+    testImplementation(libs.testcontainers.postgresql)
 
     // surf-api-core/surf-api-standalone are compileOnly for main (real hosts provide them),
     // but constructing a SurfRabbitApi/RedisApi in tests needs the real runtime.

@@ -22,3 +22,4 @@ testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version
 testcontainers-core = { module = "org.testcontainers:testcontainers" }
 testcontainers-junit = { module = "org.testcontainers:junit-jupiter" }
 testcontainers-rabbitmq = { module = "org.testcontainers:rabbitmq" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql" }

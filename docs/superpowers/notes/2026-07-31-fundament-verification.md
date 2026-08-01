@@ -90,3 +90,63 @@ nesting, and file relocation with content otherwise unchanged, guarded by `Packa
   because the Velocity reflection proxies moved there but the module itself doesn't apply that
   plugin. Same module needed `testImplementation(libs.coroutines.test)` for the circuit breaker's
   suspend-function tests.
+
+---
+
+## Stand nach der Konsolidierung (2026-08-01)
+
+**Docker ist auf dieser Maschine erreichbar** (Server 24.0.7). Der Konsolidierungsplan ging vom
+Gegenteil aus und schrieb vor, `@RequiresDocker`-Tests zu schreiben und nicht auszuführen. Diese
+Annahme war falsch: alle Integrationstests wurden ausgeführt.
+
+`./gradlew build` (ohne `-PskipIntegration`), vollständiger Lauf:
+
+| Modul | Tests | Fehler | Übersprungen |
+|---|---|---|---|
+| `surf-eventbus-api` | 78 | 0 | 0 |
+| `surf-eventbus-core` | 185 | 0 | 0 |
+| `surf-eventbus-ksp` | 9 | 0 | 0 |
+| `surf-eventbus-platform-standalone` | 3 | 0 | 0 |
+| **Summe** | **275** | **0** | **0** |
+
+Null übersprungene Tests: die Container-Suiten liefen gegen echte RabbitMQ- und Redis-Container.
+
+### Was das Ausführen gefunden hat
+
+Zwei Defekte, die nur ein laufender Broker zeigt. Beide existierten schon vor dieser Arbeit —
+der erste ist bei Commit `256e950` reproduziert worden, mit derselben Fehlermeldung.
+
+1. **`RedisComponentProviderImpl.tryExtractPluginNameFromClass`** warf
+   `ServiceConfigurationError`, wenn keine Plattform registriert ist. Damit scheiterte
+   `RedisApi.create(uri)` in jedem Prozess ohne Plattform — auch in den sieben vorhandenen
+   `RedisEventTransportTest`- und fünf `RedisQueryTransportTest`-Fällen, die deshalb **nie grün
+   gelaufen sind**. Der Name ist eine Beschriftung für `CLIENT LIST`; er fällt jetzt auf
+   `"surf-eventbus"` zurück.
+
+2. **`EventSubscriptionRegistry.register`** rief `trySetAccessible()` nicht auf. Eine
+   `public`-Methode auf einer nicht-öffentlichen Klasse steht in `Class.methods`, ist aus einem
+   anderen Paket aber nicht aufrufbar: die Registrierung galt als erfolgreich, der Dispatcher
+   warf bei **jeder** Zustellung `IllegalAccessException`. Weil ein werfender Handler
+   absichtlich eingefangen wird, war die einzige Spur eine `EVENT_HANDLER_FAILED`-Zeile pro
+   Ereignis — der Handler sah registriert aus und lief nie. Festgehalten in
+   `NonPublicListenerTest`, das keinen Container braucht.
+
+### Suiten
+
+| Suite | Spec-Nummern | Fälle | Anmerkung |
+|---|---|---|---|
+| `EventSuiteTest` | 1–5, 9–11, 12a | 9 | 6–8, 12b, 12c fehlen noch |
+| `QuerySuiteTest` | 13–19, 23 | 8 | 20 fehlt; 21/22 sind Compile-Fehler in `surf-eventbus-ksp` |
+| `RpcSuiteTest` | 24, 27, 31 | 3 | 25/26/28/29/32 liegen in den Plan-3-Tests, 30 im KSP-Modul |
+| `TransportEnablementTest` | 37 | 2 | 33–36 liegen in `SurfEventBusLifecycleTest` |
+
+`AuditSuiteTest` (38–49) entsteht **nicht**: Fälle 38, 47 und 48 brauchen den schreibenden
+Microservice aus Plan 4 Task 2, der weiter blockiert ist. `DatabaseContainerExtension` existiert
+bereits, damit das Entblocken der einzige verbleibende Schritt ist.
+
+### Überholt
+
+`surf-eventbus-test` wurde am 2026-08-01 gelöscht. Die Plan-4-Notiz, die das Modul noch als Ort
+der Container-Suiten nennt, ist damit überholt: alles Testbare liegt in
+`surf-eventbus-api/src/test`, `surf-eventbus-core/src/test`, `surf-eventbus-ksp/src/test` und
+`surf-eventbus-platform-standalone/src/test`.

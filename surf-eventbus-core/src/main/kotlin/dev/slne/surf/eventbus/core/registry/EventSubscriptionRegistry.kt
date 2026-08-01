@@ -46,6 +46,13 @@ class EventSubscriptionRegistry {
             val pattern = annotation.topic.ifBlank { EventTopics.topicOf(eventClass) }
             EventTopics.validateBindingPattern(pattern)
 
+            // A public method on a non-public class is not reflectively callable from another
+            // package. Without this the dispatcher throws IllegalAccessException on every
+            // delivery, and because a throwing handler is contained by design, the only trace
+            // is one EVENT_HANDLER_FAILED row per event - the handler looks registered and
+            // silently never runs. Done here, once, rather than per dispatch.
+            runCatching { method.trySetAccessible() }
+
             entries += EventSubscription(
                 eventClass = eventClass,
                 pattern = pattern,

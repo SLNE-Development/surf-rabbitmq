@@ -67,9 +67,17 @@ class RedisComponentProviderImpl : RedisComponentProvider {
         return config
     }
 
-    override fun tryExtractPluginNameFromClass(clazz: Class<*>): String {
-        return EventBusInstance.instance.tryExtractPluginName(clazz)
-    }
+    /**
+     * The plugin to attribute [clazz] to, or a fallback when there is no platform.
+     *
+     * The name is decoration: it labels a Redis connection in `CLIENT LIST` and picks a
+     * per-plugin config section. A process with no registered platform — a test, or a
+     * standalone host that builds a `RedisApi` directly — used to get a
+     * `ServiceConfigurationError` out of `RedisApi.create(uri)` here, which is a hard failure
+     * over a log label.
+     */
+    override fun tryExtractPluginNameFromClass(clazz: Class<*>): String =
+        EventBusInstance.orNull()?.tryExtractPluginName(clazz) ?: UNATTRIBUTED_PLUGIN_NAME
 
     override fun <K : Any, V : Any> createSimpleCache(
         namespace: String,
@@ -178,5 +186,9 @@ class RedisComponentProviderImpl : RedisComponentProvider {
             BinarySyncValueCodec(keyCodec, "SyncMap '$id' key"),
             BinarySyncValueCodec(valueCodec, "SyncMap '$id' value")
         )
+    }
+
+    private companion object {
+        const val UNATTRIBUTED_PLUGIN_NAME = "surf-eventbus"
     }
 }
