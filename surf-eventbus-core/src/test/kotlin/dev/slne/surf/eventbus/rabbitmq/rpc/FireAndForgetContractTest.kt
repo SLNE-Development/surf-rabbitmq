@@ -1,13 +1,13 @@
 package dev.slne.surf.eventbus.rabbitmq.rpc
 
-import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.FireAndForget
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService
-import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
-import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
-import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
-import dev.slne.surf.eventbus.rabbitmq.common.testing.testConfig
-import dev.slne.surf.eventbus.rabbitmq.api.exception.SurfRabbitServiceUnavailableException
+import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
+import dev.slne.surf.eventbus.rabbitmq.rpc.FireAndForget
+import dev.slne.surf.eventbus.rabbitmq.rpc.RpcService
+import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
+import dev.slne.surf.eventbus.rabbitmq.testing.RabbitBrokerExtension
+import dev.slne.surf.eventbus.rabbitmq.testing.RequiresDocker
+import dev.slne.surf.eventbus.rabbitmq.testing.testConfig
+import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitServiceUnavailableException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout

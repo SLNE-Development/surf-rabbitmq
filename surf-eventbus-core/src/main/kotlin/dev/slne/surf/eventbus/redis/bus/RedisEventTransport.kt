@@ -2,7 +2,7 @@ package dev.slne.surf.eventbus.redis.bus
 
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.eventbus.InternalEventBusApi
-import dev.slne.surf.eventbus.core.envelope.EventEnvelope
+import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.event.EventTopics
 import dev.slne.surf.eventbus.redis.RedisApi
 import dev.slne.surf.eventbus.transport.EventTransport

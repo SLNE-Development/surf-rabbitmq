@@ -1,0 +1,110 @@
+package dev.slne.surf.eventbus.rabbitmq.connection
+
+import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
+import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
+import dev.slne.surf.eventbus.rabbitmq.testing.RabbitBrokerExtension
+import dev.slne.surf.eventbus.rabbitmq.testing.RequiresDocker
+import dev.slne.surf.eventbus.rabbitmq.testing.testConfig
+import dev.slne.surf.eventbus.rabbitmq.rpc.EchoRpcImpl
+import dev.slne.surf.eventbus.rabbitmq.rpc.EchoRpcService
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
+import org.junit.jupiter.api.Test
+import java.nio.file.Files
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+/**
+ * Recovery after the connection drops.
+ *
+ * The reply queue is `autoDelete` with a STABLE name (`surf.reply.<instanceId>`): it dies
+ * with the connection and topology recovery re-declares it under the same name. The danger
+ * is no longer a stale queue name — it is `replyEndpoint` never being repopulated, because
+ * the old signaling was keyed to queue *renames* that stable names never trigger. If the
+ * endpoint stays null, every post-recovery RPC waits on a reply path that no longer exists.
+ */
+@RequiresDocker
+class BrokerRestartTest {
+
+    private val dataPath = Files.createTempDirectory("restart-test")
+
+    private fun api(service: String) =
+        SurfRabbitApi.builder(service, dataPath).config(testConfig(requestTimeoutSeconds = 20)).build()
+
+    @Test
+    fun `rpc works again after the connection is dropped and recovered`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("restart")
+
+        val server = api(service).also {
+            it.registerService<EchoRpcService>(EchoRpcImpl)
+            it.freezeAndConnect()
+        }
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            val proxy = client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget(service))
+            assertEquals("echo:before", proxy.echo("before"))
+
+            // Kill the underlying connections and let automatic recovery rebuild them.
+            RabbitBrokerExtension.closeAllConnections()
+
+            val recovered = withTimeoutOrNull(60_000) {
+                while (true) {
+                    val result = runCatching {
+                        proxy.echo("after")
+                    }.getOrNull()
+
+                    if (result != null) return@withTimeoutOrNull result
+                    delay(500)
+                }
+                @Suppress("UNREACHABLE_CODE") null
+            }
+
+            assertEquals(
+                "echo:after", recovered,
+                "after recovery the client must publish and consume again - if this times " +
+                        "out, replyEndpoint was never repopulated by onRecoveryCompleted"
+            )
+        } finally {
+            client.disconnect()
+            server.disconnect()
+        }
+    }
+
+    @Test
+    fun `requests in flight during a drop do not hang forever`() = runBlocking {
+        val service = RabbitBrokerExtension.uniqueServiceName("inflight")
+
+        val server = api(service).also {
+            it.registerService<EchoRpcService>(EchoRpcImpl)
+            it.freezeAndConnect()
+        }
+        val client = api("caller").also { it.freezeAndConnect() }
+
+        try {
+            val start = System.currentTimeMillis()
+            val proxy = client.rpc<EchoRpcService>(RabbitTarget.ServiceTarget(service))
+
+            val outcome = async {
+                runCatching { proxy.echo("in-flight") }
+            }
+
+            delay(50)
+            RabbitBrokerExtension.closeAllConnections()
+
+            outcome.await()
+            val elapsed = System.currentTimeMillis() - start
+
+            assertTrue(
+                elapsed < 40_000,
+                "a request interrupted by a connection loss must settle - either completing " +
+                        "after recovery or failing - but it took ${elapsed}ms"
+            )
+        } finally {
+            client.disconnect()
+            server.disconnect()
+        }
+    }
+}

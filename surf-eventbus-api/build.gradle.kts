@@ -23,7 +23,7 @@ kotlin {
 }
 
 buildConfig {
-    forClass("dev.slne.surf.eventbus.rabbitmq.api.version", "BuildVersion") {
+    forClass("dev.slne.surf.eventbus.rabbitmq.version", "BuildVersion") {
         buildConfigField("VERSION", provider { version.toString() })
     }
 }

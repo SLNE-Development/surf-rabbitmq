@@ -5,8 +5,8 @@ import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.audit.AuditKind
 import dev.slne.surf.eventbus.audit.AuditReport
 import dev.slne.surf.eventbus.audit.AuditSink
-import dev.slne.surf.eventbus.common.serialization.KotlinSerializerCache
-import dev.slne.surf.eventbus.core.envelope.EventEnvelope
+import dev.slne.surf.eventbus.serialization.KotlinSerializerCache
+import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.core.registry.EventSubscriptionRegistry
 import dev.slne.surf.eventbus.event.SurfBusEvent
 import kotlinx.serialization.json.Json

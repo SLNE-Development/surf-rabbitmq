@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.core.testing
 
 import dev.slne.surf.eventbus.InternalEventBusApi
-import dev.slne.surf.eventbus.rabbitmq.api.internal.StandaloneLifecycleHook
+import dev.slne.surf.eventbus.platform.StandaloneLifecycleHook
 import java.nio.file.Path
 
 /**

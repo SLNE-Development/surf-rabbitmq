@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.rabbitmq.paper
 
 import com.github.shynixn.mccoroutine.folia.SuspendingJavaPlugin
-import dev.slne.surf.eventbus.rabbitmq.common.RabbitMQCommonInstance
+import dev.slne.surf.eventbus.rabbitmq.RabbitMQCommonInstance
 import org.bukkit.plugin.java.JavaPlugin
 
 class PaperMain : SuspendingJavaPlugin() {

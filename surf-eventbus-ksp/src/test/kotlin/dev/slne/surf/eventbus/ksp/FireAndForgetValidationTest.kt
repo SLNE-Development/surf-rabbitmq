@@ -16,8 +16,8 @@ class FireAndForgetValidationTest {
     fun `a fire-and-forget method returning something other than Unit fails compilation`() {
         val result = compile(
             """
-            import dev.slne.surf.eventbus.rabbitmq.api.rpc.FireAndForget
-            import dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService
+            import dev.slne.surf.eventbus.rabbitmq.rpc.FireAndForget
+            import dev.slne.surf.eventbus.rabbitmq.rpc.RpcService
 
             @RpcService(service = "svc")
             interface Broken {
@@ -36,8 +36,8 @@ class FireAndForgetValidationTest {
     fun `a fire-and-forget method returning Unit compiles`() {
         val result = compile(
             """
-            import dev.slne.surf.eventbus.rabbitmq.api.rpc.FireAndForget
-            import dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService
+            import dev.slne.surf.eventbus.rabbitmq.rpc.FireAndForget
+            import dev.slne.surf.eventbus.rabbitmq.rpc.RpcService
 
             @RpcService(service = "svc")
             interface Fine {

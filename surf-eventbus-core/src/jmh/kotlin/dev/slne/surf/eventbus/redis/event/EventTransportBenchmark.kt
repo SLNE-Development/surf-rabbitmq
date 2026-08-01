@@ -1,6 +1,6 @@
 package dev.slne.surf.eventbus.redis.event
 
-import dev.slne.surf.eventbus.core.envelope.EventEnvelope
+import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.event.BusEvent
 import dev.slne.surf.eventbus.event.BusEventCodec
 import dev.slne.surf.eventbus.event.SurfBusEvent

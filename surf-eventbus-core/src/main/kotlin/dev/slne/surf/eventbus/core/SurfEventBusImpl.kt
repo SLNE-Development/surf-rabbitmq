@@ -1,13 +1,13 @@
 package dev.slne.surf.eventbus.core
 
 import dev.slne.surf.eventbus.SurfEventBus
-import dev.slne.surf.eventbus.common.serialization.KotlinSerializerCache
+import dev.slne.surf.eventbus.serialization.KotlinSerializerCache
 import dev.slne.surf.eventbus.core.audit.LoggingAuditSink
 import dev.slne.surf.eventbus.core.dispatch.BusEventCodecs
 import dev.slne.surf.eventbus.core.dispatch.EventDispatcher
 import dev.slne.surf.eventbus.core.dispatch.EventTypeResolver
 import dev.slne.surf.eventbus.core.dispatch.QueryDispatcher
-import dev.slne.surf.eventbus.core.envelope.EventEnvelope
+import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.core.registry.EventSubscriptionRegistry
 import dev.slne.surf.eventbus.core.registry.QueryServiceRegistry
 import dev.slne.surf.eventbus.event.BusEventCodec
@@ -15,7 +15,7 @@ import dev.slne.surf.eventbus.event.EventTopics
 import dev.slne.surf.eventbus.event.SurfBusEvent
 import dev.slne.surf.eventbus.query.QueryService
 import dev.slne.surf.eventbus.query.descriptor.QueryServiceDescriptor
-import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
+import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
 import dev.slne.surf.eventbus.redis.RedisApi
 import dev.slne.surf.eventbus.transport.EventTransport
 import dev.slne.surf.eventbus.transport.QueryTransport

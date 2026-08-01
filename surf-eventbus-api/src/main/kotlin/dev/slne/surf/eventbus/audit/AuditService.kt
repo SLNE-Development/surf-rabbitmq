@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.audit
 
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.FireAndForget
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService
+import dev.slne.surf.eventbus.rabbitmq.rpc.FireAndForget
+import dev.slne.surf.eventbus.rabbitmq.rpc.RpcService
 
 /**
  * Where audit reports go over the wire.

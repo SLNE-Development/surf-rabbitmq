@@ -1,6 +1,6 @@
 package dev.slne.surf.eventbus.core
 
-import dev.slne.surf.eventbus.core.envelope.EventEnvelope
+import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.transport.EventTransport
 import dev.slne.surf.eventbus.transport.QueryFrame
 import dev.slne.surf.eventbus.transport.QueryTransport

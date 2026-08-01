@@ -1,11 +1,11 @@
-package dev.slne.surf.eventbus.rabbitmq.core.packet
+package dev.slne.surf.eventbus.rabbitmq.packet
 
-import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService
-import dev.slne.surf.eventbus.rabbitmq.api.target.RabbitTarget
-import dev.slne.surf.eventbus.rabbitmq.common.testing.RabbitBrokerExtension
-import dev.slne.surf.eventbus.rabbitmq.common.testing.RequiresDocker
-import dev.slne.surf.eventbus.rabbitmq.common.testing.testConfig
+import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
+import dev.slne.surf.eventbus.rabbitmq.rpc.RpcService
+import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
+import dev.slne.surf.eventbus.rabbitmq.testing.RabbitBrokerExtension
+import dev.slne.surf.eventbus.rabbitmq.testing.RequiresDocker
+import dev.slne.surf.eventbus.rabbitmq.testing.testConfig
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test

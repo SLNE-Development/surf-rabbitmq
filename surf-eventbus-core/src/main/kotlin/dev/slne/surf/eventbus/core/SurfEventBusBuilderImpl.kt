@@ -1,11 +1,11 @@
 package dev.slne.surf.eventbus.core
 
 import dev.slne.surf.api.core.environment.EnvironmentVariables
-import dev.slne.surf.eventbus.RedisTransportLocator
+import dev.slne.surf.eventbus.core.RedisTransportLocator
 import dev.slne.surf.eventbus.SurfEventBus
 import dev.slne.surf.eventbus.SurfEventBusBuilder
-import dev.slne.surf.eventbus.common.config.LegacyEnvironmentGuard
-import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
+import dev.slne.surf.eventbus.config.LegacyEnvironmentGuard
+import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
 import dev.slne.surf.eventbus.redis.RedisApi
 import dev.slne.surf.eventbus.transport.EventTransport
 import dev.slne.surf.eventbus.transport.QueryTransport

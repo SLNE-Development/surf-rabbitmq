@@ -2,8 +2,8 @@ package dev.slne.surf.eventbus.rabbitmq
 
 import com.google.auto.service.AutoService
 import dev.slne.surf.api.standalone.SurfApiStandaloneBootstrap
-import dev.slne.surf.eventbus.rabbitmq.api.internal.StandaloneLifecycleHook
-import dev.slne.surf.eventbus.rabbitmq.common.RabbitMQCommonInstance
+import dev.slne.surf.eventbus.platform.StandaloneLifecycleHook
+import dev.slne.surf.eventbus.rabbitmq.RabbitMQCommonInstance
 import kotlinx.coroutines.runBlocking
 import java.nio.file.Path
 

@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus
 
 import dev.slne.surf.eventbus.event.SurfBusEvent
-import dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi
+import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
 import dev.slne.surf.eventbus.redis.RedisApi
 import java.nio.file.Path
 import kotlin.reflect.KClass

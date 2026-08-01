@@ -31,10 +31,10 @@ object ClassNames {
 
     // RPC-only.
     val rpcServiceDescriptor =
-        ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc.descriptor", "RpcServiceDescriptor")
-    val rabbitMqApi = ClassName("dev.slne.surf.eventbus.rabbitmq.api", "SurfRabbitApi")
-    val rabbitTarget = ClassName("dev.slne.surf.eventbus.rabbitmq.api.target", "RabbitTarget")
-    val rpcRabbitCall = ClassName("dev.slne.surf.eventbus.rabbitmq.api.rpc", "RabbitRpcCall")
+        ClassName("dev.slne.surf.eventbus.rabbitmq.rpc.descriptor", "RpcServiceDescriptor")
+    val rabbitMqApi = ClassName("dev.slne.surf.eventbus.rabbitmq", "SurfRabbitApi")
+    val rabbitTarget = ClassName("dev.slne.surf.eventbus.rabbitmq.target", "RabbitTarget")
+    val rpcRabbitCall = ClassName("dev.slne.surf.eventbus.rabbitmq.rpc", "RabbitRpcCall")
 
     val kotlinKClass = ClassName("kotlin.reflect", "KClass")
     val kotlinxKSerializer = ClassName("kotlinx.serialization", "KSerializer")

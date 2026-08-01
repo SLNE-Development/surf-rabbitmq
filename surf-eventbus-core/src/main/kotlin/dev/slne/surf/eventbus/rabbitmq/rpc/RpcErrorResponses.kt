@@ -1,9 +1,9 @@
 package dev.slne.surf.eventbus.rabbitmq.rpc
 
 import dev.slne.surf.api.core.util.toSerializableError
-import dev.slne.surf.eventbus.rabbitmq.api.version.RabbitMqVersion
-import dev.slne.surf.eventbus.rabbitmq.common.rpc.exception.SerializedException
-import dev.slne.surf.eventbus.rabbitmq.common.rpc.packet.RpcCallResponsePacket
+import dev.slne.surf.eventbus.rabbitmq.version.RabbitMqVersion
+import dev.slne.surf.eventbus.rabbitmq.rpc.exception.SerializedException
+import dev.slne.surf.eventbus.rabbitmq.rpc.packet.RpcCallResponsePacket
 
 /**
  * Clients from this version on understand [RpcCallResponsePacket.RpcCallResponse.Error.serializedException].

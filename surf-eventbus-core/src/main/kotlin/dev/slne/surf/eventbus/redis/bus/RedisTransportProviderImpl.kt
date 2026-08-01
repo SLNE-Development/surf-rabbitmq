@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.bus
 
 import com.google.auto.service.AutoService
-import dev.slne.surf.eventbus.RedisTransportProvider
+import dev.slne.surf.eventbus.core.RedisTransportProvider
 import dev.slne.surf.eventbus.redis.RedisApi
 import dev.slne.surf.eventbus.transport.EventTransport
 import dev.slne.surf.eventbus.transport.QueryTransport

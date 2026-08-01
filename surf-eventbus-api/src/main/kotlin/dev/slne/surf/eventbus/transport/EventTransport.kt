@@ -1,6 +1,6 @@
 package dev.slne.surf.eventbus.transport
 
-import dev.slne.surf.eventbus.core.envelope.EventEnvelope
+import dev.slne.surf.eventbus.transport.EventEnvelope
 
 /**
  * The seam between the bus and the Redis event channels.

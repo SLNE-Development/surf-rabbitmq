@@ -3,7 +3,7 @@ package dev.slne.surf.eventbus.core.dispatch
 import dev.slne.surf.eventbus.audit.AuditKind
 import dev.slne.surf.eventbus.audit.AuditReport
 import dev.slne.surf.eventbus.audit.AuditSink
-import dev.slne.surf.eventbus.core.envelope.EventEnvelope
+import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.core.registry.EventSubscriptionRegistry
 import dev.slne.surf.eventbus.event.BusEvent
 import dev.slne.surf.eventbus.event.BusEventCodec

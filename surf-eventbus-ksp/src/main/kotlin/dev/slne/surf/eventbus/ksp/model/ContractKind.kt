@@ -8,5 +8,5 @@ package dev.slne.surf.eventbus.ksp.model
  */
 enum class ContractKind(val annotationFqName: String, val annotationSimpleName: String) {
     QUERY("dev.slne.surf.eventbus.query.QueryService", "QueryService"),
-    RPC("dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService", "RpcService")
+    RPC("dev.slne.surf.eventbus.rabbitmq.rpc.RpcService", "RpcService")
 }

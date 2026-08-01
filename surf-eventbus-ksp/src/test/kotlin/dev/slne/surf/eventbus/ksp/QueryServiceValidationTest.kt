@@ -46,7 +46,7 @@ class QueryServiceValidationTest {
         val result = compile(
             """
             import dev.slne.surf.eventbus.query.QueryService
-            import dev.slne.surf.eventbus.rabbitmq.api.rpc.FireAndForget
+            import dev.slne.surf.eventbus.rabbitmq.rpc.FireAndForget
 
             @QueryService
             interface Broken {

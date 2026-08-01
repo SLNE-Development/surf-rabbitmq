@@ -1,7 +1,7 @@
-package dev.slne.surf.eventbus.rabbitmq.core.packet
+package dev.slne.surf.eventbus.rabbitmq.packet
 
-import dev.slne.surf.eventbus.rabbitmq.common.packet.RabbitPacketChunkAssembler
-import dev.slne.surf.eventbus.rabbitmq.common.packet.RabbitPacketChunking
+import dev.slne.surf.eventbus.rabbitmq.packet.RabbitPacketChunkAssembler
+import dev.slne.surf.eventbus.rabbitmq.packet.RabbitPacketChunking
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

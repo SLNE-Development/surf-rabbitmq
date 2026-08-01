@@ -6,7 +6,7 @@ import com.velocitypowered.api.event.proxy.ProxyInitializeEvent
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent
 import com.velocitypowered.api.plugin.annotation.DataDirectory
 import com.velocitypowered.api.proxy.ProxyServer
-import dev.slne.surf.eventbus.rabbitmq.common.RabbitMQCommonInstance
+import dev.slne.surf.eventbus.rabbitmq.RabbitMQCommonInstance
 import kotlinx.coroutines.runBlocking
 import java.nio.file.Path
 

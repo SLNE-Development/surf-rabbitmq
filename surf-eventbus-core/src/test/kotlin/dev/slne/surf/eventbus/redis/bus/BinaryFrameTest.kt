@@ -1,6 +1,6 @@
 package dev.slne.surf.eventbus.redis.bus
 
-import dev.slne.surf.eventbus.core.envelope.EventEnvelope
+import dev.slne.surf.eventbus.transport.EventEnvelope
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import kotlin.test.assertContentEquals

@@ -18,11 +18,11 @@ class AggregateCompletenessTest {
             "dev.slne.surf.eventbus.event.SurfBusEvent",
             "dev.slne.surf.eventbus.query.QueryService",
             "dev.slne.surf.eventbus.audit.AuditService",
-            "dev.slne.surf.eventbus.rabbitmq.api.SurfRabbitApi",
-            "dev.slne.surf.eventbus.rabbitmq.api.rpc.RpcService",
-            "dev.slne.surf.eventbus.rabbitmq.api.rpc.FireAndForget",
+            "dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi",
+            "dev.slne.surf.eventbus.rabbitmq.rpc.RpcService",
+            "dev.slne.surf.eventbus.rabbitmq.rpc.FireAndForget",
             "dev.slne.surf.eventbus.redis.RedisApi",
-            "dev.slne.surf.eventbus.common.circuitbreaker.CircuitBreaker"
+            "dev.slne.surf.eventbus.circuitbreaker.CircuitBreaker"
         )
 
         for (name in expected) {
