@@ -27,12 +27,22 @@ class EventSubscriptionRegistry {
             val annotation = method.getAnnotation(SurfSubscribe::class.java) ?: continue
             found++
 
+            // A suspend handler used to pass validation here - the trailing Continuation was
+            // stripped before counting parameters - and then never run: the dispatcher invokes
+            // with one argument, a suspend method's JVM signature takes two, and the resulting
+            // IllegalArgumentException was swallowed by the containment block as one
+            // EVENT_HANDLER_FAILED row per event. Registered, frozen, connected, silent.
+            // Rejecting here is the honest answer until the dispatcher can actually call one.
             val isSuspend = method.parameterTypes.lastOrNull()?.name == "kotlin.coroutines.Continuation"
-            val declaredCount = if (isSuspend) method.parameterCount - 1 else method.parameterCount
+            require(!isSuspend) {
+                "${listener.javaClass.name}#${method.name} is a suspend function, which the " +
+                        "event dispatcher cannot invoke. Make it a regular function; if it " +
+                        "needs to suspend, launch into your own scope from inside it."
+            }
 
-            require(declaredCount == 1) {
+            require(method.parameterCount == 1) {
                 "${listener.javaClass.name}#${method.name} must take exactly one parameter, " +
-                        "the event; found $declaredCount"
+                        "the event; found ${method.parameterCount}"
             }
 
             val parameterType = method.parameterTypes[0]

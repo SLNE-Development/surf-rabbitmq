@@ -71,8 +71,13 @@ class RedisQueryTransport(
             .awaitFirstOrNull()
     }
 
+    // removeListener on the reactive API returns a cold Mono, so the removal has to be awaited:
+    // calling it and discarding the Mono - which this did - detaches nothing, and the listener
+    // stayed attached for the life of the RedisApi.
     override suspend fun disconnect() {
-        subscriptions.forEach { (topic, id) -> runCatching { topic.removeListener(id) } }
+        subscriptions.forEach { (topic, id) ->
+            runCatching { topic.removeListener(id).awaitFirstOrNull() }
+        }
         subscriptions.clear()
         pending.clear()
     }

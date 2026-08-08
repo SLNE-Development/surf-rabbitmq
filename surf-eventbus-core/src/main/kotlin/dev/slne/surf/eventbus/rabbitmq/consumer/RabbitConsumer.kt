@@ -142,7 +142,9 @@ class RabbitConsumer(
             return existing
         }
 
-        return connectionProvider.createChannel().also {
+        // Opening a channel is a blocking AMQP round trip, so it does not belong on whatever
+        // dispatcher the caller arrived on - the same reason awaitOpen hops to IO.
+        return withContext(Dispatchers.IO) { connectionProvider.createChannel() }.also {
             channel = it
         }
     }

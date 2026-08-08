@@ -22,15 +22,30 @@ import org.testcontainers.DockerClientFactory
 @ExtendWith(DockerAvailableCondition::class)
 annotation class RequiresDocker
 
+/**
+ * Skips when Docker is unreachable — unless `-PrequireIntegration` is set, in which case it
+ * fails instead.
+ *
+ * A skip is the right default on a developer machine without a daemon. It is the wrong answer
+ * on CI, where "integration test skipped, NOT verified" is indistinguishable from a green run
+ * and silently hides every defect these tests exist to catch. CI passes `-PrequireIntegration`
+ * so an absent daemon is a build failure rather than a quiet no-op.
+ */
 class DockerAvailableCondition : ExecutionCondition {
     override fun evaluateExecutionCondition(context: ExtensionContext): ConditionEvaluationResult {
-        return if (dockerAvailable) {
-            ConditionEvaluationResult.enabled("Docker is available")
-        } else {
-            ConditionEvaluationResult.disabled(
-                "Docker is not available - integration test skipped, NOT verified"
-            )
+        if (dockerAvailable) {
+            return ConditionEvaluationResult.enabled("Docker is available")
         }
+
+        check(!integrationRequired) {
+            "Docker is not available, but -PrequireIntegration was set. Integration tests are " +
+                    "mandatory in this build; a skip here would report success without " +
+                    "verifying anything."
+        }
+
+        return ConditionEvaluationResult.disabled(
+            "Docker is not available - integration test skipped, NOT verified"
+        )
     }
 
     private companion object {
@@ -39,5 +54,8 @@ class DockerAvailableCondition : ExecutionCondition {
             runCatching { DockerClientFactory.instance().isDockerAvailable }
                 .getOrDefault(false)
         }
+
+        val integrationRequired: Boolean =
+            System.getProperty("surf.eventbus.requireIntegration").toBoolean()
     }
 }

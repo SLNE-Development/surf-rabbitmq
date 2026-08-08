@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.rabbitmq
 
+import dev.slne.surf.api.core.environment.EnvironmentVariables
 import dev.slne.surf.eventbus.config.EventBusConfigFiles
 import dev.slne.surf.eventbus.config.RabbitMQSettings
 import dev.slne.surf.eventbus.config.resolveEventBusConfig
@@ -30,6 +31,7 @@ class SurfRabbitApiBuilder internal constructor(
     private var configFileName: String = EventBusConfigFiles.GLOBAL_FILE_NAME
     private var instanceName: String? = null
     private var standaloneHook: StandaloneLifecycleHook? = null
+    private var environment: EnvironmentVariables = EnvironmentVariables.system
 
     /** Additional serializers for packet, event and RPC payload types. */
     fun serializers(module: SerializersModule): SurfRabbitApiBuilder = apply {
@@ -56,6 +58,17 @@ class SurfRabbitApiBuilder internal constructor(
     /** Supplies settings directly, bypassing file loading. Intended for tests. */
     fun config(config: RabbitMQSettings): SurfRabbitApiBuilder = apply {
         configOverride = config
+    }
+
+    /**
+     * Resolves the environment layer from [variables] instead of the real process environment.
+     *
+     * The top layer of `env > plugin yaml > global yaml > default` is otherwise only reachable
+     * by actually setting environment variables, which a test cannot do portably and a caller
+     * embedding the bus may not want to do at all.
+     */
+    fun environment(variables: Map<String, String>): SurfRabbitApiBuilder = apply {
+        environment = EnvironmentVariables.from(variables)
     }
 
     /**
@@ -104,11 +117,13 @@ class SurfRabbitApiBuilder internal constructor(
             resolveEventBusConfig(
                 global = EventBusConfigFiles.global(platform.dataPath),
                 plugin = EventBusConfigFiles.plugin(dataPath),
+                environment = environment,
             ).rabbitmq
         } else {
             hook.onInit(dataPath)
             resolveEventBusConfig(
                 global = EventBusConfigFiles.global(dataPath, configFileName),
+                environment = environment,
             ).rabbitmq
         }
     }

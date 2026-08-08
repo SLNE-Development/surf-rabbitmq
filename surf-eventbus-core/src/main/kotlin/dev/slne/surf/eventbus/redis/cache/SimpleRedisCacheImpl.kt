@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.redis.cache
 
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.sksamuel.aedile.core.expireAfterAccess
 import com.sksamuel.aedile.core.expireAfterWrite
@@ -114,16 +115,13 @@ class SimpleRedisCacheImpl<K : Any, V : Any>(
     private fun redisKey(key: K): String = "$keyPrefix$VALUE_KEY_INFIX${keyToString(key)}"
     private fun localKey(key: K): String = keyToString(key)
 
-    override fun init(): Mono<Void> {
-        if (isDisposed) return Mono.error(IllegalStateException("Cache '$namespace' is disposed"))
+    override suspend fun init() {
+        check(!isDisposed) { "Cache '$namespace' is disposed" }
 
-        return stream.fetchLatestStreamId()
-            .doOnNext { cursorId.set(it) }
-            .doOnSuccess {
-                trackDisposable(startPolling())
-                trackDisposable(startRefreshingTtl())
-            }
-            .then()
+        stream.fetchLatestStreamId().awaitFirstOrNull()?.let(cursorId::set)
+
+        trackDisposable(startPolling())
+        trackDisposable(startRefreshingTtl())
     }
 
     override fun dispose0() {

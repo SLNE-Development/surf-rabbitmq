@@ -2,8 +2,10 @@ package dev.slne.surf.eventbus.rabbitmq.connection
 
 import com.rabbitmq.client.*
 import com.rabbitmq.client.impl.recovery.AutorecoveringConnection
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import java.io.Serial
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -79,8 +81,22 @@ class RabbitConnectionProvider(
         }
     }
 
+    /**
+     * Establishes the connection if needed and waits for it to be open.
+     *
+     * The establishment hops to [Dispatchers.IO] deliberately. `connection()` takes a monitor
+     * and performs a blocking TCP connect plus AMQP handshake, bounded only by
+     * `connectionTimeout` (30 s by default). Called straight from here it ran on whatever
+     * dispatcher the caller happened to be on - in practice [Dispatchers.Default], whose pool is
+     * sized to the CPU count - so during a broker outage a handful of publishers could park
+     * every core-bound thread in the process for half a minute each, while holding the monitor.
+     *
+     * The monitor itself stays a plain `synchronized`: `connection()` has to remain callable
+     * from non-suspending code such as [createChannel], and there is no suspension point inside
+     * the critical section for a `Mutex` to protect.
+     */
     suspend fun awaitOpen(expectedGeneration: Long? = null): Long {
-        connection()
+        withContext(Dispatchers.IO) { connection() }
 
         val snapshot = state.first {
             it.status == RabbitConnectionStatus.OPEN || it.status == RabbitConnectionStatus.CLOSED

@@ -1,5 +1,7 @@
 package dev.slne.surf.eventbus.core.dispatch
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.audit.AuditKind
@@ -10,6 +12,7 @@ import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.core.registry.EventSubscriptionRegistry
 import dev.slne.surf.eventbus.event.SurfBusEvent
 import kotlinx.serialization.json.Json
+import java.lang.reflect.InvocationTargetException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -32,7 +35,18 @@ class EventDispatcher(
     private val serviceName: String = "unknown"
 ) {
 
-    private val warnedTypes = ConcurrentHashMap.newKeySet<String>()
+    /**
+     * Types already warned about, bounded because the key comes off the wire.
+     *
+     * "Warn once per type" is the intent; an unbounded set keyed by `envelope.type` also lets
+     * any peer grow this process's heap by publishing random type names. Eviction can at worst
+     * produce a second warning for a type seen again after thousands of others - a far better
+     * failure mode than unbounded growth.
+     */
+    private val warnedTypes: Cache<String, Unit> = Caffeine.newBuilder()
+        .maximumSize(MAX_WARNED_TYPES)
+        .build()
+
     private val serializerCache = KotlinSerializerCache<SurfBusEvent>(json.serializersModule)
 
     suspend fun dispatch(envelope: EventEnvelope, binaryPayload: ByteArray?) {
@@ -49,7 +63,7 @@ class EventDispatcher(
         )
 
         if (eventClass == null) {
-            if (warnedTypes.add(envelope.type)) {
+            if (warnedTypes.asMap().putIfAbsent(envelope.type, Unit) == null) {
                 log.atWarning().log(
                     "No class for event type %s on topic %s; discarding. A stale publisher or a " +
                             "deleted event type looks exactly like this.",
@@ -71,9 +85,15 @@ class EventDispatcher(
             try {
                 invoke(subscription.listener, subscription.method, event)
             } catch (throwable: Throwable) {
-                log.atSevere().withCause(throwable)
+                // Reflection wraps anything the handler throws. Reporting the wrapper would put
+                // InvocationTargetException in every audit row's exceptionClass and the
+                // reflection frames in every stacktrace, hiding the failure that actually
+                // happened.
+                val cause = (throwable as? InvocationTargetException)?.targetException ?: throwable
+
+                log.atSevere().withCause(cause)
                     .log("Event handler %s failed for %s", subscription.displayName, envelope.topic)
-                auditSink.report(handlerFailureReport(envelope, subscription.displayName, throwable))
+                auditSink.report(handlerFailureReport(envelope, subscription.displayName, cause))
             }
         }
     }
@@ -150,5 +170,6 @@ class EventDispatcher(
 
     companion object {
         private val log = logger()
+        private const val MAX_WARNED_TYPES = 4_096L
     }
 }

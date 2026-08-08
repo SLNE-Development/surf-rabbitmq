@@ -20,6 +20,7 @@ import dev.slne.surf.eventbus.redis.sync.map.SyncMap
 import dev.slne.surf.eventbus.redis.sync.set.SyncSet
 import dev.slne.surf.eventbus.redis.sync.value.SyncValue
 import dev.slne.surf.eventbus.redis.util.Initializable
+import dev.slne.surf.eventbus.redis.util.RedisDisposable
 import kotlinx.coroutines.*
 import kotlinx.coroutines.reactive.awaitFirstOrNull
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -133,7 +134,13 @@ class RedisApi private constructor(
      * Underlying Redisson client.
      *
      * Initialized by [connect]. Accessing this property before [connect] will fail.
+     *
+     * Internal: Redisson is this library's mechanism, not its contract. Published, it put
+     * `org.redisson.api.RedissonClient` in the ABI — and the shadow jar relocates that package,
+     * so the type named in the published signature was one no consumer could resolve. The core
+     * module still uses it; consumers get the bus's own surface instead.
      */
+    @InternalEventBusApi
     lateinit var redisson: RedissonClient
         private set
 
@@ -142,6 +149,7 @@ class RedisApi private constructor(
      *
      * Intended for reactive command and Pub/Sub usage in internal components.
      */
+    @InternalEventBusApi
     lateinit var redissonReactive: RedissonReactiveClient
         private set
 
@@ -150,6 +158,7 @@ class RedisApi private constructor(
      *
      * This is populated during [connect]. It may remain `null` if no special handling is required.
      */
+    @InternalEventBusApi
     var redisOsType: BaseEventCodec.OSType? = null
         private set
 
@@ -198,7 +207,7 @@ class RedisApi private constructor(
     )
 
     private val initializables = Caffeine.newBuilder().weakKeys().build<Initializable, Unit>()
-    private val disposables = Caffeine.newBuilder().weakKeys().build<Disposable, Unit>()
+    private val disposables = Caffeine.newBuilder().weakKeys().build<RedisDisposable, Unit>()
 
     @Volatile
     private var frozen = false
@@ -208,6 +217,23 @@ class RedisApi private constructor(
 
     companion object {
         private val log = logger()
+
+        /**
+         * Reads the `os:` line out of `INFO server`.
+         *
+         * The character class needs **single** backslashes. Kotlin raw strings do not process
+         * escapes, so `[^\\r\\n]` reached Lua verbatim; Lua's own string literal then collapsed
+         * `\\` to one backslash, leaving the class `[^\rn]` where `\` is a literal backslash -
+         * Lua patterns escape with `%`, not `\`. The class therefore excluded backslash, `r`
+         * and `n` instead of CR and LF, so `os:Linux 5.15…` matched `"Li"` and `os:Windows…`
+         * matched `"Wi"`. `contains("Windows")` was never true, and the `os == null` branch that
+         * would have caught it never ran either, because the match succeeded - with the wrong
+         * value.
+         */
+        @Language("Redis")
+        internal const val FETCH_OS_LUA =
+            "local info = redis.call('INFO', 'server')\n" +
+                    "return string.match(info, 'os:([^\\r\\n]+)')"
 
         /**
          * Creates a [RedisApi] instance using the given [redisURI].
@@ -220,6 +246,7 @@ class RedisApi private constructor(
          * @param pluginName Logical name of the calling plugin or component.
          * @param serializerModule Additional serializers to be included in the internal [Json] instance.
          */
+        @InternalEventBusApi
         fun create(
             redisURI: RedisURI,
             pluginName: String,
@@ -245,10 +272,30 @@ class RedisApi private constructor(
          * @param redisURI Redis connection URI.
          * @param serializerModule Additional serializers to be included in the internal [Json] instance.
          */
+        @InternalEventBusApi
         fun create(
             redisURI: RedisURI,
             serializerModule: SerializersModule = EmptySerializersModule()
         ): RedisApi = create(redisURI, getCallingPluginName(), serializerModule)
+
+        /**
+         * Creates a [RedisApi] for an address such as `redis://localhost:6379`.
+         *
+         * The address-taking counterpart of the `RedisURI` overloads, which are internal:
+         * `org.redisson.misc.RedisURI` is a Redisson type, and the shadow jar relocates
+         * Redisson, so a consumer compiling against the published artifact could not name the
+         * parameter type at all.
+         *
+         * Named rather than overloaded because `create(String, SerializersModule)` already
+         * means "plugin name", and one of the two would silently win.
+         *
+         * @param address Redis connection URI, e.g. `redis://host:6379`.
+         * @param serializerModule Additional serializers for the internal [Json] instance.
+         */
+        fun createForAddress(
+            address: String,
+            serializerModule: SerializersModule = EmptySerializersModule()
+        ): RedisApi = create(RedisURI(address), getCallingPluginName(), serializerModule)
 
         /**
          * Creates a [RedisApi] instance using credentials provided by
@@ -280,23 +327,9 @@ class RedisApi private constructor(
         fun create(pluginName: String, serializerModule: SerializersModule): RedisApi =
             create(RedisCredentialsProvider.redisURI(), pluginName, serializerModule)
 
-        /**
-         * Creates a [RedisApi] instance using plugin file system paths.
-         *
-         * @deprecated Surf Redis is no longer shaded into plugins. Paths are no longer relevant.
-         */
-        @Deprecated(
-            message = "Surf Redis is no longer shaded into plugins. Therefore, plugin paths are no longer relevant.",
-            replaceWith = ReplaceWith("create(serializerModule)"),
-            level = DeprecationLevel.ERROR
-        )
-        fun create(
-            pluginDataPath: Path,
-            pluginsPath: Path = pluginDataPath.parent,
-            serializerModule: SerializersModule = EmptySerializersModule()
-        ): RedisApi {
-            return create(serializerModule = serializerModule, pluginName = getCallingPluginName())
-        }
+        // The path-taking create() overload is gone. It was @Deprecated(level = ERROR), so no
+        // code could call it and no code could have been calling it - 2.0 is a breaking release
+        // and keeping an uncallable overload only widened the surface.
 
         @OptIn(ExperimentalSerializationApi::class)
         private fun createJson(serializerModule: SerializersModule) = Json {
@@ -354,15 +387,20 @@ class RedisApi private constructor(
                 log.atInfo()
                     .log("No initializable Redis components registered; skipping initialization step.")
             } else {
-                Mono.`when`(
-                    initializables.map { initializable ->
-                        initialize(initializable)
+                // Concurrently, as the Mono.when() this replaced did: a structure's init is a
+                // round trip, and a process with many of them should not pay for them serially.
+                try {
+                    coroutineScope {
+                        initializables.map { initializable ->
+                            async { initialize(initializable) }
+                        }.awaitAll()
                     }
-                ).doOnError { throwable ->
+                } catch (throwable: Throwable) {
                     log.atSevere()
                         .withCause(throwable)
                         .log("RedisApi.connect() failed because one or more components could not be initialized.")
-                }.awaitFirstOrNull()
+                    throw throwable
+                }
             }
         } catch (failure: Throwable) {
             try {
@@ -377,27 +415,25 @@ class RedisApi private constructor(
         }
     }
 
-    private fun initialize(initializable: Initializable) = initializable.init()
-        .doOnError { throwable ->
+    private suspend fun initialize(initializable: Initializable) {
+        try {
+            initializable.init()
+        } catch (throwable: Throwable) {
             log.atSevere()
                 .withCause(throwable)
                 .log(
                     "Failed to initialize Redis component: %s",
                     initializable::class.qualifiedName ?: initializable.toString()
                 )
+            throw throwable
         }
+    }
 
     private suspend fun fetchRedisOs() {
-        @Language("Redis")
-        val lua = """
-            local info = redis.call('INFO', 'server')
-            return string.match(info, 'os:([^\\r\\n]+)')
-        """.trimIndent()
-
         val os = withContext(Dispatchers.IO) {
             redisson.script.eval<String?>(
                 RScript.Mode.READ_ONLY,
-                lua,
+                FETCH_OS_LUA,
                 RScript.ReturnType.STRING,
             )
         }
@@ -729,7 +765,7 @@ class RedisApi private constructor(
                     namespace
                 )
 
-            initialize(cache).block()
+            runBlocking { initialize(cache) }
         } else {
             initializables.put(cache, Unit)
         }
@@ -799,7 +835,7 @@ class RedisApi private constructor(
                             "Consider creating caches before connecting to avoid this blocking call.",
                     namespace
                 )
-            initialize(cache).block()
+            runBlocking { initialize(cache) }
         } else {
             initializables.put(cache, Unit)
         }

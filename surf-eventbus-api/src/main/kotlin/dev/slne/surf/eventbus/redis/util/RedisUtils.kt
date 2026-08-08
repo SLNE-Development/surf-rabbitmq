@@ -1,78 +1,19 @@
 package dev.slne.surf.eventbus.redis.util
 
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
-import kotlinx.coroutines.reactor.awaitSingle
-import org.reactivestreams.Subscriber
-import org.reactivestreams.Subscription
-import reactor.core.publisher.Mono
+import dev.slne.surf.eventbus.InternalEventBusApi
 import reactor.util.function.Tuple2
 
-/**
- * Converts this [Mono] into a [Deferred] by subscribing to it.
- *
- * The returned [Deferred] completes:
- * - successfully with the single emitted value
- * - exceptionally if the [Mono] signals an error
- *
- * If the [Mono] completes without emitting any value, the [Deferred] completes
- * exceptionally with [NoSuchElementException].
- *
- * Cancellation of the returned [Deferred] cancels the underlying subscription.
- *
- * Note: This variant uses a manual Reactive Streams [Subscriber]. Prefer
- * [asDeferred(scope)] if you already have a [CoroutineScope] and want to rely on
- * `kotlinx-coroutines-reactor` bridging.
- */
-fun <T : Any> Mono<T>.asDeferred(): Deferred<T> {
-    val deferred = CompletableDeferred<T>()
-
-    subscribe(object : Subscriber<T> {
-        private var value: T? = null
-
-        override fun onSubscribe(s: Subscription) {
-            deferred.invokeOnCompletion {
-                if (deferred.isCancelled) s.cancel()
-            }
-
-            s.request(Long.MAX_VALUE)
-        }
-
-        override fun onComplete() {
-            deferred.complete(
-                value ?: throw NoSuchElementException("Mono completed without emitting any value")
-            )
-            value = null
-        }
-
-        override fun onNext(t: T) {
-            value = t
-        }
-
-        override fun onError(t: Throwable) {
-            deferred.completeExceptionally(t)
-        }
-    })
-
-    return deferred
-}
-
-/**
- * Converts this [Mono] into a [Deferred] using the given [scope].
- *
- * This is a coroutine-based bridge that awaits the [Mono] via [awaitSingle].
- * The returned [Deferred] is cancelled if the enclosing coroutine is cancelled.
- *
- * If the [Mono] completes without emitting any value, [awaitSingle] throws
- * [NoSuchElementException].
- */
-fun <T : Any> Mono<T>.asDeferred(scope: CoroutineScope): Deferred<T> =
-    scope.async {
-        this@asDeferred.awaitSingle()
-    }
-
+// The two `Mono<T>.asDeferred()` extensions that used to live here are gone.
+//
+// Both were unused. One was a hand-written Reactive Streams Subscriber whose `onComplete`
+// threw NoSuchElementException from inside the signal - a violation of the Reactive Streams
+// spec (§2.13) - and the other was a one-line wrapper around `awaitSingle`, which is to say a
+// second copy of what `kotlinx-coroutines-reactor` already provides. Its own KDoc told callers
+// to prefer the other one. They also put `reactor.core.publisher.Mono` in the published ABI of
+// a library that no longer asks its consumers to know Reactor exists.
+//
+// Use `kotlinx.coroutines.reactor.awaitSingle` / `awaitSingleOrNull`, or
+// `kotlinx.coroutines.reactive.awaitFirstOrNull`, directly.
 
 /**
  * Enables Kotlin destructuring for Reactor's [Tuple2].
@@ -82,6 +23,7 @@ fun <T : Any> Mono<T>.asDeferred(scope: CoroutineScope): Deferred<T> =
  * val (a, b) = tuple2
  * ```
  */
+@InternalEventBusApi
 operator fun <T1 : Any, T2 : Any> Tuple2<T1, T2>.component1(): T1 = this.t1
 
 /**
@@ -92,4 +34,5 @@ operator fun <T1 : Any, T2 : Any> Tuple2<T1, T2>.component1(): T1 = this.t1
  * val (a, b) = tuple2
  * ```
  */
+@InternalEventBusApi
 operator fun <T1 : Any, T2 : Any> Tuple2<T1, T2>.component2(): T2 = this.t2

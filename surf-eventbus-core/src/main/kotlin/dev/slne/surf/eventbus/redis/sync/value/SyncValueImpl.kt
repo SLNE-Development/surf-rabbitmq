@@ -53,12 +53,9 @@ class SyncValueImpl<T : Any> internal constructor(
     }
     private val value = AtomicReference(defaultValue)
 
-    override fun init(): Mono<Void> {
-        return super.init()
-            .doOnSuccess {
-                trackDisposable(RedisExpirableUtils.refreshContinuously(ttl, bucket))
-            }
-            .then()
+    override suspend fun init() {
+        super.init()
+        trackDisposable(RedisExpirableUtils.refreshContinuously(ttl, bucket))
     }
 
     override fun registerListeners0(): List<Mono<Int>> = listOf(

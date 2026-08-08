@@ -58,6 +58,13 @@ dependencies {
     testImplementation("dev.slne.surf.api:surf-api-core:+")
     testRuntimeOnly("dev.slne.surf.api:surf-api-standalone:+")
     testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.11.0")
+
+    // The Lua that reads the server OS out of INFO can only be verified by running it on a
+    // real Redis; a Kotlin reimplementation of a Lua pattern would test the reimplementation.
+    // The constant it exercises is `internal`, so the test has to live in this module.
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.core)
+    testImplementation(libs.testcontainers.junit)
 }
 
 tasks.test {

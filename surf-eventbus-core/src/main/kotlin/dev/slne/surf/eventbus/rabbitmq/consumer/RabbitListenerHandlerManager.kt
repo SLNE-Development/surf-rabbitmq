@@ -11,7 +11,7 @@ import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
 import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitProtocolVersionMismatchException
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitResponsePacket
-import dev.slne.surf.eventbus.rabbitmq.version.RabbitMqVersion
+import dev.slne.surf.eventbus.rabbitmq.version.RabbitMQVersion
 import dev.slne.surf.eventbus.rabbitmq.consumer.RabbitAck
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitPacketPropertiesInjector
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitPacketSerializer
@@ -22,6 +22,7 @@ import dev.slne.surf.eventbus.rabbitmq.connection.RabbitConnectionImpl
 import dev.slne.surf.eventbus.rabbitmq.rpc.RabbitRpcServiceImpl
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.seconds
 
@@ -97,7 +98,7 @@ class RabbitListenerHandlerManager(
         ack: RabbitAck,
         properties: AMQP.BasicProperties,
         originQueue: String,
-        senderVersion: RabbitMqVersion = RabbitMqVersion.UNKNOWN
+        senderVersion: RabbitMQVersion = RabbitMQVersion.UNKNOWN
     ) {
         val request = try {
             RabbitPacketSerializer.deserializeRequest(api, body, requestSerializerCache)
@@ -161,6 +162,21 @@ class RabbitListenerHandlerManager(
         }
 
         val requestJob = Job(api.scope.coroutineContext.job)
+
+        // One settle per delivery.
+        //
+        // Two paths can decide this message failed: the completion handler installed on
+        // handlerJob, and the TimeoutCancellation branch below. A handler that throws at the
+        // moment its timeout expires reaches both. RabbitAck is idempotent, so the ack was
+        // safe, but RetryPublisher.handleFailure is not: running it twice writes two audit
+        // reports and parks two copies of the message on the retry tier, which the origin queue
+        // then redelivers twice.
+        val settled = AtomicBoolean(false)
+        suspend fun settleWithRetry(cause: Throwable) {
+            if (!settled.compareAndSet(false, true)) return
+            retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, cause)
+        }
+
         try {
             val handlerScope = api.scope + requestJob
             RabbitPacketPropertiesInjector.inject(request, handlerScope, senderVersion)
@@ -193,7 +209,7 @@ class RabbitListenerHandlerManager(
                 } else {
                     log.atSevere().withCause(cause)
                         .log("Fire-and-forget handler for %s failed", request.javaClass.name)
-                    retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, cause)
+                    settleWithRetry(cause)
                 }
                 return
             }
@@ -206,7 +222,7 @@ class RabbitListenerHandlerManager(
                     request.responseDeferred.cancel("Error in handler", cause)
 
                     api.scope.launch {
-                        retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, cause)
+                        settleWithRetry(cause)
                     }
                 }
             }
@@ -225,20 +241,20 @@ class RabbitListenerHandlerManager(
                         "Handler for ${request.javaClass.name} did not respond within ${requestTimeoutSeconds}, discarding message"
                     )
                 requestJob.cancel("Handler timed out")
-                retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, e)
+                settleWithRetry(e)
             } catch (e: Throwable) {
                 if (e is CancellationException) throw e
                 log.atSevere()
                     .withCause(e)
                     .log("Error handling request of type ${request.javaClass.name}, discarding message")
-                retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, e)
+                settleWithRetry(e)
             }
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
             log.atSevere()
                 .withCause(e)
                 .log("Error handling request of type ${request.javaClass.name}, discarding message")
-            retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, e)
+            settleWithRetry(e)
         } finally {
             requestJob.cancel("Request handler finished")
             request.responseDeferred.cancel()

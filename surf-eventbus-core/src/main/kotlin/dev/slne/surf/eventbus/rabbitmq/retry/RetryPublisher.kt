@@ -64,6 +64,7 @@ class RetryPublisher(
 
         auditSink.report(
             reports.handlerFailed(
+                messageUuid = messageId,
                 properties = properties,
                 body = body,
                 exchange = null,
@@ -134,6 +135,9 @@ class RetryPublisher(
      * message that left broker control this way (see [RetryPolicy] for how this was verified).
      * The identity header must survive the same republish, or the next attempt's report would
      * mint a fresh id and no longer group with this one.
+     *
+     * The identity stamp itself is [AuditMessageIdentity.stamp]; this used to re-implement it
+     * inline, which left the real function tested but unused by anything in production.
      */
     private fun withNextAttempt(
         properties: AMQP.BasicProperties,
@@ -142,11 +146,12 @@ class RetryPublisher(
     ): AMQP.BasicProperties {
         val headers = HashMap<String, Any?>(properties.headers ?: emptyMap())
         headers[RetryPolicy.ATTEMPTS_HEADER] = attempts
-        headers[AuditMessageIdentity.HEADER] = messageId
 
-        return properties.builder()
+        val withAttempts = properties.builder()
             .expiration(null)
             .headers(headers)
             .build()
+
+        return AuditMessageIdentity.stamp(withAttempts, messageId)
     }
 }

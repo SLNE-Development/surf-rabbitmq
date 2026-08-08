@@ -22,7 +22,7 @@ import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitServiceUnavailableExc
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitResponsePacket
 import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
-import dev.slne.surf.eventbus.rabbitmq.version.RabbitMqVersion
+import dev.slne.surf.eventbus.rabbitmq.version.RabbitMQVersion
 import dev.slne.surf.eventbus.rabbitmq.connection.RabbitConnectionListener
 import dev.slne.surf.eventbus.rabbitmq.connection.RabbitClient
 import dev.slne.surf.eventbus.rabbitmq.consumer.RabbitAck
@@ -80,14 +80,16 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
     // Lazy: creating the generated proxy touches api.connection, which is this very instance
     // while it is still being constructed. Deferred behind an AuditSink wrapper so no
     // constructor-time code forces it - the first report (if any) resolves it lazily instead.
-    private val auditSinkDelegate: RabbitAuditSink by lazy {
+    private val auditSinkLazy = lazy {
         RabbitAuditSink(
             proxy = api.rpc<AuditService>(target = RabbitTarget.ServiceTarget(auditServiceName)),
             serviceName = api.identity.serviceName,
             auditServiceName = auditServiceName,
         )
     }
-    val auditSink: AuditSink = object : AuditSink {
+    private val auditSinkDelegate: RabbitAuditSink by auditSinkLazy
+    private val auditSinkInitialized: Boolean get() = auditSinkLazy.isInitialized()
+    override val auditSink: AuditSink = object : AuditSink {
         override suspend fun report(report: AuditReport) = auditSinkDelegate.report(report)
     }
 
@@ -137,7 +139,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
     private var serviceConsumer: RabbitConsumer? = null
     private var instanceConsumer: RabbitConsumer? = null
 
-    private class ReceivedResponse(val body: ByteArray, val senderVersion: RabbitMqVersion)
+    private class ReceivedResponse(val body: ByteArray, val senderVersion: RabbitMQVersion)
 
     private data class ReplyEndpoint(
         val queueName: String,
@@ -262,6 +264,12 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
     }
 
     override suspend fun disconnect() {
+        // Only if the sink was ever used: touching the lazy here would construct an RPC proxy
+        // (and with it a connection) purely in order to shut it down again.
+        if (auditSinkInitialized) {
+            runCatching { auditSinkDelegate.close() }
+        }
+
         client.close()
     }
 
@@ -340,7 +348,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
         ) { _, message, ack ->
             val correlationId = message.properties.correlationId
             val body = message.body
-            val senderVersion = RabbitMqVersion.fromHeaders(message.properties.headers)
+            val senderVersion = RabbitMQVersion.fromHeaders(message.properties.headers)
 
             if (correlationId == null) {
                 ack.ack()
@@ -416,7 +424,7 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
             val body = message.body
             val correlationId = property.correlationId
             val replyTo = property.replyTo
-            val senderVersion = RabbitMqVersion.fromHeaders(property.headers)
+            val senderVersion = RabbitMQVersion.fromHeaders(property.headers)
 
             if (correlationId == null) {
                 ack.nack(requeue = false)
@@ -611,6 +619,6 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
             messageId?.let(builder::messageId)
             kind.expirationMillis(requestTimeoutSeconds)?.let(builder::expiration)
         }
-        .headers(mapOf(RabbitMqVersion.AMQP_HEADER to RabbitMqVersion.CURRENT.toString()))
+        .headers(mapOf(RabbitMQVersion.AMQP_HEADER to RabbitMQVersion.CURRENT.toString()))
         .build()
 }

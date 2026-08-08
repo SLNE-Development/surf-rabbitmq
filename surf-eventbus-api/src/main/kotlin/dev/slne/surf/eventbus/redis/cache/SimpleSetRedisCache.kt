@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.cache
 
 import dev.slne.surf.eventbus.redis.util.Initializable
-import reactor.core.Disposable
+import dev.slne.surf.eventbus.redis.util.RedisDisposable
 
 /**
  * A Redis-backed cache for a *set of entities* with:
@@ -13,7 +13,7 @@ import reactor.core.Disposable
  * - `condition: (T) -> Boolean` can NOT be evaluated server-side, so `findCached(condition)` always scans.
  * - Index queries are fast (use Redis sets), but still validate results to self-heal stale index entries.
  */
-interface SimpleSetRedisCache<T : Any> : Disposable, Initializable {
+interface SimpleSetRedisCache<T : Any> : RedisDisposable, Initializable {
 
     suspend fun findCached(condition: (T) -> Boolean): Set<T>
     suspend fun getCachedById(id: String): T?

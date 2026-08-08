@@ -18,6 +18,7 @@ import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.overwriteWith
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.reflect.KClass
 
 /**
@@ -75,7 +76,11 @@ class SurfRabbitApi @InternalEventBusApi constructor(
     @InternalEventBusApi
     val connection: RabbitMQConnection by lazy { RabbitMQConnection.create(this) }
 
-    private var frozen = false
+    // An AtomicBoolean rather than a plain var: freeze() is a check-then-act, and without
+    // publication two threads could both pass the check and both believe they froze the api.
+    // SurfEventBusImpl, EventSubscriptionRegistry, QueryServiceRegistry and RedisApi all guard
+    // their own flag; this was the one that did not.
+    private val frozen = AtomicBoolean(false)
 
     /**
      * Locks registration.
@@ -84,14 +89,13 @@ class SurfRabbitApi @InternalEventBusApi constructor(
      * could arrive for a handler that is still being registered.
      */
     fun freeze() {
-        if (frozen) throw SurfRabbitApiAlreadyFrozenException()
-        frozen = true
+        if (!frozen.compareAndSet(false, true)) throw SurfRabbitApiAlreadyFrozenException()
     }
 
-    fun isFrozen(): Boolean = frozen
+    fun isFrozen(): Boolean = frozen.get()
 
     suspend fun connect() {
-        if (!frozen) throw SurfRabbitApiNotFrozenException()
+        if (!frozen.get()) throw SurfRabbitApiNotFrozenException()
 
         // Preserves the former ServerRabbitMQApi lifecycle for standalone microservices;
         // on Paper/Velocity the platform manages the lifecycle and the hook must not run.
@@ -114,7 +118,7 @@ class SurfRabbitApi @InternalEventBusApi constructor(
 
     /** Registers the server-side implementation of an `@RpcService` interface. */
     fun <Service : Any> registerService(serviceKClass: KClass<Service>, serviceInstance: Service) {
-        if (frozen) throw SurfRabbitApiAlreadyFrozenException()
+        if (frozen.get()) throw SurfRabbitApiAlreadyFrozenException()
         rpcService.registerService(serviceKClass, serviceInstance)
     }
 

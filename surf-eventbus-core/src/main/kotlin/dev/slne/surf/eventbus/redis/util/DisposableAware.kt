@@ -1,10 +1,18 @@
 package dev.slne.surf.eventbus.redis.util
 
+import dev.slne.surf.eventbus.redis.util.RedisDisposable
 import reactor.core.Disposable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
-abstract class DisposableAware : Disposable {
+/**
+ * Tracks Reactor [Disposable]s and releases them once.
+ *
+ * Implements both [RedisDisposable] - the interface the published Redis structures expose - and
+ * Reactor's own, so Reactor stays the mechanism here while staying out of the ABI. The two have
+ * the same shape, so one pair of methods satisfies both.
+ */
+abstract class DisposableAware : RedisDisposable, Disposable {
     private val disposables = ConcurrentHashMap.newKeySet<Disposable>()
     private val disposed = AtomicBoolean(false)
 

@@ -1,6 +1,7 @@
 package dev.slne.surf.eventbus.core
 
 import dev.slne.surf.eventbus.SurfEventBus
+import dev.slne.surf.eventbus.audit.AuditSink
 import dev.slne.surf.eventbus.serialization.KotlinSerializerCache
 import dev.slne.surf.eventbus.core.audit.LoggingAuditSink
 import dev.slne.surf.eventbus.core.dispatch.BusEventCodecs
@@ -32,6 +33,15 @@ import kotlin.reflect.KClass
  * loudly and names the builder call. [freeze] rejects a subscription without its transport and
  * names the handler.
  */
+/**
+ * @param auditSink where the event and query dispatchers report losses.
+ *
+ *   This used to be hardcoded to [LoggingAuditSink] with no injection point, while
+ *   `RabbitAuditSink` - the one that actually publishes to `surf-eventbus-audit` - was reachable
+ *   only from the RabbitMQ paths. On a bus with both transports, `EVENT_HANDLER_FAILED`,
+ *   `QUERY_HANDLER_FAILED` and `UNKNOWN_EVENT_TYPE` were logged and dropped, so three of the
+ *   seven audit kinds never reached the audit service the README promises they reach.
+ */
 class SurfEventBusImpl(
     private val serviceName: String,
     private val instanceId: String,
@@ -40,7 +50,8 @@ class SurfEventBusImpl(
     private val rabbitApi: SurfRabbitApi?,
     private val redisApi: RedisApi?,
     private val eventTransport: EventTransport?,
-    private val queryTransport: QueryTransport?
+    private val queryTransport: QueryTransport?,
+    private val auditSink: AuditSink = LoggingAuditSink
 ) : SurfEventBus {
 
     private val json = Json {
@@ -53,7 +64,7 @@ class SurfEventBusImpl(
     private val dispatcher = EventDispatcher(
         registry = eventRegistry,
         instanceId = instanceId,
-        auditSink = LoggingAuditSink,
+        auditSink = auditSink,
         json = json,
         typeResolver = EventTypeResolver(),
         serviceName = serviceName
@@ -62,7 +73,7 @@ class SurfEventBusImpl(
         QueryDispatcher(
             registry = queryRegistry,
             instanceId = instanceId,
-            auditSink = LoggingAuditSink,
+            auditSink = auditSink,
             json = json,
             transport = it
         )
@@ -130,6 +141,19 @@ class SurfEventBusImpl(
             )
         }
 
+        // The same check for queries. Without it a registered @QueryService was stored, never
+        // subscribed by connect(), and every query to this process became a silent abstention -
+        // indistinguishable, to the caller, from "nobody knows the answer".
+        if (queryTransport == null && queryRegistry.contracts().isNotEmpty()) {
+            val contracts = queryRegistry.contracts().joinToString(", ")
+            error(
+                """
+                These @QueryService contracts need the Redis transport: $contracts
+                -> add .withRedis() to SurfEventBus.builder(...)
+                """.trimIndent()
+            )
+        }
+
         eventRegistry.freeze()
         queryRegistry.freeze()
         rabbitApi?.freeze()
@@ -156,10 +180,33 @@ class SurfEventBusImpl(
         }
     }
 
+    /**
+     * Closes every transport, even if one of them throws.
+     *
+     * Without the containment the first failure leaked whatever came after it: the Redis query
+     * subscription, the AMQP connection, four consumer threads, two publisher threads and the
+     * audit sink's scope. On Paper that runs during server shutdown, where the leak surfaces as
+     * a "leaked RabbitClient" warning and a ten-second sleep. The first failure is still the one
+     * that propagates - the rest are attached to it rather than lost.
+     */
     override suspend fun disconnect() {
-        eventTransport?.disconnect()
-        queryTransport?.disconnect()
-        rabbitApi?.disconnect()
+        val failures = mutableListOf<Throwable>()
+
+        for (step in listOf<suspend () -> Unit>(
+            { eventTransport?.disconnect() },
+            { queryTransport?.disconnect() },
+            { rabbitApi?.disconnect() },
+        )) {
+            try {
+                step()
+            } catch (throwable: Throwable) {
+                failures += throwable
+            }
+        }
+
+        val first = failures.firstOrNull() ?: return
+        failures.drop(1).forEach(first::addSuppressed)
+        throw first
     }
 
     override val rabbit: SurfRabbitApi
