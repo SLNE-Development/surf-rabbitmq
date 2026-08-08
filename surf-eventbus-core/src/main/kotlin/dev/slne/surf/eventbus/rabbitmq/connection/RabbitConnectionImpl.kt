@@ -410,7 +410,11 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
             queue = queue,
             autoAck = false,
             prefetchCount = prefetchCount,
-            requeueOnHandlerError = false
+            requeueOnHandlerError = false,
+            // Backstop above the per-handler timeout in RabbitListenerHandlerManager: this one
+            // also covers deserialization and the non-RPC paths, so a wedged delivery cannot
+            // hold a prefetch slot forever.
+            handlerTimeout = requestTimeoutSeconds + 5.seconds
         ) { _, message, ack ->
             val property = message.properties
             val body = message.body
@@ -497,7 +501,16 @@ class RabbitConnectionImpl(private val api: SurfRabbitApi) : RabbitMQConnection 
             )
         }
 
-        ack?.ack()
+        val acknowledged = ack?.ack() ?: true
+
+        if (!acknowledged) {
+            log.atWarning()
+                .log(
+                    "RabbitMQ response for correlationId $correlationId was published, " +
+                            "but the original request could not be acknowledged. " +
+                            "The request may be redelivered."
+                )
+        }
     }
 
     override suspend fun <R : RabbitResponsePacket> sendRequest(

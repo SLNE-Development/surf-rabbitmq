@@ -8,6 +8,7 @@ import dev.slne.surf.eventbus.audit.AuditKind
 import dev.slne.surf.eventbus.audit.AuditReport
 import dev.slne.surf.eventbus.rabbitmq.audit.AuditMessageIdentity
 import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
+import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitConnectionException
 import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitProtocolVersionMismatchException
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitResponsePacket
@@ -21,6 +22,7 @@ import dev.slne.surf.eventbus.serialization.KotlinSerializerNameCache
 import dev.slne.surf.eventbus.rabbitmq.connection.RabbitConnectionImpl
 import dev.slne.surf.eventbus.rabbitmq.rpc.RabbitRpcServiceImpl
 import kotlinx.coroutines.*
+import kotlinx.coroutines.selects.select
 import kotlinx.serialization.ExperimentalSerializationApi
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.seconds
@@ -198,23 +200,24 @@ class RabbitListenerHandlerManager(
                 return
             }
 
+            // Settle the handler's failure on this coroutine rather than nacking from a
+            // detached invokeOnCompletion callback: the callback used to race the await below,
+            // so a failing handler could be dead-lettered twice, or dead-lettered while the
+            // main path was still waiting out the full request timeout.
+            val handlerFailure = CompletableDeferred<Throwable>()
             handlerJob.invokeOnCompletion { cause ->
-                if (cause != null && cause !is CancellationException) {
-                    log.atSevere()
-                        .withCause(cause)
-                        .log("Error in handler for request of type ${request.javaClass.name}, discarding message")
-                    request.responseDeferred.cancel("Error in handler", cause)
-
-                    api.scope.launch {
-                        retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, cause)
-                    }
+                if (cause != null) {
+                    handlerFailure.complete(cause)
                 }
             }
 
             val requestTimeoutSeconds = api.config.requestTimeoutSeconds.seconds
             try {
                 val response = withTimeout(requestTimeoutSeconds) {
-                    request.responseDeferred.await()
+                    select {
+                        request.responseDeferred.onAwait { it }
+                        handlerFailure.onAwait { throw it }
+                    }
                 }
                 val responseBytes =
                     RabbitPacketSerializer.serializeResponse(api, serializerCache, response)
@@ -226,8 +229,20 @@ class RabbitListenerHandlerManager(
                     )
                 requestJob.cancel("Handler timed out")
                 retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, e)
+            } catch (e: SurfRabbitConnectionException) {
+                // A broker blip is not the request's fault - requeue instead of spending one of
+                // its retries or dead-lettering it.
+                log.atWarning()
+                    .withCause(e)
+                    .log("RabbitMQ connection failed while handling ${request.javaClass.name}; requeueing request")
+                ack.nack(requeue = true)
+            } catch (e: CancellationException) {
+                if (!currentCoroutineContext().isActive) throw e
+                log.atWarning()
+                    .withCause(e)
+                    .log("Handler for ${request.javaClass.name} was cancelled, discarding message")
+                retryOrDeadLetter(request.javaClass, body, properties, originQueue, ack, e)
             } catch (e: Throwable) {
-                if (e is CancellationException) throw e
                 log.atSevere()
                     .withCause(e)
                     .log("Error handling request of type ${request.javaClass.name}, discarding message")
