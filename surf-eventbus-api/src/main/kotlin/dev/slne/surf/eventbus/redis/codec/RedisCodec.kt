@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.redis.codec
 
+import dev.slne.surf.eventbus.InternalEventBusApi
 import io.netty.buffer.ByteBuf
 
 /**
@@ -16,6 +17,7 @@ import io.netty.buffer.ByteBuf
  *
  * @param T value type handled by this codec
  */
+@InternalEventBusApi
 interface RedisCodec<T : Any> {
     /**
      * Stable identifier for this codec's wire format.

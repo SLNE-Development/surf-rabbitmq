@@ -3,14 +3,18 @@ package dev.slne.surf.eventbus.redis.credentials
 import com.google.auto.service.AutoService
 import dev.slne.surf.eventbus.config.RedisSettings
 import dev.slne.surf.eventbus.credentials.RedisCredentialsProvider
-import dev.slne.surf.eventbus.redis.config.redisConfig
+import dev.slne.surf.eventbus.redis.config.redisSettingsFor
 import org.redisson.misc.RedisURI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.nio.file.Path
 
 @AutoService(RedisCredentialsProvider::class)
 class RedisCredentialsProviderImpl : RedisCredentialsProvider {
-    override fun redisURI(): RedisURI = redisUriOf(redisConfig)
+
+    override fun settings(pluginDataPath: Path?) = redisSettingsFor(pluginDataPath)
+
+    override fun redisURI(settings: RedisSettings): RedisURI = redisUriOf(settings)
 }
 
 /**

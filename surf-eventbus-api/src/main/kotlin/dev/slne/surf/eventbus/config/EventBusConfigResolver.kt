@@ -3,6 +3,7 @@ package dev.slne.surf.eventbus.config
 import dev.slne.surf.api.core.environment.EnvironmentVariables
 import dev.slne.surf.api.core.environment.requireIn
 import dev.slne.surf.eventbus.InternalEventBusApi
+import java.nio.file.Path
 
 private const val RABBIT_PREFIX = "SURF_EVENTBUS_RABBITMQ_"
 private const val REDIS_PREFIX = "SURF_EVENTBUS_REDIS_"
@@ -28,6 +29,45 @@ fun resolveEventBusConfig(
     rabbitmq = resolveRabbitMQ(global?.rabbitmq, plugin?.rabbitmq, environment),
     redis = resolveRedis(global?.redis, plugin?.redis, environment),
 )
+
+/**
+ * Which *files* feed the four layers — the other half of [resolveEventBusConfig], which only
+ * applies layers it is handed.
+ *
+ * The two transports used to answer this question separately, and only one of them got it
+ * right. `SurfRabbitApiBuilder` read the global file from the platform's folder and the plugin
+ * file from the consumer's; the Redis half passed the platform's folder as *both*, so the
+ * `eventbus-plugin.yml` it opened belonged to nobody and no consumer could override a Redis
+ * field. Answering it once is what makes the README's "both transports use all four layers,
+ * identically" true.
+ *
+ * @param pluginDataPath the consumer's own data folder, source of the plugin layer.
+ * @param platformDataPath the platform plugin's folder, holding the broker-wide file. `null`
+ *   standalone, where there is no second party and [pluginDataPath] holds the global file
+ *   instead.
+ * @param globalFileName standalone only, where a caller may name its own global file. On a
+ *   platform the broker-wide file is shared, so its name is not the caller's to choose.
+ */
+@InternalEventBusApi
+fun resolveEventBusSettings(
+    pluginDataPath: Path?,
+    platformDataPath: Path?,
+    environment: EnvironmentVariables = EnvironmentVariables.system,
+    globalFileName: String = EventBusConfigFiles.GLOBAL_FILE_NAME,
+): EventBusSettings = when {
+    platformDataPath != null -> resolveEventBusConfig(
+        global = EventBusConfigFiles.global(platformDataPath),
+        plugin = pluginDataPath?.let { EventBusConfigFiles.plugin(it) },
+        environment = environment,
+    )
+
+    pluginDataPath != null -> resolveEventBusConfig(
+        global = EventBusConfigFiles.global(pluginDataPath, globalFileName),
+        environment = environment,
+    )
+
+    else -> resolveEventBusConfig(environment = environment)
+}
 
 private fun resolveRabbitMQ(
     global: RabbitMQSection?,

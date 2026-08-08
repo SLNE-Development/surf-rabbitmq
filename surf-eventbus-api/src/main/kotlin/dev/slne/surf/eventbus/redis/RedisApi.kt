@@ -12,6 +12,7 @@ import dev.slne.surf.eventbus.redis.cache.RedisSetIndexes
 import dev.slne.surf.eventbus.redis.cache.SimpleRedisCache
 import dev.slne.surf.eventbus.redis.cache.SimpleSetRedisCache
 import dev.slne.surf.eventbus.redis.codec.RedisCodec
+import dev.slne.surf.eventbus.config.RedisSettings
 import dev.slne.surf.eventbus.credentials.RedisCredentialsProvider
 import dev.slne.surf.eventbus.redis.internal.RedissonConfigDetails
 import dev.slne.surf.eventbus.redis.sync.SyncStructure
@@ -251,17 +252,57 @@ class RedisApi private constructor(
             redisURI: RedisURI,
             pluginName: String,
             serializerModule: SerializersModule
+        ): RedisApi = create(
+            // An explicit URI is the address and nothing else, so everything the config builder
+            // reads beyond the address stays at its default. Callers that want a plugin's
+            // resolved settings go through the RedisSettings overload instead.
+            settings = RedisSettings(
+                host = redisURI.host,
+                port = redisURI.port,
+                password = redisURI.password,
+            ),
+            redisURI = redisURI,
+            pluginName = pluginName,
+            serializerModule = serializerModule,
+        )
+
+        /**
+         * Creates a [RedisApi] from already-resolved four-layer [settings].
+         *
+         * The path the bus itself takes. The URI is derived from the settings through
+         * [RedisCredentialsProvider], so a host that supplies credentials from somewhere other
+         * than the yaml still gets a say, and everything else the Redisson config needs —
+         * `clientName` — comes from the same resolution rather than from a process-wide value
+         * that no plugin layer could reach.
+         */
+        @InternalEventBusApi
+        fun create(
+            settings: RedisSettings,
+            pluginName: String,
+            serializerModule: SerializersModule = EmptySerializersModule()
+        ): RedisApi = create(
+            settings = settings,
+            redisURI = RedisCredentialsProvider.redisURI(settings),
+            pluginName = pluginName,
+            serializerModule = serializerModule,
+        )
+
+        private fun create(
+            settings: RedisSettings,
+            redisURI: RedisURI,
+            pluginName: String,
+            serializerModule: SerializersModule
         ): RedisApi {
             val config = RedisComponentProvider.createRedissonConfig(
                 RedissonConfigDetails(
                     redisURI = redisURI,
+                    settings = settings,
                     serializerModule = serializerModule,
                     pluginName = pluginName
                 )
             )
 
-            val api = RedisApi(config, createJson(serializerModule))
-            return api
+            return RedisApi(config, createJson(serializerModule))
         }
 
         /**
@@ -307,16 +348,21 @@ class RedisApi private constructor(
          */
         fun create(
             serializerModule: SerializersModule = EmptySerializersModule()
-        ): RedisApi =
-            create(RedisCredentialsProvider.redisURI(), getCallingPluginName(), serializerModule)
+        ): RedisApi = create(
+            RedisCredentialsProvider.settings(null), getCallingPluginName(), serializerModule
+        )
 
         /**
          * Creates a [RedisApi] instance using the default Redis credentials.
          *
+         * Resolves `env > global > default`: a caller arriving here has named no data folder,
+         * so there is no plugin layer to apply. `SurfEventBusBuilder(service, dataPath)
+         * .withRedis()` does have one and resolves all four.
+         *
          * @param pluginName Logical name of the calling plugin or component.
          */
         fun create(pluginName: String): RedisApi =
-            create(RedisCredentialsProvider.redisURI(), pluginName, EmptySerializersModule())
+            create(RedisCredentialsProvider.settings(null), pluginName, EmptySerializersModule())
 
         /**
          * Creates a [RedisApi] instance using the default Redis credentials.
@@ -325,7 +371,7 @@ class RedisApi private constructor(
          * @param serializerModule Additional serializers to be included in the internal [Json] instance.
          */
         fun create(pluginName: String, serializerModule: SerializersModule): RedisApi =
-            create(RedisCredentialsProvider.redisURI(), pluginName, serializerModule)
+            create(RedisCredentialsProvider.settings(null), pluginName, serializerModule)
 
         // The path-taking create() overload is gone. It was @Deprecated(level = ERROR), so no
         // code could call it and no code could have been calling it - 2.0 is a breaking release

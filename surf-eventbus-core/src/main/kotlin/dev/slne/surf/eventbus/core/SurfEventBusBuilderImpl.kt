@@ -35,10 +35,17 @@ internal class SurfEventBusBuilderImpl(
 
     override fun withStandaloneHook(hook: StandaloneLifecycleHook) = apply { standaloneHook = hook }
 
+    /**
+     * The consumer's own [dataPath] is what the Redis settings are resolved against, so this
+     * plugin's `eventbus-plugin.yml` overrides the broker-wide `eventbus.yml` field by field —
+     * the same four layers RabbitMQ has always resolved.
+     */
     override fun withRedis() = apply {
-        eventTransport = RedisTransportLocator.event()
-        queryTransport = RedisTransportLocator.query()
-        redisApi = RedisTransportLocator.redisApi()
+        val transports = RedisTransportLocator.transports(dataPath)
+
+        eventTransport = transports.event
+        queryTransport = transports.query
+        redisApi = transports.redisApi
     }
 
     override fun withRedis(event: EventTransport, query: QueryTransport) = apply {

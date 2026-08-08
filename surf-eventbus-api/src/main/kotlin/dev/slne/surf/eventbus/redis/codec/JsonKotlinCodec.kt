@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.redis.codec
 
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.api.core.serializer.SurfSerializerModule
 import dev.slne.surf.api.core.serializer.java.uuid.JavaUUIDStringSerializer
 import io.netty.buffer.ByteBuf
@@ -28,6 +29,7 @@ import java.nio.charset.StandardCharsets
  * @param serializersModule the serializers module used by the JSON format
  * @param serializer the serializer used to encode and decode values of type [T]
  */
+@InternalEventBusApi
 class JsonKotlinCodec<T : Any> private constructor(
     serializersModule: SerializersModule,
     private val serializer: KSerializer<T>,

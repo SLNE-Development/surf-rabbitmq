@@ -26,7 +26,11 @@ object RedisContainerExtension {
 
     private val counter = AtomicInteger()
 
-    fun uri(): String = "redis://${container.host}:${container.getMappedPort(REDIS_PORT)}"
+    fun host(): String = container.host
+
+    fun port(): Int = container.getMappedPort(REDIS_PORT)
+
+    fun uri(): String = "redis://${host()}:${port()}"
 
     fun redisUri(): RedisURI = RedisURI(uri())
 

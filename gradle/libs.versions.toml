@@ -7,6 +7,10 @@ surf-microservice = "2.+"
 junit = "5.11.4"
 coroutines = "1.10.2"
 testcontainers = "1.21.3"
+ktlint-plugin = "13.1.0"
+
+[plugins]
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint-plugin" }
 
 [libraries]
 amqp-client = { module = "com.rabbitmq:amqp-client", version.ref = "amqp-client" }

@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.event
 
+import dev.slne.surf.eventbus.InternalEventBusApi
 import io.netty.buffer.ByteBuf
 
 /**
@@ -21,7 +22,16 @@ import io.netty.buffer.ByteBuf
  *     }
  * }
  * ```
+ *
+ * Internal, reluctantly, and the only entry on this list that a consumer has a real reason to
+ * implement. It is spelled in `io.netty.buffer.ByteBuf`, and the shadow jar relocates `io.netty`
+ * — so the type in the published signature is one a consumer compiling against the artifact
+ * cannot name, and a Netty upgrade would be a breaking change for everyone who had. Opting in
+ * says "I accept that this moves with Netty". The way out is a buffer type of our own; until
+ * then, [dev.slne.surf.eventbus.serialization] and the `KSerializer` overloads are the
+ * supported path, and this is the fast one.
  */
+@InternalEventBusApi
 interface BusEventCodec<T : SurfBusEvent> {
     fun encode(buffer: ByteBuf, value: T)
     fun decode(buffer: ByteBuf): T

@@ -1,9 +1,11 @@
 package dev.slne.surf.eventbus.redis.codec
 
+import dev.slne.surf.eventbus.InternalEventBusApi
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.ByteBufUtil
 import java.nio.charset.StandardCharsets
 
+@InternalEventBusApi
 object RedisUtf8String {
     const val MAX_STRING_LENGTH: Int = 32_767
 

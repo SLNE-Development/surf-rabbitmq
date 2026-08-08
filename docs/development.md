@@ -39,6 +39,25 @@ Pass at most one of `-PskipIntegration` / `-PrequireIntegration`; the build reje
 The integration suite starts its own throwaway containers via Testcontainers. It does **not** use
 `docker-compose.yml` and does not need the brokers below to be running.
 
+## Formatting
+
+```bash
+./gradlew ktlintCheck                   # part of `check`, so CI runs it
+./gradlew ktlintFormat                  # fix what can be fixed automatically
+./gradlew ktlintGenerateBaseline        # re-record the accepted findings
+```
+
+Each module keeps a baseline at `<module>/config/ktlint/baseline.xml` holding the findings that
+predate the linter. The gate is therefore only about *new* code: a linter that arrives with two
+thousand findings is a linter everyone learns to scroll past. Do not regenerate the baseline to
+silence something you just wrote — fix it, or if the rule is wrong, disable the rule.
+
+There is no Detekt. `1.23.8` embeds Kotlin 1.9's compiler, whose `JvmTarget` stops at 22, and it
+reads that target from the JVM it runs on — the Gradle daemon, because it invokes its CLI
+in-process instead of forking. Against this project's JDK 25 toolchain every task fails with a
+bare `IllegalArgumentException: 25` before opening a file, and there is no fork to point
+elsewhere. Add it when a release supports JDK 25.
+
 ## Running brokers locally
 
 For driving a real application against the bus by hand:

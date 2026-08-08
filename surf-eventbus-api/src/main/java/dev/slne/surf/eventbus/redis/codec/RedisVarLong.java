@@ -1,8 +1,10 @@
 package dev.slne.surf.eventbus.redis.codec;
 
+import dev.slne.surf.eventbus.InternalEventBusApi;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.DecoderException;
 
+@InternalEventBusApi
 public final class RedisVarLong {
 
     public static final int MAX_VARLONG_SIZE = 10;

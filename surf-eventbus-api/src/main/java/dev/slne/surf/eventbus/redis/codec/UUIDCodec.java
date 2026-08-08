@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.redis.codec;
 
+import dev.slne.surf.eventbus.InternalEventBusApi;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.redisson.client.codec.StringCodec;
@@ -18,6 +19,7 @@ import java.util.UUID;
  * @see StringCodec
  */
 @NullMarked
+@InternalEventBusApi
 public class UUIDCodec extends StringCodec {
     public static final UUIDCodec INSTANCE = new UUIDCodec();
 

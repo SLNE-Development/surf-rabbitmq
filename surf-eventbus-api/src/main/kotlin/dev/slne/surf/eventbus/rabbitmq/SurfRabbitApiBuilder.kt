@@ -3,7 +3,7 @@ package dev.slne.surf.eventbus.rabbitmq
 import dev.slne.surf.api.core.environment.EnvironmentVariables
 import dev.slne.surf.eventbus.config.EventBusConfigFiles
 import dev.slne.surf.eventbus.config.RabbitMQSettings
-import dev.slne.surf.eventbus.config.resolveEventBusConfig
+import dev.slne.surf.eventbus.config.resolveEventBusSettings
 import dev.slne.surf.eventbus.platform.EventBusInstance
 import dev.slne.surf.eventbus.platform.StandaloneLifecycleHook
 import dev.slne.surf.eventbus.rabbitmq.identity.RabbitIdentity
@@ -113,18 +113,14 @@ class SurfRabbitApiBuilder internal constructor(
         platform: EventBusInstance?,
         hook: StandaloneLifecycleHook,
     ): RabbitMQSettings {
-        return if (platform != null) {
-            resolveEventBusConfig(
-                global = EventBusConfigFiles.global(platform.dataPath),
-                plugin = EventBusConfigFiles.plugin(dataPath),
-                environment = environment,
-            ).rabbitmq
-        } else {
-            hook.onInit(dataPath)
-            resolveEventBusConfig(
-                global = EventBusConfigFiles.global(dataPath, configFileName),
-                environment = environment,
-            ).rabbitmq
-        }
+        // Standalone brings its data folder up before anything reads out of it.
+        if (platform == null) hook.onInit(dataPath)
+
+        return resolveEventBusSettings(
+            pluginDataPath = dataPath,
+            platformDataPath = platform?.dataPath,
+            environment = environment,
+            globalFileName = configFileName,
+        ).rabbitmq
     }
 }

@@ -1,10 +1,12 @@
 package dev.slne.surf.eventbus.redis.codec;
 
+import dev.slne.surf.eventbus.InternalEventBusApi;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.DecoderException;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
+@InternalEventBusApi
 public final class RedisVarInt {
     public static final int MAX_VARINT_SIZE = 5;
 

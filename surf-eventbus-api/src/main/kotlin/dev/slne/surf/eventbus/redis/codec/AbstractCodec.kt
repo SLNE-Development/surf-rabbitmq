@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.redis.codec
 
+import dev.slne.surf.eventbus.InternalEventBusApi
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
 import org.redisson.client.codec.BaseCodec
@@ -12,6 +13,7 @@ import org.redisson.client.protocol.Encoder
  *
  * Subclasses must never retain or release buffers passed to [write] or [read].
  */
+@InternalEventBusApi
 abstract class AbstractCodec<T : Any> : BaseCodec(), RedisCodec<T> {
     private val encoder = Encoder { obj ->
         val buf = Unpooled.buffer()

@@ -2,6 +2,7 @@
 
 package dev.slne.surf.eventbus.redis.codec
 
+import dev.slne.surf.eventbus.InternalEventBusApi
 import io.netty.buffer.ByteBuf
 import it.unimi.dsi.fastutil.ints.IntArrayList
 import it.unimi.dsi.fastutil.ints.IntList
@@ -23,30 +24,37 @@ private fun checkContainerSize(type: String, size: Int) {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeVarInt(value: Int) {
     RedisVarInt.write(this, value)
 }
 
+@InternalEventBusApi
 fun ByteBuf.readVarInt(): Int {
     return RedisVarInt.read(this)
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeVarLong(value: Long) {
     RedisVarLong.write(this, value)
 }
 
+@InternalEventBusApi
 fun ByteBuf.readVarLong(): Long {
     return RedisVarLong.read(this)
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeString(value: CharSequence, maxLength: Int = RedisUtf8String.MAX_STRING_LENGTH) {
     RedisUtf8String.write(this, value, maxLength)
 }
 
+@InternalEventBusApi
 fun ByteBuf.readString(maxLength: Int = RedisUtf8String.MAX_STRING_LENGTH): String {
     return RedisUtf8String.read(this, maxLength)
 }
 
+@InternalEventBusApi
 fun <T> ByteBuf.writeNullable(value: T?, writer: (ByteBuf, T) -> Unit) {
     if (value == null) {
         writeBoolean(false)
@@ -56,16 +64,19 @@ fun <T> ByteBuf.writeNullable(value: T?, writer: (ByteBuf, T) -> Unit) {
     }
 }
 
+@InternalEventBusApi
 fun <T> ByteBuf.readNullable(reader: (ByteBuf) -> T): T? {
     if (!readBoolean()) return null
     return reader(this)
 }
 
+@InternalEventBusApi
 fun <T> ByteBuf.writeCollection(collection: Collection<T>, writer: (ByteBuf, T) -> Unit) {
     writeVarInt(collection.size)
     collection.forEach { writer(this, it) }
 }
 
+@InternalEventBusApi
 fun <T, C : MutableCollection<T>> ByteBuf.readCollection(creator: (Int) -> C, reader: (ByteBuf) -> T): C {
     val size = readVarInt()
     checkContainerSize("Collection", size)
@@ -77,13 +88,16 @@ fun <T, C : MutableCollection<T>> ByteBuf.readCollection(creator: (Int) -> C, re
     return collection
 }
 
+@InternalEventBusApi
 fun <T> ByteBuf.readList(reader: (ByteBuf) -> T): ObjectArrayList<T> = readCollection(::ObjectArrayList, reader)
 
+@InternalEventBusApi
 fun <T> ByteBuf.writeArray(array: Array<T>, writer: (ByteBuf, T) -> Unit) {
     writeVarInt(array.size)
     array.forEach { writer(this, it) }
 }
 
+@InternalEventBusApi
 fun <T> ByteBuf.readArray(type: Class<T>, reader: (ByteBuf) -> T): Array<T> {
     val length = readVarInt()
     checkContainerSize("Array", length)
@@ -98,6 +112,7 @@ fun <T> ByteBuf.readArray(type: Class<T>, reader: (ByteBuf) -> T): Array<T> {
     return array
 }
 
+@InternalEventBusApi
 inline fun <reified T> ByteBuf.readArray(noinline reader: (ByteBuf) -> T): Array<T> {
     return readArray(T::class.java, reader)
 }
@@ -124,11 +139,13 @@ private fun ByteBuf.checkReadableArrayBytes(
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeByteArray(array: ByteArray) {
     writeVarInt(array.size)
     writeBytes(array)
 }
 
+@InternalEventBusApi
 fun ByteBuf.readByteArray(): ByteArray {
     val length = readPrimitiveArrayLength("ByteArray")
     checkReadableArrayBytes("ByteArray", length, Byte.SIZE_BYTES)
@@ -138,6 +155,7 @@ fun ByteBuf.readByteArray(): ByteArray {
     return array
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeBooleanArray(array: BooleanArray) {
     writeVarInt(array.size)
 
@@ -146,6 +164,7 @@ fun ByteBuf.writeBooleanArray(array: BooleanArray) {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.readBooleanArray(): BooleanArray {
     val length = readPrimitiveArrayLength("BooleanArray")
     checkReadableArrayBytes("BooleanArray", length, Byte.SIZE_BYTES)
@@ -155,6 +174,7 @@ fun ByteBuf.readBooleanArray(): BooleanArray {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeShortArray(array: ShortArray) {
     writeVarInt(array.size)
 
@@ -163,6 +183,7 @@ fun ByteBuf.writeShortArray(array: ShortArray) {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.readShortArray(): ShortArray {
     val length = readPrimitiveArrayLength("ShortArray")
     checkReadableArrayBytes("ShortArray", length, Short.SIZE_BYTES)
@@ -172,6 +193,7 @@ fun ByteBuf.readShortArray(): ShortArray {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeCharArray(array: CharArray) {
     writeVarInt(array.size)
 
@@ -180,6 +202,7 @@ fun ByteBuf.writeCharArray(array: CharArray) {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.readCharArray(): CharArray {
     val length = readPrimitiveArrayLength("CharArray")
     checkReadableArrayBytes("CharArray", length, Char.SIZE_BYTES)
@@ -189,6 +212,7 @@ fun ByteBuf.readCharArray(): CharArray {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeIntArray(array: IntArray) {
     writeVarInt(array.size)
 
@@ -197,6 +221,7 @@ fun ByteBuf.writeIntArray(array: IntArray) {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.readIntArray(): IntArray {
     val length = readPrimitiveArrayLength("IntArray")
     checkReadableArrayBytes("IntArray", length, Int.SIZE_BYTES)
@@ -206,6 +231,7 @@ fun ByteBuf.readIntArray(): IntArray {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeLongArray(array: LongArray) {
     writeVarInt(array.size)
 
@@ -214,6 +240,7 @@ fun ByteBuf.writeLongArray(array: LongArray) {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.readLongArray(): LongArray {
     val length = readPrimitiveArrayLength("LongArray")
     checkReadableArrayBytes("LongArray", length, Long.SIZE_BYTES)
@@ -223,6 +250,7 @@ fun ByteBuf.readLongArray(): LongArray {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeFloatArray(array: FloatArray) {
     writeVarInt(array.size)
 
@@ -231,6 +259,7 @@ fun ByteBuf.writeFloatArray(array: FloatArray) {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.readFloatArray(): FloatArray {
     val length = readPrimitiveArrayLength("FloatArray")
     checkReadableArrayBytes("FloatArray", length, Float.SIZE_BYTES)
@@ -240,6 +269,7 @@ fun ByteBuf.readFloatArray(): FloatArray {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeDoubleArray(array: DoubleArray) {
     writeVarInt(array.size)
 
@@ -248,6 +278,7 @@ fun ByteBuf.writeDoubleArray(array: DoubleArray) {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.readDoubleArray(): DoubleArray {
     val length = readPrimitiveArrayLength("DoubleArray")
     checkReadableArrayBytes("DoubleArray", length, Double.SIZE_BYTES)
@@ -257,6 +288,7 @@ fun ByteBuf.readDoubleArray(): DoubleArray {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeVarIntArray(array: IntArray) {
     writeVarInt(array.size)
 
@@ -265,6 +297,7 @@ fun ByteBuf.writeVarIntArray(array: IntArray) {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.readVarIntArray(): IntArray {
     val length = readPrimitiveArrayLength("VarIntArray")
 
@@ -273,14 +306,17 @@ fun ByteBuf.readVarIntArray(): IntArray {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeInstant(instant: Instant) {
     writeLong(instant.toEpochMilli())
 }
 
+@InternalEventBusApi
 fun ByteBuf.readInstant(): Instant {
     return Instant.ofEpochMilli(readLong())
 }
 
+@InternalEventBusApi
 fun <K, V> ByteBuf.writeMap(
     map: Map<K, V>,
     keyWriter: (ByteBuf, K) -> Unit,
@@ -294,6 +330,7 @@ fun <K, V> ByteBuf.writeMap(
     }
 }
 
+@InternalEventBusApi
 fun <K, V, M : MutableMap<K, V>> ByteBuf.readMap(
     creator: (Int) -> M,
     keyReader: (ByteBuf) -> K,
@@ -313,6 +350,7 @@ fun <K, V, M : MutableMap<K, V>> ByteBuf.readMap(
     return map
 }
 
+@InternalEventBusApi
 fun <K, V> ByteBuf.readMap(
     keyReader: (ByteBuf) -> K,
     valueReader: (ByteBuf) -> V
@@ -320,19 +358,23 @@ fun <K, V> ByteBuf.readMap(
     return readMap(::Object2ObjectOpenHashMap, keyReader, valueReader)
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeUuid(uuid: UUID) {
     writeLong(uuid.mostSignificantBits)
     writeLong(uuid.leastSignificantBits)
 }
 
+@InternalEventBusApi
 fun ByteBuf.readUuid(): UUID {
     return UUID(readLong(), readLong())
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeEnum(value: Enum<*>) {
     writeVarInt(value.ordinal)
 }
 
+@InternalEventBusApi
 inline fun <reified E : Enum<E>> ByteBuf.readEnum(): E {
     val ordinal = readVarInt()
     val values = enumEntries<E>()
@@ -344,6 +386,7 @@ inline fun <reified E : Enum<E>> ByteBuf.readEnum(): E {
     return values[ordinal]
 }
 
+@InternalEventBusApi
 inline fun <reified E : Enum<E>> ByteBuf.writeEnumSet(set: Set<E>) {
     val values = enumEntries<E>()
     val bitSet = BitSet(values.size)
@@ -355,6 +398,7 @@ inline fun <reified E : Enum<E>> ByteBuf.writeEnumSet(set: Set<E>) {
     writeFixedBitSet(bitSet, values.size)
 }
 
+@InternalEventBusApi
 inline fun <reified E : Enum<E>> ByteBuf.readEnumSet(): EnumSet<E> {
     val values = enumEntries<E>()
     val bitSet = readFixedBitSet(values.size)
@@ -369,14 +413,17 @@ inline fun <reified E : Enum<E>> ByteBuf.readEnumSet(): EnumSet<E> {
     return result
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeBitSet(bitSet: BitSet) {
     writeLongArray(bitSet.toLongArray())
 }
 
+@InternalEventBusApi
 fun ByteBuf.readBitSet(): BitSet {
     return BitSet.valueOf(readLongArray())
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeFixedBitSet(bitSet: BitSet, size: Int) {
     check(bitSet.length() <= size) {
         "BitSet is larger than expected size (${bitSet.length()} > $size)"
@@ -387,6 +434,7 @@ fun ByteBuf.writeFixedBitSet(bitSet: BitSet, size: Int) {
     writeBytes(bytes)
 }
 
+@InternalEventBusApi
 fun ByteBuf.readFixedBitSet(size: Int): BitSet {
     checkDecoding(size >= 0) { "BitSet size must not be negative: $size" }
     checkDecoding(size <= MAX_CONTAINER_ELEMENTS * Byte.SIZE_BITS) {
@@ -398,6 +446,7 @@ fun ByteBuf.readFixedBitSet(size: Int): BitSet {
     return BitSet.valueOf(bytes)
 }
 
+@InternalEventBusApi
 fun ByteBuf.readWithCount(reader: (ByteBuf) -> Unit) {
     val count = readVarInt()
     checkContainerSize("Count", count)
@@ -407,14 +456,17 @@ fun ByteBuf.readWithCount(reader: (ByteBuf) -> Unit) {
     }
 }
 
+@InternalEventBusApi
 fun <T> ByteBuf.writeById(value: T, idGetter: (T) -> Int) {
     writeVarInt(idGetter(value))
 }
 
+@InternalEventBusApi
 fun <T> ByteBuf.readById(resolver: (Int) -> T): T {
     return resolver(readVarInt())
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeVarIntList(list: IntList) {
     writeVarInt(list.size)
 
@@ -423,6 +475,7 @@ fun ByteBuf.writeVarIntList(list: IntList) {
     }
 }
 
+@InternalEventBusApi
 fun ByteBuf.readVarIntList(): IntArrayList {
     val size = readVarInt()
     checkContainerSize("IntList", size)
@@ -436,19 +489,23 @@ fun ByteBuf.readVarIntList(): IntArrayList {
     return list
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeKey(key: Key) {
     writeString(key.asMinimalString())
 }
 
+@InternalEventBusApi
 fun ByteBuf.readKey(): Key {
     return Key.key(readString())
 }
 
+@InternalEventBusApi
 fun ByteBuf.writeComponent(component: Component) {
     val string = GsonComponentSerializer.gson().serialize(component)
     writeString(string, Int.MAX_VALUE)
 }
 
+@InternalEventBusApi
 fun ByteBuf.readComponent(): Component {
     return GsonComponentSerializer.gson().deserialize(readString(Int.MAX_VALUE))
 }
