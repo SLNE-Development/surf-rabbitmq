@@ -111,6 +111,23 @@ Wire format and API both changed. A 1.6.x service and a 2.0 service cannot talk 
 
 Stop everything, upgrade, start everything. There is no rolling upgrade path.
 
+Two identifiers that are *not* obvious from the API also changed, and both fail silently rather
+than loudly if a straggler is left running:
+
+| What | 1.6.x | 2.0 | If a 1.6.x process is still running |
+|---|---|---|---|
+| AMQP version header | `x-surf-rabbitmq-version` | `x-surf-eventbus-version` | Peers read each other as an unknown version, so version-gated behaviour is off. Degrades, does not crash. |
+| Redis sync key prefix | `surf-redis:sync:` | `surf.eventbus.sync:` | The two run **disjoint copies** of every `SyncMap`/`SyncSet`/`SyncList`/`SyncValue`. No error; the data simply diverges. |
+
+The sync prefix is the dangerous one: nothing anywhere reports that two halves of the fleet are
+maintaining separate state. There is no migration for existing keys — a sync structure is a
+cache of authoritative state elsewhere, so the intended procedure is to let the old keys expire
+rather than rewrite them. If some structure in your deployment is *not* reconstructible, copy
+those keys across before starting 2.0.
+
+Both constants are pinned by `WireConstantsTest`, so a later accidental rename fails the build
+rather than the fleet.
+
 ---
 
 ## Checklist
@@ -121,4 +138,6 @@ Stop everything, upgrade, start everything. There is no rolling upgrade path.
 - [ ] every `surf.service.*` queue deleted, or the vhost recreated
 - [ ] old `surf-rabbitmq-*` and surf-redis plugins removed from every server
 - [ ] all services stopped, upgraded, and started together
+- [ ] no 1.6.x process left running against the same Redis (silent sync-structure split)
+- [ ] any non-reconstructible `surf-redis:sync:*` keys copied to `surf.eventbus.sync:*`
 - [ ] someone knows the audit trail is best effort until its writer ships

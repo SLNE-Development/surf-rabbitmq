@@ -73,12 +73,9 @@ class SyncListImpl<T : Any> internal constructor(
         )
     }
 
-    override fun init(): Mono<Void> {
-        return super.init()
-            .doOnSuccess {
-                trackDisposable(RedisExpirableUtils.refreshContinuously(ttl, remoteList))
-            }
-            .then()
+    override suspend fun init() {
+        super.init()
+        trackDisposable(RedisExpirableUtils.refreshContinuously(ttl, remoteList))
     }
 
     override fun registerListeners0(): List<Mono<Int>> = listOf(

@@ -1,7 +1,8 @@
 package dev.slne.surf.eventbus.core.dispatch
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import dev.slne.surf.eventbus.event.SurfBusEvent
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Resolves the wire type name to a class, in two stages.
@@ -17,17 +18,28 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class EventTypeResolver {
 
-    private val cache = ConcurrentHashMap<String, Optional>()
+    /**
+     * Bounded on purpose: the key is `envelope.type`, straight off the wire.
+     *
+     * Negative results have to be cached - that is the point of stage two - but an unbounded
+     * map keyed by remote input means any peer that can publish to the Redis channel grows this
+     * process's heap by publishing envelopes with random type names, and there is no
+     * authentication on those channels. The cap turns that into a bounded working set; a real
+     * deployment has far fewer distinct event types than the limit.
+     */
+    private val cache: Cache<String, Optional> = Caffeine.newBuilder()
+        .maximumSize(MAX_CACHED_TYPES)
+        .build()
 
     private class Optional(val value: Class<out SurfBusEvent>?)
 
     fun resolve(typeName: String, known: Collection<Class<out SurfBusEvent>>, loaders: Collection<ClassLoader>):
             Class<out SurfBusEvent>? {
-        cache[typeName]?.let { return it.value }
+        cache.getIfPresent(typeName)?.let { return it.value }
 
         val fromRegistry = known.firstOrNull { it.name == typeName }
         if (fromRegistry != null) {
-            cache[typeName] = Optional(fromRegistry)
+            cache.put(typeName, Optional(fromRegistry))
             return fromRegistry
         }
 
@@ -46,15 +58,16 @@ class EventTypeResolver {
             if (SurfBusEvent::class.java.isAssignableFrom(candidate)) {
                 @Suppress("UNCHECKED_CAST")
                 val resolved = candidate as Class<out SurfBusEvent>
-                cache[typeName] = Optional(resolved)
+                cache.put(typeName, Optional(resolved))
                 return resolved
             }
         }
 
-        cache[typeName] = Optional(null)
+        cache.put(typeName, Optional(null))
         return null
     }
 
-    /** Whether [typeName] has already produced a negative result. Basis of warning exactly once. */
-    fun isKnownUnresolvable(typeName: String): Boolean = cache[typeName]?.value == null && cache.containsKey(typeName)
+    private companion object {
+        const val MAX_CACHED_TYPES = 4_096L
+    }
 }

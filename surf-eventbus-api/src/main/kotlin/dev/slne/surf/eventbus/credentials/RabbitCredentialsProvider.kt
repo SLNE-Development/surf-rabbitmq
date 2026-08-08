@@ -1,6 +1,7 @@
 package dev.slne.surf.eventbus.credentials
 
 import dev.slne.surf.api.core.util.requiredService
+import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.config.RabbitMQSettings
 
 /**
@@ -17,6 +18,7 @@ import dev.slne.surf.eventbus.config.RabbitMQSettings
 interface RabbitCredentialsProvider : CredentialsProvider {
     fun credentials(config: RabbitMQSettings): RabbitCredentials
 
+    @InternalEventBusApi
     companion object : RabbitCredentialsProvider by provider
 }
 

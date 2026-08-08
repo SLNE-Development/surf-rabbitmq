@@ -3,6 +3,7 @@ package dev.slne.surf.eventbus.rabbitmq.audit
 import com.rabbitmq.client.AMQP
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -52,8 +53,44 @@ class AuditReportsTest {
         assertEquals(
             "id-1",
             reports.handlerFailed(
-                properties, null, "x", "y", "q", "H", 1, true, null, RuntimeException("x")
+                "id-1", properties, null, "x", "y", "q", "H", 1, true, null, RuntimeException("x")
             ).messageUuid
+        )
+    }
+
+    /**
+     * Regression test for C4.
+     *
+     * The first failure is the only time the identity header is absent - and therefore the case
+     * that happens to *every* message. `base` used to resolve the id itself with
+     * `AuditMessageIdentity.of`, which mints a fresh UUID when the header is missing, so the
+     * report carried one id while the retry was stamped with another and the two never grouped.
+     */
+    @Test
+    fun `the first failure reports under the id that is stamped onto the retry`() {
+        val properties = AMQP.BasicProperties.Builder().build()
+        assertNull(
+            properties.headers?.get(AuditMessageIdentity.HEADER),
+            "this test is only meaningful while the first delivery carries no identity header"
+        )
+
+        // What RetryPublisher does: resolve once, then use the same value for both.
+        val messageUuid = AuditMessageIdentity.of(properties)
+        val report = reports().handlerFailed(
+            messageUuid, properties, null, null, null, "q", null, 1, false, "retry-10s", null
+        )
+        val stamped = AuditMessageIdentity.stamp(properties, messageUuid)
+
+        assertEquals(
+            messageUuid,
+            report.messageUuid,
+            "the report must not mint an id of its own"
+        )
+        assertEquals(
+            report.messageUuid,
+            stamped.headers[AuditMessageIdentity.HEADER],
+            "the retry and the report about it have to share one identity, or the audit shows " +
+                    "four unrelated incidents instead of one message that failed four times"
         )
     }
 

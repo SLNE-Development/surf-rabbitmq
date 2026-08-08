@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.redis.sync
 
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.eventbus.redis.RedisApi
 import dev.slne.surf.eventbus.redis.util.DisposableAware
@@ -19,7 +20,16 @@ abstract class AbstractSyncStructure<L, R : AbstractSyncStructure.VersionedSnaps
     override val ttl: Duration
 ) : DisposableAware(), SyncStructure<L> {
     companion object {
-        const val NAMESPACE = "surf-redis:sync:"
+        /**
+         * Key prefix for every synchronised structure.
+         *
+         * Renamed from `surf-redis:sync:` in 2.0, when `surf-redis` and `surf-rabbitmq` became
+         * one project. This is a **wire break**: keys under the old prefix are invisible to a
+         * 2.0 process and vice versa, so a mixed fleet silently runs two disjoint copies of
+         * every sync structure. Restart the whole fleet together, or accept that structures
+         * diverge until you do. See `docs/rollout-2.0.md`.
+         */
+        const val NAMESPACE = "surf.eventbus.sync:"
         private val log = logger()
     }
 
@@ -31,10 +41,9 @@ abstract class AbstractSyncStructure<L, R : AbstractSyncStructure.VersionedSnaps
     private val listenerIds = ConcurrentHashMap.newKeySet<Int>()
 
     @MustBeInvokedByOverriders
-    override fun init(): Mono<Void> {
-        return registerListeners()
-            .then(loadFromRemote())
-            .then()
+    override suspend fun init() {
+        registerListeners().awaitFirstOrNull()
+        loadFromRemote().awaitFirstOrNull()
     }
 
     private fun registerListeners(): Mono<Void> = Flux.merge(registerListeners0())

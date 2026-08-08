@@ -1,9 +1,11 @@
 package dev.slne.surf.eventbus.core
 
-import dev.slne.surf.api.core.environment.EnvironmentVariables
 import dev.slne.surf.eventbus.core.RedisTransportLocator
 import dev.slne.surf.eventbus.SurfEventBus
 import dev.slne.surf.eventbus.SurfEventBusBuilder
+import dev.slne.surf.eventbus.audit.AuditReport
+import dev.slne.surf.eventbus.audit.AuditSink
+import dev.slne.surf.eventbus.core.audit.LoggingAuditSink
 import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
 import dev.slne.surf.eventbus.redis.RedisApi
 import dev.slne.surf.eventbus.transport.EventTransport
@@ -60,6 +62,7 @@ internal class SurfEventBusBuilderImpl(
                 .instanceName(resolvedInstanceId)
                 .serializers(serializers)
                 .apply { standaloneHook?.let { standaloneHook(it) } }
+                .apply { environment?.let { environment(it) } }
                 .build()
         } else {
             null
@@ -73,7 +76,26 @@ internal class SurfEventBusBuilderImpl(
             rabbitApi = rabbitApi,
             redisApi = redisApi,
             eventTransport = eventTransport,
-            queryTransport = queryTransport
+            queryTransport = queryTransport,
+            auditSink = auditSinkFor(rabbitApi)
         )
+    }
+
+    /**
+     * The RabbitMQ sink when there is one, so event and query losses reach the audit service
+     * instead of only the log.
+     *
+     * Indirected rather than resolved here: `api.connection` builds the connection (and with it
+     * a `RabbitClient`) on first touch, and `build()` is not the right moment for that. The
+     * first report resolves it instead, which is the same deferral `RabbitConnectionImpl` uses
+     * for the sink's own proxy.
+     */
+    private fun auditSinkFor(rabbitApi: SurfRabbitApi?): AuditSink {
+        if (rabbitApi == null) return LoggingAuditSink
+
+        return object : AuditSink {
+            override suspend fun report(report: AuditReport) =
+                rabbitApi.connection.auditSink.report(report)
+        }
     }
 }

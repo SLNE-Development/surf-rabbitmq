@@ -92,15 +92,27 @@ afterEvaluate {
     }
 }
 
+val requireIntegration = providers.gradleProperty("requireIntegration").isPresent
+val skipIntegration = providers.gradleProperty("skipIntegration").isPresent
+
+require(!(requireIntegration && skipIntegration)) {
+    "-PrequireIntegration and -PskipIntegration contradict each other; pass at most one."
+}
+
 tasks.test {
     useJUnitPlatform {
         excludeTags("lincheck")
         // Integration tests need a Docker daemon. Excluding the tag keeps the remaining suite
         // usable on machines without one.
-        if (providers.gradleProperty("skipIntegration").isPresent) {
+        if (skipIntegration) {
             excludeTags("integration")
         }
     }
+
+    // CI sets -PrequireIntegration so that a missing Docker daemon fails the build instead of
+    // skipping silently. See DockerAvailableCondition.
+    systemProperty("surf.eventbus.requireIntegration", requireIntegration.toString())
+
     testLogging { events("passed", "skipped", "failed") }
 }
 

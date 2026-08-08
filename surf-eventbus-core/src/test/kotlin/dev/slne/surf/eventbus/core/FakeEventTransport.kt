@@ -53,6 +53,8 @@ class FakeQueryTransport : QueryTransport {
 
     var instanceId: String = ""
         private set
+    var disconnected = false
+        private set
 
     override suspend fun connect(contracts: Set<String>, instanceId: String, onQuery: suspend (QueryFrame) -> Unit) {
         this.contracts = contracts
@@ -68,5 +70,21 @@ class FakeQueryTransport : QueryTransport {
         answered += frame to payload
     }
 
-    override suspend fun disconnect() = Unit
+    override suspend fun disconnect() {
+        disconnected = true
+    }
+}
+
+/** An event transport whose `disconnect()` always fails. Used to pin the containment in H1. */
+class ThrowingEventTransport : EventTransport {
+
+    override suspend fun connect(
+        exactTopics: Set<String>,
+        wildcardPatterns: Set<String>,
+        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit
+    ) = Unit
+
+    override suspend fun publish(envelope: EventEnvelope, binaryPayload: ByteArray?) = Unit
+
+    override suspend fun disconnect(): Unit = error("the event transport is down")
 }

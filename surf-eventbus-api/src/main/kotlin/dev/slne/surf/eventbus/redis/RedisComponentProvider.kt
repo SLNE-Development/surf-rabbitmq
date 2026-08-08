@@ -105,6 +105,7 @@ interface RedisComponentProvider {
         api: RedisApi
     ): SyncMap<K, V>
 
+    @InternalEventBusApi
     companion object : RedisComponentProvider by provider {
         val INSTANCE get() = provider
     }

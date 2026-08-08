@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.redis.sync
 
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.eventbus.redis.RedisApi
 import dev.slne.surf.eventbus.redis.util.*
@@ -72,23 +73,21 @@ abstract class AbstractStreamSyncStructure<L, R : AbstractSyncStructure.Versione
     private val scriptKeys: List<Any> = listOf(dataKey, streamKey, versionKey)
 
     @MustBeInvokedByOverriders
-    override fun init(): Mono<Void> {
-        return validateCodecConfiguration()
-            .then(stream.fetchLatestStreamId())
-            .doOnNext { cursorId.set(it) }
-            .then(super.init())
-            .doOnSuccess {
-                trackDisposable(startPolling())
-                trackDisposable(
-                    RedisExpirableUtils.refreshContinuously(
-                        ttl,
-                        stream,
-                        versionCounter,
-                        *codecDescriptor?.let { arrayOf(codecBucket) }.orEmpty()
-                    )
-                )
-            }
-            .then()
+    override suspend fun init() {
+        validateCodecConfiguration().awaitFirstOrNull()
+        stream.fetchLatestStreamId().awaitFirstOrNull()?.let(cursorId::set)
+
+        super.init()
+
+        trackDisposable(startPolling())
+        trackDisposable(
+            RedisExpirableUtils.refreshContinuously(
+                ttl,
+                stream,
+                versionCounter,
+                *codecDescriptor?.let { arrayOf(codecBucket) }.orEmpty()
+            )
+        )
     }
 
     private fun processStreamEvent(type: String, msg: String) {

@@ -110,6 +110,25 @@ class EventSubscriptionRegistryTest {
 
         assertContains(failure.message!!, "@SurfSubscribe")
     }
+
+    /**
+     * Regression test for C2.
+     *
+     * A suspend handler used to register successfully: the registry stripped the trailing
+     * `Continuation` before counting parameters, so validation passed, but the dispatcher
+     * invokes the method with exactly one argument and a suspend method's JVM signature takes
+     * two. Every delivery threw `wrong number of arguments`, the containment block swallowed
+     * it, and the handler silently never ran.
+     */
+    @Test
+    fun `a suspend handler is rejected at registration, naming the method`() {
+        val failure = assertFailsWith<IllegalArgumentException> {
+            EventSubscriptionRegistry().register(SuspendListener)
+        }
+
+        assertContains(failure.message!!, "onPlain")
+        assertContains(failure.message!!, "suspend")
+    }
 }
 
 @BusEvent("test.plain")
@@ -159,3 +178,9 @@ private object UnannotatedEventListener {
 }
 
 private object EmptyListener
+
+private object SuspendListener {
+    @Suppress("RedundantSuspendModifier")
+    @SurfSubscribe
+    suspend fun onPlain(event: PlainEvent) = Unit
+}

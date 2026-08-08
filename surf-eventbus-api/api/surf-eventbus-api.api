@@ -205,17 +205,7 @@ public final class dev/slne/surf/eventbus/credentials/RabbitCredentials {
 }
 
 public abstract interface class dev/slne/surf/eventbus/credentials/RabbitCredentialsProvider : dev/slne/surf/eventbus/credentials/CredentialsProvider {
-	public static final field Companion Ldev/slne/surf/eventbus/credentials/RabbitCredentialsProvider$Companion;
 	public abstract fun credentials (Ldev/slne/surf/eventbus/config/RabbitMQSettings;)Ldev/slne/surf/eventbus/credentials/RabbitCredentials;
-}
-
-public final class dev/slne/surf/eventbus/credentials/RabbitCredentialsProvider$Companion : dev/slne/surf/eventbus/credentials/RabbitCredentialsProvider {
-	public fun credentials (Ldev/slne/surf/eventbus/config/RabbitMQSettings;)Ldev/slne/surf/eventbus/credentials/RabbitCredentials;
-}
-
-public final class dev/slne/surf/eventbus/credentials/RedisCredentialsProvider$Companion : dev/slne/surf/eventbus/credentials/RedisCredentialsProvider {
-	public final fun getINSTANCE ()Ldev/slne/surf/eventbus/credentials/RedisCredentialsProvider;
-	public fun redisURI ()Lorg/redisson/misc/RedisURI;
 }
 
 public abstract interface annotation class dev/slne/surf/eventbus/event/BusEvent : java/lang/annotation/Annotation {
@@ -322,6 +312,7 @@ public final class dev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder {
 	public final fun build ()Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApi;
 	public final fun config (Ldev/slne/surf/eventbus/config/RabbitMQSettings;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
 	public final fun configFileName (Ljava/lang/String;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
+	public final fun environment (Ljava/util/Map;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
 	public final fun instanceName (Ljava/lang/String;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
 	public final fun serializers (Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
 	public final fun standaloneHook (Ldev/slne/surf/eventbus/platform/StandaloneLifecycleHook;)Ldev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder;
@@ -484,7 +475,7 @@ public abstract class dev/slne/surf/eventbus/rabbitmq/packet/RabbitPacket {
 	public static final field Companion Ldev/slne/surf/eventbus/rabbitmq/packet/RabbitPacket$Companion;
 	public fun <init> ()V
 	public synthetic fun <init> (ILjava/time/OffsetDateTime;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
-	public final fun getSenderVersion ()Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;
+	public final fun getSenderVersion ()Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;
 	public final fun getTimestamp ()Ljava/time/OffsetDateTime;
 	public static final synthetic fun write$Self (Ldev/slne/surf/eventbus/rabbitmq/packet/RabbitPacket;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
 }
@@ -553,38 +544,38 @@ public final class dev/slne/surf/eventbus/rabbitmq/target/RabbitTarget$ServiceTa
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class dev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion : java/lang/Comparable {
+public final class dev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion : java/lang/Comparable {
 	public static final field AMQP_HEADER Ljava/lang/String;
-	public static final field Companion Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion$Companion;
+	public static final field Companion Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion$Companion;
 	public fun <init> (III)V
 	public synthetic fun <init> (IIIILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun compareTo (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;)I
+	public fun compareTo (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;)I
 	public synthetic fun compareTo (Ljava/lang/Object;)I
 	public final fun component1 ()I
 	public final fun component2 ()I
 	public final fun component3 ()I
-	public final fun copy (III)Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;
-	public static synthetic fun copy$default (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;IIIILjava/lang/Object;)Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;
+	public final fun copy (III)Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;
+	public static synthetic fun copy$default (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;IIIILjava/lang/Object;)Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getMajor ()I
 	public final fun getMinor ()I
 	public final fun getPatch ()I
 	public fun hashCode ()I
 	public final fun isAtLeast (III)Z
-	public final fun isAtLeast (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;)Z
-	public static synthetic fun isAtLeast$default (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;IIIILjava/lang/Object;)Z
-	public final fun isAtMost (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;)Z
-	public final fun isNewerThan (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;)Z
-	public final fun isOlderThan (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;)Z
+	public final fun isAtLeast (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;)Z
+	public static synthetic fun isAtLeast$default (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;IIIILjava/lang/Object;)Z
+	public final fun isAtMost (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;)Z
+	public final fun isNewerThan (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;)Z
+	public final fun isOlderThan (Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;)Z
 	public final fun isUnknown ()Z
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class dev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion$Companion {
-	public final fun fromHeaders (Ljava/util/Map;)Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;
-	public final fun getCURRENT ()Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;
-	public final fun getUNKNOWN ()Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;
-	public final fun parseOrNull (Ljava/lang/String;)Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMqVersion;
+public final class dev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion$Companion {
+	public final fun fromHeaders (Ljava/util/Map;)Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;
+	public final fun getCURRENT ()Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;
+	public final fun getUNKNOWN ()Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;
+	public final fun parseOrNull (Ljava/lang/String;)Ldev/slne/surf/eventbus/rabbitmq/version/RabbitMQVersion;
 }
 
 public final class dev/slne/surf/eventbus/redis/RedisApi {
@@ -615,9 +606,6 @@ public final class dev/slne/surf/eventbus/redis/RedisApi {
 	public final fun freezeAndConnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getClientId ()Ljava/lang/String;
 	public final fun getJson ()Lkotlinx/serialization/json/Json;
-	public final fun getRedisOsType ()Lorg/redisson/codec/BaseEventCodec$OSType;
-	public final fun getRedisson ()Lorg/redisson/api/RedissonClient;
-	public final fun getRedissonReactive ()Lorg/redisson/api/RedissonReactiveClient;
 	public final fun isAlive (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun isConnected ()Z
 	public final fun isFrozen ()Z
@@ -626,32 +614,10 @@ public final class dev/slne/surf/eventbus/redis/RedisApi {
 public final class dev/slne/surf/eventbus/redis/RedisApi$Companion {
 	public final fun create (Ljava/lang/String;)Ldev/slne/surf/eventbus/redis/RedisApi;
 	public final fun create (Ljava/lang/String;Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/eventbus/redis/RedisApi;
-	public final fun create (Ljava/nio/file/Path;Ljava/nio/file/Path;Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/eventbus/redis/RedisApi;
 	public final fun create (Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/eventbus/redis/RedisApi;
-	public final fun create (Lorg/redisson/misc/RedisURI;Ljava/lang/String;Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/eventbus/redis/RedisApi;
-	public final fun create (Lorg/redisson/misc/RedisURI;Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/eventbus/redis/RedisApi;
-	public static synthetic fun create$default (Ldev/slne/surf/eventbus/redis/RedisApi$Companion;Ljava/nio/file/Path;Ljava/nio/file/Path;Lkotlinx/serialization/modules/SerializersModule;ILjava/lang/Object;)Ldev/slne/surf/eventbus/redis/RedisApi;
 	public static synthetic fun create$default (Ldev/slne/surf/eventbus/redis/RedisApi$Companion;Lkotlinx/serialization/modules/SerializersModule;ILjava/lang/Object;)Ldev/slne/surf/eventbus/redis/RedisApi;
-	public static synthetic fun create$default (Ldev/slne/surf/eventbus/redis/RedisApi$Companion;Lorg/redisson/misc/RedisURI;Lkotlinx/serialization/modules/SerializersModule;ILjava/lang/Object;)Ldev/slne/surf/eventbus/redis/RedisApi;
-}
-
-public final class dev/slne/surf/eventbus/redis/RedisComponentProvider$Companion : dev/slne/surf/eventbus/redis/RedisComponentProvider {
-	public fun createRedissonConfig (Ldev/slne/surf/eventbus/redis/internal/RedissonConfigDetails;)Lorg/redisson/config/Config;
-	public fun createSimpleCache-1Y68eR8 (Ljava/lang/String;Lkotlinx/serialization/KSerializer;JLkotlin/jvm/functions/Function1;Ldev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/cache/SimpleRedisCache;
-	public fun createSimpleSetRedisCache-WPi__2c (Ljava/lang/String;Lkotlinx/serialization/KSerializer;JLkotlin/jvm/functions/Function1;Ldev/slne/surf/eventbus/redis/cache/RedisSetIndexes;Ldev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/cache/SimpleSetRedisCache;
-	public fun createSyncList-exY8QGI (Ljava/lang/String;Ldev/slne/surf/eventbus/redis/codec/RedisCodec;JLdev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/sync/list/SyncList;
-	public fun createSyncList-exY8QGI (Ljava/lang/String;Lkotlinx/serialization/KSerializer;JLdev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/sync/list/SyncList;
-	public fun createSyncMap-zkXUZaI (Ljava/lang/String;Ldev/slne/surf/eventbus/redis/codec/RedisCodec;Ldev/slne/surf/eventbus/redis/codec/RedisCodec;JLdev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/sync/map/SyncMap;
-	public fun createSyncMap-zkXUZaI (Ljava/lang/String;Lkotlinx/serialization/KSerializer;Lkotlinx/serialization/KSerializer;JLdev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/sync/map/SyncMap;
-	public fun createSyncSet-exY8QGI (Ljava/lang/String;Ldev/slne/surf/eventbus/redis/codec/RedisCodec;JLdev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/sync/set/SyncSet;
-	public fun createSyncSet-exY8QGI (Ljava/lang/String;Lkotlinx/serialization/KSerializer;JLdev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/sync/set/SyncSet;
-	public fun createSyncValue-zkXUZaI (Ljava/lang/String;Ldev/slne/surf/eventbus/redis/codec/RedisCodec;Ljava/lang/Object;JLdev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/sync/value/SyncValue;
-	public fun createSyncValue-zkXUZaI (Ljava/lang/String;Lkotlinx/serialization/KSerializer;Ljava/lang/Object;JLdev/slne/surf/eventbus/redis/RedisApi;)Ldev/slne/surf/eventbus/redis/sync/value/SyncValue;
-	public fun getClientId ()Ljava/lang/String;
-	public fun getEventLoopGroup ()Lio/netty/channel/MultiThreadIoEventLoopGroup;
-	public final fun getINSTANCE ()Ldev/slne/surf/eventbus/redis/RedisComponentProvider;
-	public fun getRedissonExecutorService ()Ljava/util/concurrent/ExecutorService;
-	public fun tryExtractPluginNameFromClass (Ljava/lang/Class;)Ljava/lang/String;
+	public final fun createForAddress (Ljava/lang/String;Lkotlinx/serialization/modules/SerializersModule;)Ldev/slne/surf/eventbus/redis/RedisApi;
+	public static synthetic fun createForAddress$default (Ldev/slne/surf/eventbus/redis/RedisApi$Companion;Ljava/lang/String;Lkotlinx/serialization/modules/SerializersModule;ILjava/lang/Object;)Ldev/slne/surf/eventbus/redis/RedisApi;
 }
 
 public abstract class dev/slne/surf/eventbus/redis/SurfRedisException : dev/slne/surf/eventbus/exception/SurfEventBusException {
@@ -684,7 +650,7 @@ protected final class dev/slne/surf/eventbus/redis/cache/RedisSetIndexes$IndexDe
 	public final fun provideDelegate (Ljava/lang/Object;Lkotlin/reflect/KProperty;)Lkotlin/properties/ReadOnlyProperty;
 }
 
-public abstract interface class dev/slne/surf/eventbus/redis/cache/SimpleRedisCache : dev/slne/surf/eventbus/redis/util/Initializable, reactor/core/Disposable {
+public abstract interface class dev/slne/surf/eventbus/redis/cache/SimpleRedisCache : dev/slne/surf/eventbus/redis/util/Initializable, dev/slne/surf/eventbus/redis/util/RedisDisposable {
 	public abstract fun cachedOrLoad (Ljava/lang/Object;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun cachedOrLoadNullable (Ljava/lang/Object;ZLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun cachedOrLoadNullable$default (Ldev/slne/surf/eventbus/redis/cache/SimpleRedisCache;Ljava/lang/Object;ZLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
@@ -698,7 +664,7 @@ public final class dev/slne/surf/eventbus/redis/cache/SimpleRedisCache$DefaultIm
 	public static synthetic fun cachedOrLoadNullable$default (Ldev/slne/surf/eventbus/redis/cache/SimpleRedisCache;Ljava/lang/Object;ZLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
-public abstract interface class dev/slne/surf/eventbus/redis/cache/SimpleSetRedisCache : dev/slne/surf/eventbus/redis/util/Initializable, reactor/core/Disposable {
+public abstract interface class dev/slne/surf/eventbus/redis/cache/SimpleSetRedisCache : dev/slne/surf/eventbus/redis/util/Initializable, dev/slne/surf/eventbus/redis/util/RedisDisposable {
 	public abstract fun add (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun clearNearCacheOnly ()V
 	public abstract fun findByIndexCached (Ldev/slne/surf/eventbus/redis/cache/RedisSetIndex;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -905,7 +871,7 @@ public final class dev/slne/surf/eventbus/redis/codec/default/VarLongBinaryCodec
 	public synthetic fun write (Lio/netty/buffer/ByteBuf;Ljava/lang/Object;)V
 }
 
-public abstract interface class dev/slne/surf/eventbus/redis/sync/SyncStructure : dev/slne/surf/eventbus/redis/util/Initializable, reactor/core/Disposable {
+public abstract interface class dev/slne/surf/eventbus/redis/sync/SyncStructure : dev/slne/surf/eventbus/redis/util/Initializable, dev/slne/surf/eventbus/redis/util/RedisDisposable {
 	public abstract fun addListener (Lkotlin/jvm/functions/Function1;)V
 	public abstract fun getId ()Ljava/lang/String;
 	public abstract fun getTtl-UwyO8pc ()J
@@ -1151,11 +1117,9 @@ public final class dev/slne/surf/eventbus/redis/sync/value/SyncValueChange$Updat
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class dev/slne/surf/eventbus/redis/util/RedisUtilsKt {
-	public static final fun asDeferred (Lreactor/core/publisher/Mono;)Lkotlinx/coroutines/Deferred;
-	public static final fun asDeferred (Lreactor/core/publisher/Mono;Lkotlinx/coroutines/CoroutineScope;)Lkotlinx/coroutines/Deferred;
-	public static final fun component1 (Lreactor/util/function/Tuple2;)Ljava/lang/Object;
-	public static final fun component2 (Lreactor/util/function/Tuple2;)Ljava/lang/Object;
+public abstract interface class dev/slne/surf/eventbus/redis/util/RedisDisposable {
+	public abstract fun dispose ()V
+	public abstract fun isDisposed ()Z
 }
 
 public final class dev/slne/surf/eventbus/serialization/KotlinSerializerCache : java/lang/ClassValue {

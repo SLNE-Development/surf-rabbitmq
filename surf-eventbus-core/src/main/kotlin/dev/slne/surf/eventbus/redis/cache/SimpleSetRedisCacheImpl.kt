@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.redis.cache
 
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.github.benmanes.caffeine.cache.Expiry
 import com.sksamuel.aedile.core.expireAfterWrite
@@ -161,16 +162,13 @@ class SimpleSetRedisCacheImpl<T : Any>(
         .build<String, CacheEntry<V>>()
 
 
-    override fun init(): Mono<Void> {
-        if (isDisposed) return Mono.error(IllegalStateException("Cache '$namespace' is disposed"))
+    override suspend fun init() {
+        check(!isDisposed) { "Cache '$namespace' is disposed" }
 
-        return stream.fetchLatestStreamId()
-            .doOnNext { id -> cursorId.set(id) }
-            .doOnSuccess {
-                trackDisposable(startPolling())
-                trackDisposable(startRefreshingTtl())
-            }
-            .then()
+        stream.fetchLatestStreamId().awaitFirstOrNull()?.let(cursorId::set)
+
+        trackDisposable(startPolling())
+        trackDisposable(startRefreshingTtl())
     }
 
     override fun dispose0() {

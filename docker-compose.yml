@@ -1,0 +1,45 @@
+# Local development brokers for surf-eventbus.
+#
+# The integration test suite does NOT use this file — it starts its own throwaway containers
+# through Testcontainers. This is for running a real application against the bus by hand, and
+# for poking at the broker while debugging a failing suite.
+#
+#   docker compose up -d
+#   RabbitMQ management UI: http://localhost:15672  (surf / surf)
+#
+# The credentials below match the defaults in docs/development.md. They are deliberately weak;
+# nothing here should ever be exposed outside localhost.
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: surf-eventbus-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: surf
+      RABBITMQ_DEFAULT_PASS: surf
+      RABBITMQ_DEFAULT_VHOST: /
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+  redis:
+    image: redis:7-alpine
+    container_name: surf-eventbus-redis
+    ports:
+      - "6379:6379"
+    command: [ "redis-server", "--requirepass", "surf", "--appendonly", "no" ]
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "surf", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  rabbitmq-data:

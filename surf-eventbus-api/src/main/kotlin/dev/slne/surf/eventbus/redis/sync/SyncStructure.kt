@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.sync
 
 import dev.slne.surf.eventbus.redis.util.Initializable
-import reactor.core.Disposable
+import dev.slne.surf.eventbus.redis.util.RedisDisposable
 import kotlin.time.Duration
 
 /**
@@ -25,7 +25,7 @@ import kotlin.time.Duration
  * Structures expose a lightweight listener mechanism to deliver change events of type [L] to
  * consumers. Listener invocation and threading are implementation-defined.
  */
-interface SyncStructure<L> : Disposable, Initializable {
+interface SyncStructure<L> : RedisDisposable, Initializable {
 
     /**
      * Logical structure identifier (used to derive Redis keys/channels).

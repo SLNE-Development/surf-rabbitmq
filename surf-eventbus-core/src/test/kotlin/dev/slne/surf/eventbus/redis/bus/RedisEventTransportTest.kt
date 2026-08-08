@@ -3,12 +3,15 @@ package dev.slne.surf.eventbus.redis.bus
 import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.redis.RedisApi
 import dev.slne.surf.eventbus.testing.RequiresDocker
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import org.redisson.client.codec.StringCodec
 import org.redisson.misc.RedisURI
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.utility.DockerImageName
@@ -23,10 +26,15 @@ import kotlin.time.Duration.Companion.seconds
 @RequiresDocker
 class RedisEventTransportTest {
 
-    private suspend fun newTransport(): RedisEventTransport {
+    private suspend fun newApi(): RedisApi {
         val uri = RedisURI("redis://${redis.host}:${redis.getMappedPort(6379)}")
         val api = RedisApi.create(uri).freezeAndConnect()
         apis += api
+        return api
+    }
+
+    private suspend fun newTransport(): RedisEventTransport {
+        val api = newApi()
         return RedisEventTransport(api, api.json)
     }
 
@@ -115,11 +123,82 @@ class RedisEventTransportTest {
         assertEquals(listOf<Byte>(9), channel.receive()?.toList())
     }
 
+    /**
+     * Regression test for C3.
+     *
+     * `disconnect()` used to dispose the `Disposable` returned by `.subscribe()`. That
+     * subscription has already completed - it delivered the listener id - so disposing it is a
+     * no-op and the Redis listener stayed attached for the life of the `RedisApi`. A
+     * disconnected bus went on dispatching into a scope that was about to be cancelled, and in
+     * tests a bus from an earlier case answered a later one.
+     */
+    @Test
+    fun `disconnect removes the listeners, so no later event is delivered`() = runTest(timeout = 10.seconds) {
+        val channel = Channel<EventEnvelope>(capacity = 1)
+        val subscriber = newTransport()
+        subscriber.connect(setOf("faction.disbanded"), emptySet()) { e, _ -> channel.send(e) }
+
+        subscriber.disconnect()
+        newTransport().publish(envelope("faction.disbanded"), null)
+
+        assertNull(withTimeoutOrNullSeconds(channel), "a disconnected transport must not receive")
+    }
+
+    /** The same, for the pattern subscriptions, which take a different Redisson code path. */
+    @Test
+    fun `disconnect removes the pattern listeners too`() = runTest(timeout = 10.seconds) {
+        val channel = Channel<EventEnvelope>(capacity = 1)
+        val subscriber = newTransport()
+        subscriber.connect(emptySet(), setOf("faction.#")) { e, _ -> channel.send(e) }
+
+        subscriber.disconnect()
+        newTransport().publish(envelope("faction.member.kicked"), null)
+
+        assertNull(withTimeoutOrNullSeconds(channel), "a disconnected transport must not receive")
+    }
+
+    /**
+     * Regression test for C3, second half.
+     *
+     * `connect()` fired off the SUBSCRIBE without awaiting it, so an event published
+     * immediately afterwards could arrive before the subscription existed - and Pub/Sub has no
+     * redelivery, so it was gone for good. The sibling `RedisQueryTransport` awaits its
+     * listener id for exactly this reason.
+     *
+     * Asserted structurally rather than by racing a publish against it: the broker's own
+     * subscriber count is the thing `connect()` is supposed to have established, and a timing
+     * test that merely *usually* wins tells us nothing on a fast loopback.
+     */
+    @Test
+    fun `connect does not return before the subscription exists`() = runTest(timeout = 20.seconds) {
+        val api = newApi()
+        val transport = RedisEventTransport(api, api.json)
+
+        transport.connect(setOf("faction.awaited"), emptySet()) { _, _ -> }
+
+        val subscribers = api.redisson
+            .getTopic(RedisChannels.json("faction.awaited"), StringCodec.INSTANCE)
+            .countSubscribers()
+
+        assertEquals(
+            1,
+            subscribers,
+            "connect() returned while the SUBSCRIBE was still in flight; an event published " +
+                    "now would be lost, because Pub/Sub has no redelivery"
+        )
+    }
+
+    /**
+     * Waits up to a second of **real** time for a delivery.
+     *
+     * `runTest` drives a virtual clock, so a plain `withTimeout` here expires instantly without
+     * ever giving Redis a chance to deliver - which makes an `assertNull` pass no matter what
+     * the transport does. Hopping to a real dispatcher is what makes the negative assertions in
+     * this file mean anything.
+     */
     private suspend fun withTimeoutOrNullSeconds(channel: Channel<EventEnvelope>): EventEnvelope? =
-        try {
-            withTimeout(1.seconds) { channel.receive() }
-        } catch (_: Exception) {
-            null
+        withContext(Dispatchers.Default) {
+            withTimeoutOrNull(1.seconds) { channel.receive() }
         }
 
     private fun envelope(topic: String) = EventEnvelope(

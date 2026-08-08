@@ -64,12 +64,9 @@ class SyncSetImpl<T : Any> internal constructor(
         )
     }
 
-    override fun init(): Mono<Void> {
-        return super.init()
-            .doOnSuccess {
-                trackDisposable(RedisExpirableUtils.refreshContinuously(ttl, remoteSet))
-            }
-            .then()
+    override suspend fun init() {
+        super.init()
+        trackDisposable(RedisExpirableUtils.refreshContinuously(ttl, remoteSet))
     }
 
     override fun registerListeners0(): List<Mono<Int>> = listOf(

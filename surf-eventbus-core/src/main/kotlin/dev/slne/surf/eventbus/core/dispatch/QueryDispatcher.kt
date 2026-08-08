@@ -1,5 +1,7 @@
 package dev.slne.surf.eventbus.core.dispatch
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.eventbus.audit.AuditKind
 import dev.slne.surf.eventbus.audit.AuditReport
@@ -68,7 +70,7 @@ class QueryDispatcher(
     }
 
     private fun descriptorOf(contract: String, classLoader: ClassLoader?): QueryServiceDescriptor<Any> {
-        val descriptor = DescriptorCache.get(contract to classLoader)
+        val descriptor = lookupDescriptor(contract, classLoader)
             ?: error("no generated descriptor found for $contract; is it annotated with @QueryService?")
 
         @Suppress("UNCHECKED_CAST")
@@ -91,24 +93,44 @@ class QueryDispatcher(
         stacktrace = throwable.stackTraceToString()
     )
 
-    private object DescriptorCache {
-        private val cache = java.util.concurrent.ConcurrentHashMap<Pair<String, ClassLoader?>, Any?>()
+    /**
+     * Generated descriptors, per contract and defining class loader.
+     *
+     * An instance field rather than the `object` it used to be. As a singleton it outlived
+     * every bus in the process and held its keys - which include a `ClassLoader` - strongly,
+     * so a Paper plugin could never be unloaded once one of its queries had been dispatched.
+     * Tied to the dispatcher, the entries die when the bus does.
+     *
+     * Bounded as well: the size is naturally small (only contracts that passed the registry
+     * check reach here), and a cap costs nothing to guarantee that.
+     */
+    private val descriptorCache: Cache<Pair<String, ClassLoader?>, Optional> = Caffeine.newBuilder()
+        .maximumSize(MAX_CACHED_DESCRIPTORS)
+        .build()
 
-        fun get(key: Pair<String, ClassLoader?>): Any? = cache.computeIfAbsent(key) { (contract, classLoader) ->
-            val contractClass = Class.forName(contract, false, classLoader)
-            val descriptorFqName = "${contractClass.packageName}.${contractClass.simpleName}Descriptor"
+    /** Caffeine cannot store nulls, and "no descriptor" is worth caching. */
+    private class Optional(val value: Any?)
 
+    private fun lookupDescriptor(contract: String, classLoader: ClassLoader?): Any? =
+        descriptorCache.get(contract to classLoader) { (name, loader) ->
+            // Every load is inside the try. The contract lookup used to sit outside it, so a
+            // ClassNotFoundException there escaped through computeIfAbsent instead of
+            // producing the "no generated descriptor" message the caller is written for.
             try {
-                Class.forName(descriptorFqName, false, classLoader).kotlin.objectInstance
+                val contractClass = Class.forName(name, false, loader)
+                val descriptorFqName =
+                    "${contractClass.packageName}.${contractClass.simpleName}Descriptor"
+
+                Optional(Class.forName(descriptorFqName, false, loader).kotlin.objectInstance)
             } catch (_: ClassNotFoundException) {
-                null
+                Optional(null)
             } catch (_: LinkageError) {
-                null
+                Optional(null)
             }
-        }
-    }
+        }.value
 
     companion object {
         private val log = logger()
+        private const val MAX_CACHED_DESCRIPTORS = 1_024L
     }
 }

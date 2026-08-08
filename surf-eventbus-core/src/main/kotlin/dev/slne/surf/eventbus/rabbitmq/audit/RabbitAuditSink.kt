@@ -7,6 +7,7 @@ import dev.slne.surf.eventbus.audit.AuditSink
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicInteger
@@ -26,7 +27,7 @@ class RabbitAuditSink(
     private val auditServiceName: String,
     private val enabled: Boolean = true,
     private val queueCapacity: Int = 256,
-) : AuditSink {
+) : AuditSink, AutoCloseable {
 
     companion object {
         private val log = logger()
@@ -75,6 +76,22 @@ class RabbitAuditSink(
 
     /** Reports dropped so far due to a full queue. */
     fun droppedCount(): Int = dropped.get()
+
+    /**
+     * Stops the drain loop and releases the scope.
+     *
+     * Nothing used to do this, so every `SurfRabbitApi` ever constructed leaked one coroutine
+     * and one channel for the life of the JVM. On a Paper server that reloads plugins it also
+     * pinned the plugin classloader, because the running coroutine holds a reference to it.
+     *
+     * Closing the channel first lets the loop finish whatever is already queued and terminate
+     * on its own; cancelling the scope afterwards is the backstop for a `report` call that is
+     * blocked in the proxy.
+     */
+    override fun close() {
+        pending.close()
+        scope.cancel()
+    }
 
     private fun logDroppedPeriodically() {
         val now = System.nanoTime()

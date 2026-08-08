@@ -20,7 +20,17 @@ class AuditReports(
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
 
+    /**
+     * @param messageUuid the identity every report about this message shares.
+     *
+     *   Passed in rather than resolved here. [base] used to call
+     *   [AuditMessageIdentity.of] itself, so on the first failure - the only time the header is
+     *   absent, and therefore *every* message's first failure - the caller stamped one fresh
+     *   UUID onto the retry while the report carried a different one. The grouping the whole
+     *   mechanism exists for failed on hop one.
+     */
     fun handlerFailed(
+        messageUuid: String,
         properties: AMQP.BasicProperties,
         body: ByteArray?,
         exchange: String?,
@@ -31,9 +41,10 @@ class AuditReports(
         terminal: Boolean,
         retryTier: String?,
         throwable: Throwable?,
-    ): AuditReport = base(AuditKind.HANDLER_FAILED, properties, body, exchange, routingKey, originQueue)
-        .copy(handler = handler, attempt = attempt, terminal = terminal, retryTier = retryTier)
-        .withCause(throwable)
+    ): AuditReport =
+        base(messageUuid, AuditKind.HANDLER_FAILED, properties, body, exchange, routingKey, originQueue)
+            .copy(handler = handler, attempt = attempt, terminal = terminal, retryTier = retryTier)
+            .withCause(throwable)
 
     fun unroutable(
         properties: AMQP.BasicProperties,
@@ -41,16 +52,20 @@ class AuditReports(
         exchange: String?,
         routingKey: String?,
         replyText: String?,
-    ): AuditReport = base(AuditKind.UNROUTABLE, properties, body, exchange, routingKey, originQueue = null)
-        .copy(exceptionMessage = replyText)
+    ): AuditReport = base(
+        AuditMessageIdentity.of(properties),
+        AuditKind.UNROUTABLE, properties, body, exchange, routingKey, originQueue = null
+    ).copy(exceptionMessage = replyText)
 
     fun undeserializable(
         properties: AMQP.BasicProperties,
         body: ByteArray?,
         originQueue: String?,
         throwable: Throwable,
-    ): AuditReport = base(AuditKind.UNDESERIALIZABLE, properties, body, null, null, originQueue)
-        .withCause(throwable)
+    ): AuditReport = base(
+        AuditMessageIdentity.of(properties),
+        AuditKind.UNDESERIALIZABLE, properties, body, null, null, originQueue
+    ).withCause(throwable)
 
     fun chunkSeriesExpired(
         messageUuid: String,
@@ -71,6 +86,7 @@ class AuditReports(
     )
 
     private fun base(
+        messageUuid: String,
         kind: AuditKind,
         properties: AMQP.BasicProperties,
         body: ByteArray?,
@@ -83,7 +99,7 @@ class AuditReports(
         val truncated = body != null && body.size > maxPayloadBytes
 
         return AuditReport(
-            messageUuid = AuditMessageIdentity.of(properties),
+            messageUuid = messageUuid,
             kind = kind,
             originService = properties.appId ?: serviceName,
             originInstance = properties.headers?.get("x-surf-instance")?.toString(),
