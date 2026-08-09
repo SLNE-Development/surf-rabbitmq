@@ -15,6 +15,11 @@ import java.util.concurrent.atomic.AtomicReferenceArray
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import dev.slne.surf.eventbus.rabbitmq.audit.AuditReports
+import dev.slne.surf.eventbus.rabbitmq.exception.protocol.SurfRabbitProtocolMissingChunkException
+import dev.slne.surf.eventbus.rabbitmq.exception.protocol.SurfRabbitProtocolChunkPacketSizeMismatchException
+import dev.slne.surf.eventbus.rabbitmq.exception.protocol.SurfRabbitProtocolChunkPacketLargerThanExpectedException
+import dev.slne.surf.eventbus.rabbitmq.exception.protocol.SurfRabbitProtocolChunkMetadataMismatchException
+import dev.slne.surf.eventbus.rabbitmq.exception.protocol.SurfRabbitProtocolChunkKindMismatchException
 
 class RabbitPacketChunkAssembler(
     private val expectedKind: RabbitPacketChunking.PacketChunkKind,

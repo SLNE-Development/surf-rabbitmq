@@ -1,9 +1,9 @@
 package dev.slne.surf.eventbus.redis.cache
 
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
 import dev.slne.surf.eventbus.redis.util.Initializable
-import kotlinx.serialization.KSerializer
 import dev.slne.surf.eventbus.redis.util.RedisDisposable
+import kotlinx.serialization.KSerializer
 
 /**
  * A simple Redis-backed cache for values of type [V] parameterized by key type [K].
@@ -12,7 +12,7 @@ import dev.slne.surf.eventbus.redis.util.RedisDisposable
  * TTL (time-to-live) is applied to each entry. `null` values can optionally be cached
  * using a sentinel marker.
  *
- * This class uses the reactive Redis commands exposed by [RedisApi] and is intended
+ * This class uses the reactive Redis commands exposed by [SurfRedisApi] and is intended
  * for coroutine-based usage (suspending methods).
  *
  * @param namespace String prefix that is prepended to each Redis key.
@@ -20,10 +20,11 @@ import dev.slne.surf.eventbus.redis.util.RedisDisposable
  * @param keyToString Function that converts a key of type `K` to its String representation.
  *                    Default is `toString()`.
  * @param ttl Time-to-live for cache entries.
- * @param api Instance of [RedisApi] used to access Redis.
+ * @param api Instance of [SurfRedisApi] used to access Redis.
  */
-interface SimpleRedisCache<K : Any, V : Any> : RedisDisposable, Initializable {
-
+interface SimpleRedisCache<K : Any, V : Any> :
+    RedisDisposable,
+    Initializable {
     /**
      * Retrieve a value from the cache.
      *
@@ -43,7 +44,10 @@ interface SimpleRedisCache<K : Any, V : Any> : RedisDisposable, Initializable {
      * @param key The cache key.
      * @param value The value to store.
      */
-    suspend fun put(key: K, value: V)
+    suspend fun put(
+        key: K,
+        value: V,
+    )
 
     /**
      * Return the cached value or load it if absent.
@@ -55,7 +59,10 @@ interface SimpleRedisCache<K : Any, V : Any> : RedisDisposable, Initializable {
      * @param loader Suspended lambda to load the value if it is not present in the cache.
      * @return The existing or newly loaded value.
      */
-    suspend fun cachedOrLoad(key: K, loader: suspend () -> V): V
+    suspend fun cachedOrLoad(
+        key: K,
+        loader: suspend () -> V,
+    ): V
 
     /**
      * Return the cached value or load it if absent (nullable variant).
@@ -68,7 +75,11 @@ interface SimpleRedisCache<K : Any, V : Any> : RedisDisposable, Initializable {
      * @param loader Suspended lambda to load the nullable value if it is not present.
      * @return The existing or newly loaded value, or `null`.
      */
-    suspend fun cachedOrLoadNullable(key: K, cacheNull: Boolean = false, loader: suspend () -> V?): V?
+    suspend fun cachedOrLoadNullable(
+        key: K,
+        cacheNull: Boolean = false,
+        loader: suspend () -> V?,
+    ): V?
 
     /**
      * Remove an entry from the cache.

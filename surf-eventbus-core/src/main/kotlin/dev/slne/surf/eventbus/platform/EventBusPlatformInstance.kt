@@ -33,6 +33,6 @@ abstract class EventBusPlatformInstance : EventBusInstance {
     }
 
     companion object {
-        fun get(): EventBusPlatformInstance = EventBusInstance.instance as EventBusPlatformInstance
+        fun get(): EventBusPlatformInstance = EventBusInstance.INSTANCE as EventBusPlatformInstance
     }
 }

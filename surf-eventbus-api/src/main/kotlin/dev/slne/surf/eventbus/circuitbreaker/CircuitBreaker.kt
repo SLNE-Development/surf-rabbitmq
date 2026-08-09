@@ -1,6 +1,10 @@
 package dev.slne.surf.eventbus.circuitbreaker
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.Instant
 import kotlin.time.Duration
@@ -38,14 +42,14 @@ class CircuitBreaker(
     private val failureThreshold: Int = 5,
     private val openDuration: Duration = 30.seconds,
     private val clock: Clock = Clock.systemUTC(),
-    private val isFailure: (Throwable) -> Boolean = { true }
+    private val isFailure: (Throwable) -> Boolean = { true },
 ) {
     init {
         require(failureThreshold > 0) { "failureThreshold must be positive, was $failureThreshold" }
         require(openDuration.isPositive()) { "openDuration must be positive, was $openDuration" }
     }
 
-    private val lock = Any()
+    private val lock = Mutex()
 
     private var currentState: CircuitState = CircuitState.CLOSED
     private var consecutiveFailures: Int = 0
@@ -58,8 +62,8 @@ class CircuitBreaker(
      * Reading this transitions [CircuitState.OPEN] to [CircuitState.HALF_OPEN] if
      * [openDuration] has elapsed, so the value always reflects what the next call would do.
      */
-    val state: CircuitState
-        get() = synchronized(lock) {
+    suspend fun currentState() =
+        lock.withLock {
             refreshState()
             currentState
         }
@@ -74,26 +78,30 @@ class CircuitBreaker(
 
         return try {
             val result = block()
-            onSuccess()
+            withContext(NonCancellable) { onSuccess() }
             result
         } catch (cause: Throwable) {
-            onFailure(cause)
+            // NonCancellable because the bookkeeping has to land even when the caller is being
+            // cancelled: acquirePermit may have marked a probe in flight, and a Mutex — unlike
+            // the synchronized block this replaced — refuses to lock in a cancelled coroutine.
+            // Without it a cancelled probe would leave probeInFlight stuck true and the breaker
+            // would reject every later call for good.
+            withContext(NonCancellable) { onFailure(cause) }
             throw cause
         }
     }
 
     /** Forces the breaker back to [CircuitState.CLOSED] and clears the failure counter. */
-    fun reset() {
-        synchronized(lock) {
+    suspend fun reset() =
+        lock.withLock {
             currentState = CircuitState.CLOSED
             consecutiveFailures = 0
             openedAt = null
             probeInFlight = false
         }
-    }
 
-    private fun acquirePermit() {
-        synchronized(lock) {
+    private suspend fun acquirePermit() =
+        lock.withLock {
             refreshState()
 
             when (currentState) {
@@ -109,28 +117,26 @@ class CircuitBreaker(
                 }
             }
         }
-    }
 
-    private fun onSuccess() {
-        synchronized(lock) {
+    private suspend fun onSuccess() =
+        lock.withLock {
             currentState = CircuitState.CLOSED
             consecutiveFailures = 0
             openedAt = null
             probeInFlight = false
         }
-    }
 
-    private fun onFailure(cause: Throwable) {
-        synchronized(lock) {
+    private suspend fun onFailure(cause: Throwable) =
+        lock.withLock {
             // A cancelled caller says nothing about the dependency's health.
             if (cause is CancellationException || !isFailure(cause)) {
                 probeInFlight = false
-                return
+                return@withLock
             }
 
             if (currentState == CircuitState.HALF_OPEN) {
                 open()
-                return
+                return@withLock
             }
 
             consecutiveFailures++
@@ -138,8 +144,13 @@ class CircuitBreaker(
                 open()
             }
         }
-    }
 
+    /**
+     * Must be called while holding [lock].
+     *
+     * Taking the lock itself would deadlock: its only caller, [onFailure], already holds it,
+     * and a [Mutex] is not reentrant the way the `synchronized` block this replaced was.
+     */
     private fun open() {
         currentState = CircuitState.OPEN
         openedAt = clock.instant()

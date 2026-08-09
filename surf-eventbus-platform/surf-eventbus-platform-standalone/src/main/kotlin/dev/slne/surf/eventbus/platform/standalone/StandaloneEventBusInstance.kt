@@ -49,6 +49,6 @@ class StandaloneEventBusInstance(override val dataPath: Path) : EventBusInstance
         }
 
         fun get(): StandaloneEventBusInstance =
-            EventBusInstance.instance as StandaloneEventBusInstance
+            EventBusInstance.INSTANCE as StandaloneEventBusInstance
     }
 }

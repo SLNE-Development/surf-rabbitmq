@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.sync.value
 
 import dev.slne.surf.api.core.util.logger
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
 import dev.slne.surf.eventbus.redis.sync.AbstractStreamSyncStructure
 import dev.slne.surf.eventbus.redis.sync.AbstractSyncStructure
 import dev.slne.surf.eventbus.redis.sync.AbstractSyncStructure.SimpleVersionedSnapshot
@@ -16,20 +16,20 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 
 class SyncValueImpl<T : Any> internal constructor(
-    api: RedisApi,
+    api: SurfRedisApi,
     id: String,
     private val valueCodec: SyncValueCodec<T>,
     private val defaultValue: T,
-    ttl: Duration
+    ttl: Duration,
 ) : AbstractStreamSyncStructure<SyncValueChange, SimpleVersionedSnapshot<String?>>(
-    api,
-    id,
-    ttl,
-    Registry,
-    NAMESPACE,
-    valueCodec.descriptor
-), SyncValue<T> {
-
+        api,
+        id,
+        ttl,
+        Registry,
+        NAMESPACE,
+        valueCodec.descriptor,
+    ),
+    SyncValue<T> {
     companion object {
         private val log = logger()
         private const val NAMESPACE = AbstractSyncStructure.NAMESPACE + "value:"
@@ -48,7 +48,7 @@ class SyncValueImpl<T : Any> internal constructor(
     private val bucket by lazy {
         api.redissonReactive.getBucket<String>(
             dataKey,
-            StringCodec.INSTANCE
+            StringCodec.INSTANCE,
         )
     }
     private val value = AtomicReference(defaultValue)
@@ -58,10 +58,11 @@ class SyncValueImpl<T : Any> internal constructor(
         trackDisposable(RedisExpirableUtils.refreshContinuously(ttl, bucket))
     }
 
-    override fun registerListeners0(): List<Mono<Int>> = listOf(
-        bucket.addListener(ExpiredObjectListener { requestResync() }),
-        bucket.addListener(DeletedObjectListener { requestResync() })
-    )
+    override fun registerListeners0(): List<Mono<Int>> =
+        listOf(
+            bucket.addListener(ExpiredObjectListener { requestResync() }),
+            bucket.addListener(DeletedObjectListener { requestResync() }),
+        )
 
     override fun unregisterListener(id: Int): Mono<*> = bucket.removeListener(id)
 
@@ -78,7 +79,10 @@ class SyncValueImpl<T : Any> internal constructor(
         writeToRemote(SET_SCRIPT, EVENT_SET, encodeValue(value))
     }
 
-    override fun onStreamEvent(type: String, data: StreamEventData) = when (type) {
+    override fun onStreamEvent(
+        type: String,
+        data: StreamEventData,
+    ) = when (type) {
         EVENT_SET -> onSetEvent(data)
         else -> log.atWarning().log("Unknown message type '$type' received from SyncValue '$id'")
     }
@@ -91,10 +95,12 @@ class SyncValueImpl<T : Any> internal constructor(
         notifyListeners(SyncValueChange.Updated(decoded, old))
     }
 
-    override fun loadFromRemote0(): Mono<SimpleVersionedSnapshot<String?>> = Mono.zip(
-        bucket.get(),
-        versionCounter.get().onErrorReturn(0L)
-    ).map { SimpleVersionedSnapshot.fromTuple(it) }
+    override fun loadFromRemote0(): Mono<SimpleVersionedSnapshot<String?>> =
+        Mono
+            .zip(
+                bucket.get(),
+                versionCounter.get().onErrorReturn(0L),
+            ).map { SimpleVersionedSnapshot.fromTuple(it) }
 
     override fun overrideFromRemote(raw: SimpleVersionedSnapshot<String?>) {
         val snapshotValue = raw.value
@@ -110,5 +116,6 @@ class SyncValueImpl<T : Any> internal constructor(
     }
 
     private fun decodeValue(value: String): T = valueCodec.decode(value)
+
     private fun encodeValue(value: T): String = valueCodec.encode(value)
 }

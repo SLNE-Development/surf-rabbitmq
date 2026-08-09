@@ -8,8 +8,6 @@ import dev.slne.surf.eventbus.audit.AuditKind
 import dev.slne.surf.eventbus.audit.AuditReport
 import dev.slne.surf.eventbus.rabbitmq.audit.AuditMessageIdentity
 import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitConnectionException
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitProtocolVersionMismatchException
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitResponsePacket
 import dev.slne.surf.eventbus.rabbitmq.version.RabbitMQVersion
@@ -27,6 +25,8 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.seconds
+import dev.slne.surf.eventbus.rabbitmq.exception.protocol.SurfRabbitProtocolVersionMismatchException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitConnectionException
 
 /**
  * Deserializes incoming request envelopes and dispatches them to the RPC service.

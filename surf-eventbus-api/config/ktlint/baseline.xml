@@ -4,18 +4,6 @@
         <error line="14" column="73" source="standard:trailing-comma-on-call-site" />
         <error line="28" column="33" source="standard:trailing-comma-on-call-site" />
     </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/SurfEventBus.kt">
-        <error line="23" column="1" source="standard:no-empty-first-line-in-class-body" />
-        <error line="28" column="35" source="standard:function-signature" />
-        <error line="28" column="56" source="standard:function-signature" />
-        <error line="28" column="73" source="standard:function-signature" />
-        <error line="58" column="21" source="standard:function-signature" />
-        <error line="58" column="42" source="standard:function-signature" />
-        <error line="58" column="56" source="standard:function-signature" />
-        <error line="58" column="80" source="standard:function-signature" />
-        <error line="63" column="79" source="standard:function-signature" />
-        <error line="71" column="20" source="standard:multiline-expression-wrapping" />
-    </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/SurfEventBusBuilder.kt">
         <error line="3" column="1" source="standard:import-ordering" />
         <error line="13" column="1" source="standard:no-empty-first-line-in-class-body" />
@@ -34,142 +22,14 @@
     <file name="src/main/kotlin/dev/slne/surf/eventbus/audit/AuditReport.kt">
         <error line="45" column="50" source="standard:trailing-comma-on-declaration-site" />
     </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/circuitbreaker/CircuitBreaker.kt">
-        <error line="41" column="61" source="standard:trailing-comma-on-declaration-site" />
-        <error line="62" column="17" source="standard:multiline-expression-wrapping" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/circuitbreaker/CircuitBreakerRegistry.kt">
-        <error line="24" column="61" source="standard:trailing-comma-on-declaration-site" />
-        <error line="29" column="49" source="standard:multiline-expression-wrapping" />
-        <error line="29" column="49" source="standard:function-signature" />
-        <error line="35" column="34" source="standard:trailing-comma-on-call-site" />
-    </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/circuitbreaker/CircuitOpenException.kt">
         <error line="12" column="28" source="standard:trailing-comma-on-declaration-site" />
     </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/circuitbreaker/CircuitState.kt">
         <error line="18" column="14" source="standard:trailing-comma-on-declaration-site" />
     </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/config/EventBusConfig.kt">
-        <error line="37" column="1" source="standard:no-blank-line-in-list" />
-        <error line="50" column="1" source="standard:no-blank-line-in-list" />
-        <error line="56" column="1" source="standard:no-blank-line-in-list" />
-        <error line="61" column="1" source="standard:no-blank-line-in-list" />
-        <error line="65" column="1" source="standard:no-blank-line-in-list" />
-        <error line="70" column="1" source="standard:no-blank-line-in-list" />
-        <error line="77" column="8" source="standard:trailing-comma-on-call-site" />
-        <error line="82" column="1" source="standard:no-blank-line-in-list" />
-        <error line="90" column="8" source="standard:trailing-comma-on-call-site" />
-        <error line="95" column="1" source="standard:no-blank-line-in-list" />
-        <error line="106" column="8" source="standard:trailing-comma-on-call-site" />
-        <error line="111" column="1" source="standard:no-blank-line-in-list" />
-        <error line="118" column="8" source="standard:trailing-comma-on-call-site" />
-        <error line="124" column="1" source="standard:no-blank-line-in-list" />
-        <error line="132" column="8" source="standard:trailing-comma-on-call-site" />
-        <error line="136" column="1" source="standard:no-blank-line-in-list" />
-        <error line="144" column="8" source="standard:trailing-comma-on-call-site" />
-        <error line="148" column="1" source="standard:no-blank-line-in-list" />
-        <error line="151" column="1" source="standard:indent" />
-        <error line="151" column="114" source="standard:trailing-comma-on-call-site" />
-        <error line="155" column="1" source="standard:no-blank-line-in-list" />
-        <error line="158" column="1" source="standard:indent" />
-        <error line="159" column="1" source="standard:indent" />
-        <error line="159" column="94" source="standard:trailing-comma-on-call-site" />
-        <error line="163" column="1" source="standard:no-blank-line-in-list" />
-        <error line="166" column="1" source="standard:indent" />
-        <error line="166" column="39" source="standard:trailing-comma-on-call-site" />
-        <error line="174" column="1" source="standard:indent" />
-        <error line="175" column="1" source="standard:indent" />
-        <error line="176" column="1" source="standard:indent" />
-        <error line="177" column="1" source="standard:indent" />
-        <error line="178" column="1" source="standard:indent" />
-        <error line="179" column="1" source="standard:indent" />
-        <error line="189" column="1" source="standard:no-blank-line-in-list" />
-        <error line="195" column="1" source="standard:no-blank-line-in-list" />
-        <error line="199" column="1" source="standard:no-blank-line-in-list" />
-        <error line="206" column="8" source="standard:trailing-comma-on-call-site" />
-        <error line="212" column="38" source="standard:function-signature" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/config/EventBusConfigFiles.kt">
-        <error line="24" column="1" source="standard:no-empty-first-line-in-class-body" />
-        <error line="31" column="16" source="standard:function-signature" />
-        <error line="31" column="28" source="standard:function-signature" />
-        <error line="31" column="63" source="standard:function-signature" />
-        <error line="37" column="42" source="standard:trailing-comma-on-call-site" />
-        <error line="50" column="16" source="standard:function-signature" />
-        <error line="50" column="28" source="standard:function-signature" />
-        <error line="50" column="63" source="standard:function-signature" />
-        <error line="53" column="38" source="standard:trailing-comma-on-call-site" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/config/EventBusConfigResolver.kt">
-        <error line="28" column="23" source="standard:multiline-expression-wrapping" />
-        <error line="28" column="23" source="standard:function-signature" />
-        <error line="57" column="23" source="standard:multiline-expression-wrapping" />
-        <error line="57" column="23" source="standard:function-signature" />
-        <error line="58" column="33" source="standard:multiline-expression-wrapping" />
-        <error line="64" column="31" source="standard:multiline-expression-wrapping" />
-        <error line="77" column="12" source="standard:multiline-expression-wrapping" />
-        <error line="80" column="1" source="standard:no-blank-line-in-list" />
-        <error line="81" column="12" source="standard:multiline-expression-wrapping" />
-        <error line="83" column="1" source="standard:no-blank-line-in-list" />
-        <error line="84" column="16" source="standard:multiline-expression-wrapping" />
-        <error line="87" column="1" source="standard:no-blank-line-in-list" />
-        <error line="89" column="16" source="standard:multiline-expression-wrapping" />
-        <error line="91" column="1" source="standard:no-blank-line-in-list" />
-        <error line="92" column="13" source="standard:multiline-expression-wrapping" />
-        <error line="95" column="1" source="standard:no-blank-line-in-list" />
-        <error line="96" column="15" source="standard:multiline-expression-wrapping" />
-        <error line="99" column="1" source="standard:no-blank-line-in-list" />
-        <error line="100" column="29" source="standard:multiline-expression-wrapping" />
-        <error line="103" column="1" source="standard:indent" />
-        <error line="104" column="1" source="standard:no-blank-line-in-list" />
-        <error line="105" column="25" source="standard:multiline-expression-wrapping" />
-        <error line="108" column="1" source="standard:indent" />
-        <error line="109" column="1" source="standard:no-blank-line-in-list" />
-        <error line="110" column="27" source="standard:multiline-expression-wrapping" />
-        <error line="113" column="1" source="standard:indent" />
-        <error line="114" column="1" source="standard:no-blank-line-in-list" />
-        <error line="115" column="23" source="standard:multiline-expression-wrapping" />
-        <error line="118" column="1" source="standard:no-blank-line-in-list" />
-        <error line="119" column="24" source="standard:multiline-expression-wrapping" />
-        <error line="122" column="1" source="standard:no-blank-line-in-list" />
-        <error line="127" column="62" source="standard:trailing-comma-on-call-site" />
-        <error line="133" column="1" source="standard:no-blank-line-in-list" />
-        <error line="138" column="63" source="standard:trailing-comma-on-call-site" />
-        <error line="144" column="1" source="standard:no-blank-line-in-list" />
-        <error line="145" column="24" source="standard:multiline-expression-wrapping" />
-        <error line="148" column="1" source="standard:indent" />
-        <error line="156" column="12" source="standard:multiline-expression-wrapping" />
-        <error line="159" column="1" source="standard:no-blank-line-in-list" />
-        <error line="160" column="12" source="standard:multiline-expression-wrapping" />
-        <error line="162" column="1" source="standard:no-blank-line-in-list" />
-        <error line="163" column="16" source="standard:multiline-expression-wrapping" />
-        <error line="165" column="1" source="standard:no-blank-line-in-list" />
-        <error line="166" column="18" source="standard:multiline-expression-wrapping" />
-        <error line="169" column="1" source="standard:indent" />
-        <error line="173" column="28" source="standard:function-signature" />
-        <error line="173" column="40" source="standard:function-signature" />
-        <error line="173" column="50" source="standard:function-signature" />
-        <error line="175" column="27" source="standard:function-signature" />
-        <error line="175" column="41" source="standard:function-signature" />
-        <error line="175" column="57" source="standard:function-signature" />
-        <error line="181" column="70" source="standard:trailing-comma-on-call-site" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/config/EventBusSettings.kt">
-        <error line="43" column="1" source="standard:no-blank-line-in-list" />
-        <error line="55" column="1" source="standard:indent" />
-        <error line="56" column="1" source="standard:indent" />
-        <error line="57" column="1" source="standard:indent" />
-        <error line="58" column="1" source="standard:indent" />
-        <error line="59" column="1" source="standard:indent" />
-        <error line="60" column="1" source="standard:indent" />
-        <error line="71" column="38" source="standard:function-signature" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/credentials/RabbitCredentialsProvider.kt">
-        <error line="35" column="1" source="standard:indent" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/credentials/RedisCredentialsProvider.kt">
-        <error line="11" column="1" source="standard:no-empty-first-line-in-class-body" />
+    <file name="src/main/kotlin/dev/slne/surf/eventbus/config/EventBusDefaults.kt">
+        <error line="4" column="1" source="standard:no-wildcard-imports" />
     </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/event/BusEvent.kt">
         <error line="11" column="27" source="standard:class-signature" />
@@ -203,31 +63,6 @@
     <file name="src/main/kotlin/dev/slne/surf/eventbus/event/SurfSubscribe.kt">
         <error line="16" column="37" source="standard:trailing-comma-on-declaration-site" />
     </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/exception/SurfEventBusException.kt">
-        <error line="9" column="38" source="standard:class-signature" />
-        <error line="9" column="55" source="standard:class-signature" />
-        <error line="9" column="79" source="standard:class-signature" />
-        <error line="10" column="5" source="standard:class-signature" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/platform/EventBusInstance.kt">
-        <error line="32" column="42" source="standard:function-signature" />
-        <error line="33" column="36" source="standard:chain-method-continuation" />
-        <error line="33" column="71" source="standard:chain-method-continuation" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/platform/JavaPluginLoaderProxy.kt">
-        <error line="4" column="1" source="standard:no-wildcard-imports" />
-        <error line="6" column="1" source="standard:no-wildcard-imports" />
-        <error line="10" column="1" source="standard:no-empty-first-line-in-class-body" />
-        <error line="12" column="24" source="standard:function-signature" />
-        <error line="12" column="45" source="standard:function-signature" />
-        <error line="12" column="64" source="standard:function-signature" />
-        <error line="15" column="33" source="standard:function-signature" />
-        <error line="15" column="48" source="standard:function-signature" />
-        <error line="15" column="60" source="standard:function-signature" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/platform/SerializedPluginDescriptionProxy.kt">
-        <error line="10" column="1" source="standard:no-empty-first-line-in-class-body" />
-    </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/platform/StandaloneLifecycleHook.kt">
         <error line="21" column="5" source="standard:blank-line-before-declaration" />
         <error line="22" column="5" source="standard:blank-line-before-declaration" />
@@ -245,170 +80,11 @@
         <error line="19" column="56" source="standard:function-signature" />
         <error line="19" column="81" source="standard:function-signature" />
     </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/SurfRabbitApi.kt">
-        <error line="3" column="1" source="standard:import-ordering" />
-        <error line="15" column="1" source="standard:no-wildcard-imports" />
-        <error line="44" column="20" source="standard:annotation" />
-        <error line="44" column="41" source="standard:annotation" />
-        <error line="58" column="17" source="standard:multiline-expression-wrapping" />
-        <error line="60" column="1" source="standard:indent" />
-        <error line="61" column="1" source="standard:indent" />
-        <error line="62" column="1" source="standard:indent" />
-        <error line="63" column="1" source="standard:indent" />
-        <error line="63" column="24" source="standard:chain-method-continuation" />
-        <error line="64" column="1" source="standard:indent" />
-        <error line="65" column="1" source="standard:indent" />
-        <error line="66" column="1" source="standard:indent" />
-        <error line="66" column="18" source="standard:trailing-comma-on-call-site" />
-        <error line="120" column="41" source="standard:function-signature" />
-        <error line="120" column="73" source="standard:function-signature" />
-        <error line="120" column="97" source="standard:function-signature" />
-        <error line="139" column="29" source="standard:function-signature" />
-        <error line="139" column="61" source="standard:function-signature" />
-        <error line="139" column="89" source="standard:function-signature" />
-        <error line="139" column="101" source="standard:function-signature" />
-        <error line="143" column="84" source="standard:function-signature" />
-        <error line="147" column="94" source="standard:function-signature" />
-        <error line="153" column="21" source="standard:function-signature" />
-        <error line="153" column="42" source="standard:function-signature" />
-        <error line="153" column="56" source="standard:function-signature" />
-        <error line="153" column="81" source="standard:function-signature" />
-        <error line="157" column="79" source="standard:multiline-expression-wrapping" />
-        <error line="157" column="79" source="standard:function-signature" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilder.kt">
-        <error line="27" column="31" source="standard:trailing-comma-on-declaration-site" />
-        <error line="37" column="72" source="standard:multiline-expression-wrapping" />
-        <error line="37" column="72" source="standard:function-signature" />
-        <error line="49" column="60" source="standard:multiline-expression-wrapping" />
-        <error line="49" column="60" source="standard:function-signature" />
-        <error line="54" column="62" source="standard:multiline-expression-wrapping" />
-        <error line="54" column="62" source="standard:function-signature" />
-        <error line="59" column="66" source="standard:multiline-expression-wrapping" />
-        <error line="59" column="66" source="standard:function-signature" />
-        <error line="70" column="77" source="standard:multiline-expression-wrapping" />
-        <error line="70" column="77" source="standard:function-signature" />
-        <error line="81" column="79" source="standard:multiline-expression-wrapping" />
-        <error line="81" column="79" source="standard:function-signature" />
-        <error line="90" column="20" source="standard:multiline-expression-wrapping" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/connection/RabbitMQConnection.kt">
-        <error line="12" column="1" source="standard:no-empty-first-line-in-class-body" />
-        <error line="23" column="5" source="standard:blank-line-before-declaration" />
-        <error line="28" column="29" source="standard:trailing-comma-on-declaration-site" />
-        <error line="31" column="22" source="standard:function-signature" />
-        <error line="31" column="54" source="standard:function-signature" />
-        <error line="31" column="74" source="standard:function-signature" />
-        <error line="35" column="61" source="standard:function-signature" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/exception/ApiExceptions.kt">
-        <error line="1" column="1" source="standard:filename" />
-        <error line="11" column="119" source="standard:final-newline" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/exception/ConnectionExceptions.kt">
-        <error line="5" column="42" source="standard:class-signature" />
-        <error line="5" column="59" source="standard:class-signature" />
-        <error line="5" column="83" source="standard:class-signature" />
-        <error line="6" column="5" source="standard:class-signature" />
-        <error line="13" column="43" source="standard:class-signature" />
-        <error line="13" column="57" source="standard:class-signature" />
-        <error line="13" column="68" source="standard:class-signature" />
-        <error line="13" column="92" source="standard:class-signature" />
-        <error line="14" column="5" source="standard:class-signature" />
-        <error line="21" column="43" source="standard:class-signature" />
-        <error line="21" column="60" source="standard:class-signature" />
-        <error line="22" column="5" source="standard:class-signature" />
-        <error line="32" column="33" source="standard:trailing-comma-on-declaration-site" />
-        <error line="53" column="29" source="standard:trailing-comma-on-declaration-site" />
-        <error line="55" column="1" source="standard:indent" />
-        <error line="56" column="1" source="standard:indent" />
-        <error line="56" column="10" source="standard:trailing-comma-on-call-site" />
-        <error line="57" column="1" source="standard:indent" />
-        <error line="62" column="1" source="standard:final-newline" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/exception/PacketExceptions.kt">
-        <error line="3" column="40" source="standard:class-signature" />
-        <error line="3" column="57" source="standard:class-signature" />
-        <error line="3" column="81" source="standard:class-signature" />
-        <error line="5" column="51" source="standard:class-signature" />
-        <error line="5" column="61" source="standard:class-signature" />
-        <error line="6" column="1" source="standard:blank-line-before-declaration" />
-        <error line="8" column="64" source="standard:class-signature" />
-        <error line="8" column="74" source="standard:class-signature" />
-        <error line="8" column="87" source="standard:class-signature" />
-        <error line="8" column="100" source="standard:class-signature" />
-        <error line="8" column="114" source="standard:class-signature" />
-        <error line="9" column="5" source="standard:class-signature" />
-        <error line="9" column="33" source="standard:argument-list-wrapping" />
-        <error line="9" column="141" source="standard:max-line-length" />
-        <error line="9" column="160" source="standard:argument-list-wrapping" />
-        <error line="11" column="58" source="standard:class-signature" />
-        <error line="11" column="73" source="standard:class-signature" />
-        <error line="11" column="84" source="standard:class-signature" />
-        <error line="12" column="5" source="standard:class-signature" />
-        <error line="14" column="52" source="standard:class-signature" />
-        <error line="14" column="70" source="standard:class-signature" />
-        <error line="14" column="84" source="standard:class-signature" />
-        <error line="15" column="5" source="standard:class-signature" />
-        <error line="20" column="17" source="standard:trailing-comma-on-declaration-site" />
-        <error line="22" column="1" source="standard:indent" />
-        <error line="22" column="75" source="standard:trailing-comma-on-call-site" />
-        <error line="23" column="1" source="standard:indent" />
-        <error line="29" column="17" source="standard:trailing-comma-on-declaration-site" />
-        <error line="31" column="1" source="standard:indent" />
-        <error line="32" column="53" source="standard:trailing-comma-on-call-site" />
-        <error line="33" column="1" source="standard:final-newline" />
-        <error line="33" column="1" source="standard:indent" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/exception/ProtocolExceptions.kt">
-        <error line="1" column="1" source="standard:filename" />
-        <error line="11" column="5" source="standard:class-signature" />
-        <error line="11" column="84" source="standard:final-newline" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/exception/RequestExceptions.kt">
-        <error line="6" column="39" source="standard:class-signature" />
-        <error line="6" column="56" source="standard:class-signature" />
-        <error line="6" column="80" source="standard:class-signature" />
-        <error line="7" column="5" source="standard:class-signature" />
-        <error line="9" column="41" source="standard:class-signature" />
-        <error line="9" column="75" source="standard:class-signature" />
-        <error line="9" column="92" source="standard:class-signature" />
-        <error line="10" column="5" source="standard:class-signature" />
-        <error line="13" column="5" source="standard:class-signature" />
-        <error line="13" column="84" source="standard:final-newline" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/exception/SerializationExceptions.kt">
-        <error line="3" column="45" source="standard:class-signature" />
-        <error line="3" column="62" source="standard:class-signature" />
-        <error line="3" column="86" source="standard:class-signature" />
-        <error line="4" column="5" source="standard:class-signature" />
-        <error line="6" column="45" source="standard:class-signature" />
-        <error line="6" column="62" source="standard:class-signature" />
-        <error line="7" column="5" source="standard:class-signature" />
-        <error line="9" column="50" source="standard:class-signature" />
-        <error line="9" column="74" source="standard:class-signature" />
-        <error line="10" column="5" source="standard:class-signature" />
-        <error line="12" column="48" source="standard:class-signature" />
-        <error line="12" column="72" source="standard:class-signature" />
-        <error line="13" column="5" source="standard:class-signature" />
-        <error line="15" column="50" source="standard:class-signature" />
-        <error line="15" column="65" source="standard:class-signature" />
-        <error line="15" column="76" source="standard:class-signature" />
-        <error line="16" column="5" source="standard:class-signature" />
-        <error line="17" column="77" source="standard:trailing-comma-on-call-site" />
-        <error line="18" column="5" source="standard:final-newline" />
-    </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/exception/SurfRabbitException.kt">
         <error line="5" column="36" source="standard:class-signature" />
         <error line="5" column="53" source="standard:class-signature" />
         <error line="5" column="77" source="standard:class-signature" />
         <error line="6" column="5" source="standard:class-signature" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/exception/SurfRabbitServiceUnavailableException.kt">
-        <error line="14" column="26" source="standard:trailing-comma-on-declaration-site" />
-        <error line="16" column="1" source="standard:indent" />
-        <error line="17" column="97" source="standard:trailing-comma-on-call-site" />
-        <error line="18" column="1" source="standard:indent" />
     </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/identity/RabbitIdentity.kt">
         <error line="16" column="27" source="standard:trailing-comma-on-declaration-site" />
@@ -424,6 +100,7 @@
         <error line="23" column="1" source="standard:final-newline" />
     </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/packet/RabbitRequestPacket.kt">
+        <error line="3" column="1" source="standard:import-ordering" />
         <error line="13" column="76" source="standard:wrapping" />
         <error line="13" column="77" source="standard:class-signature" />
         <error line="29" column="1" source="standard:final-newline" />
@@ -433,18 +110,6 @@
     </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/rpc/RabbitRpcCall.kt">
         <error line="13" column="29" source="standard:trailing-comma-on-declaration-site" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/rpc/RabbitRpcService.kt">
-        <error line="28" column="39" source="standard:function-signature" />
-        <error line="28" column="71" source="standard:function-signature" />
-        <error line="28" column="92" source="standard:function-signature" />
-        <error line="30" column="41" source="standard:function-signature" />
-        <error line="30" column="73" source="standard:function-signature" />
-        <error line="30" column="97" source="standard:function-signature" />
-        <error line="31" column="5" source="standard:blank-line-before-declaration" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/rpc/RabbitRpcServiceFactory.kt">
-        <error line="9" column="1" source="standard:no-empty-first-line-in-class-body" />
     </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/rpc/RpcService.kt">
         <error line="120" column="29" source="standard:trailing-comma-on-declaration-site" />
@@ -479,146 +144,6 @@
         <error line="42" column="69" source="standard:function-signature" />
         <error line="106" column="72" source="standard:function-signature" />
     </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/redis/RedisApi.kt">
-        <error line="3" column="1" source="standard:import-ordering" />
-        <error line="25" column="1" source="standard:no-wildcard-imports" />
-        <error line="26" column="1" source="standard:no-unused-imports" />
-        <error line="46" column="1" source="standard:no-unused-imports" />
-        <error line="47" column="1" source="standard:no-unused-imports" />
-        <error line="48" column="1" source="standard:no-unused-imports" />
-        <error line="171" column="38" source="standard:multiline-expression-wrapping" />
-        <error line="173" column="1" source="standard:indent" />
-        <error line="173" column="17" source="standard:chain-wrapping" />
-        <error line="174" column="1" source="standard:indent" />
-        <error line="174" column="17" source="standard:chain-wrapping" />
-        <error line="175" column="1" source="standard:indent" />
-        <error line="175" column="17" source="standard:chain-wrapping" />
-        <error line="175" column="19" source="standard:multiline-expression-wrapping" />
-        <error line="176" column="1" source="standard:indent" />
-        <error line="176" column="16" source="standard:chain-method-continuation" />
-        <error line="177" column="1" source="standard:indent" />
-        <error line="178" column="1" source="standard:indent" />
-        <error line="179" column="1" source="standard:indent" />
-        <error line="180" column="1" source="standard:indent" />
-        <error line="181" column="1" source="standard:indent" />
-        <error line="181" column="24" source="standard:trailing-comma-on-call-site" />
-        <error line="182" column="1" source="standard:indent" />
-        <error line="183" column="1" source="standard:indent" />
-        <error line="183" column="10" source="standard:trailing-comma-on-call-site" />
-        <error line="195" column="30" source="standard:multiline-expression-wrapping" />
-        <error line="197" column="1" source="standard:indent" />
-        <error line="197" column="17" source="standard:chain-wrapping" />
-        <error line="198" column="1" source="standard:indent" />
-        <error line="198" column="17" source="standard:chain-wrapping" />
-        <error line="199" column="1" source="standard:indent" />
-        <error line="199" column="17" source="standard:chain-wrapping" />
-        <error line="199" column="19" source="standard:multiline-expression-wrapping" />
-        <error line="200" column="1" source="standard:indent" />
-        <error line="200" column="16" source="standard:chain-method-continuation" />
-        <error line="201" column="1" source="standard:indent" />
-        <error line="202" column="1" source="standard:indent" />
-        <error line="203" column="1" source="standard:indent" />
-        <error line="204" column="1" source="standard:indent" />
-        <error line="205" column="1" source="standard:indent" />
-        <error line="205" column="24" source="standard:trailing-comma-on-call-site" />
-        <error line="206" column="1" source="standard:indent" />
-        <error line="207" column="1" source="standard:indent" />
-        <error line="207" column="10" source="standard:trailing-comma-on-call-site" />
-        <error line="237" column="1" source="standard:indent" />
-        <error line="254" column="48" source="standard:trailing-comma-on-declaration-site" />
-        <error line="255" column="23" source="standard:multiline-expression-wrapping" />
-        <error line="255" column="23" source="standard:function-signature" />
-        <error line="259" column="24" source="standard:multiline-expression-wrapping" />
-        <error line="282" column="75" source="standard:trailing-comma-on-declaration-site" />
-        <error line="283" column="23" source="standard:multiline-expression-wrapping" />
-        <error line="283" column="23" source="standard:function-signature" />
-        <error line="294" column="48" source="standard:trailing-comma-on-declaration-site" />
-        <error line="296" column="26" source="standard:multiline-expression-wrapping" />
-        <error line="301" column="44" source="standard:trailing-comma-on-call-site" />
-        <error line="302" column="18" source="standard:trailing-comma-on-call-site" />
-        <error line="319" column="75" source="standard:trailing-comma-on-declaration-site" />
-        <error line="338" column="75" source="standard:trailing-comma-on-declaration-site" />
-        <error line="350" column="13" source="standard:function-signature" />
-        <error line="350" column="75" source="standard:function-signature" />
-        <error line="350" column="75" source="standard:trailing-comma-on-declaration-site" />
-        <error line="351" column="23" source="standard:multiline-expression-wrapping" />
-        <error line="351" column="23" source="standard:function-signature" />
-        <error line="352" column="54" source="standard:argument-list-wrapping" />
-        <error line="352" column="78" source="standard:argument-list-wrapping" />
-        <error line="352" column="94" source="standard:trailing-comma-on-call-site" />
-        <error line="364" column="51" source="standard:function-signature" />
-        <error line="373" column="20" source="standard:function-signature" />
-        <error line="373" column="40" source="standard:function-signature" />
-        <error line="373" column="75" source="standard:function-signature" />
-        <error line="373" column="88" source="standard:function-signature" />
-        <error line="381" column="71" source="standard:multiline-expression-wrapping" />
-        <error line="381" column="71" source="standard:function-signature" />
-        <error line="384" column="33" source="standard:multiline-expression-wrapping" />
-        <error line="385" column="25" source="standard:multiline-expression-wrapping" />
-        <error line="385" column="25" source="standard:wrapping" />
-        <error line="385" column="64" source="standard:multiline-expression-wrapping" />
-        <error line="385" column="64" source="standard:wrapping" />
-        <error line="387" column="17" source="standard:wrapping" />
-        <error line="387" column="18" source="standard:wrapping" />
-        <error line="415" column="39" source="standard:multiline-expression-wrapping" />
-        <error line="415" column="39" source="standard:function-signature" />
-        <error line="422" column="12" source="standard:chain-method-continuation" />
-        <error line="433" column="20" source="standard:chain-method-continuation" />
-        <error line="440" column="39" source="standard:chain-method-continuation" />
-        <error line="445" column="24" source="standard:chain-method-continuation" />
-        <error line="468" column="16" source="standard:chain-method-continuation" />
-        <error line="472" column="83" source="standard:trailing-comma-on-call-site" />
-        <error line="479" column="18" source="standard:multiline-expression-wrapping" />
-        <error line="495" column="48" source="standard:multiline-expression-wrapping" />
-        <error line="495" column="48" source="standard:function-signature" />
-        <error line="546" column="9" source="standard:blank-line-before-declaration" />
-        <error line="579" column="38" source="standard:multiline-expression-wrapping" />
-        <error line="579" column="38" source="standard:function-signature" />
-        <error line="587" column="1" source="standard:no-consecutive-blank-lines" />
-        <error line="598" column="45" source="standard:trailing-comma-on-declaration-site" />
-        <error line="613" column="45" source="standard:trailing-comma-on-declaration-site" />
-        <error line="627" column="45" source="standard:trailing-comma-on-declaration-site" />
-        <error line="639" column="44" source="standard:trailing-comma-on-declaration-site" />
-        <error line="650" column="44" source="standard:trailing-comma-on-declaration-site" />
-        <error line="662" column="44" source="standard:trailing-comma-on-declaration-site" />
-        <error line="677" column="46" source="standard:trailing-comma-on-declaration-site" />
-        <error line="692" column="46" source="standard:trailing-comma-on-declaration-site" />
-        <error line="705" column="46" source="standard:trailing-comma-on-declaration-site" />
-        <error line="717" column="44" source="standard:trailing-comma-on-declaration-site" />
-        <error line="718" column="24" source="standard:multiline-expression-wrapping" />
-        <error line="718" column="24" source="standard:function-signature" />
-        <error line="722" column="12" source="standard:trailing-comma-on-call-site" />
-        <error line="737" column="44" source="standard:trailing-comma-on-declaration-site" />
-        <error line="752" column="44" source="standard:trailing-comma-on-declaration-site" />
-        <error line="784" column="64" source="standard:trailing-comma-on-declaration-site" />
-        <error line="785" column="32" source="standard:function-signature" />
-        <error line="800" column="55" source="standard:trailing-comma-on-declaration-site" />
-        <error line="806" column="16" source="standard:chain-method-continuation" />
-        <error line="810" column="1" source="standard:indent" />
-        <error line="811" column="30" source="standard:trailing-comma-on-call-site" />
-        <error line="837" column="62" source="standard:trailing-comma-on-declaration-site" />
-        <error line="844" column="20" source="standard:trailing-comma-on-call-site" />
-        <error line="847" column="1" source="standard:no-consecutive-blank-lines" />
-        <error line="864" column="62" source="standard:trailing-comma-on-declaration-site" />
-        <error line="873" column="21" source="standard:trailing-comma-on-call-site" />
-        <error line="877" column="16" source="standard:chain-method-continuation" />
-        <error line="881" column="1" source="standard:indent" />
-        <error line="882" column="30" source="standard:trailing-comma-on-call-site" />
-    </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/redis/RedisComponentProvider.kt">
-        <error line="22" column="1" source="standard:no-empty-first-line-in-class-body" />
-        <error line="29" column="5" source="standard:blank-line-before-declaration" />
-        <error line="36" column="27" source="standard:trailing-comma-on-declaration-site" />
-        <error line="45" column="27" source="standard:trailing-comma-on-declaration-site" />
-        <error line="52" column="22" source="standard:trailing-comma-on-declaration-site" />
-        <error line="59" column="22" source="standard:trailing-comma-on-declaration-site" />
-        <error line="66" column="22" source="standard:trailing-comma-on-declaration-site" />
-        <error line="73" column="22" source="standard:trailing-comma-on-declaration-site" />
-        <error line="81" column="22" source="standard:trailing-comma-on-declaration-site" />
-        <error line="89" column="22" source="standard:trailing-comma-on-declaration-site" />
-        <error line="97" column="22" source="standard:trailing-comma-on-declaration-site" />
-        <error line="105" column="22" source="standard:trailing-comma-on-declaration-site" />
-    </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/redis/RedisExceptions.kt">
         <error line="1" column="1" source="standard:filename" />
         <error line="11" column="35" source="standard:class-signature" />
@@ -626,41 +151,25 @@
         <error line="11" column="76" source="standard:class-signature" />
         <error line="12" column="5" source="standard:class-signature" />
     </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/redis/cache/RedisSetIndexes.kt">
-        <error line="11" column="46" source="standard:trailing-comma-on-declaration-site" />
-        <error line="14" column="64" source="standard:multiline-expression-wrapping" />
-        <error line="14" column="64" source="standard:function-signature" />
-        <error line="14" column="81" source="standard:chain-method-continuation" />
-        <error line="32" column="17" source="standard:backing-property-naming" />
-        <error line="41" column="68" source="standard:function-signature" />
-        <error line="48" column="37" source="standard:trailing-comma-on-declaration-site" />
-        <error line="55" column="27" source="standard:trailing-comma-on-declaration-site" />
-        <error line="56" column="27" source="standard:multiline-expression-wrapping" />
-        <error line="56" column="27" source="standard:function-signature" />
-        <error line="65" column="49" source="standard:trailing-comma-on-declaration-site" />
-        <error line="67" column="38" source="standard:function-signature" />
-        <error line="67" column="53" source="standard:function-signature" />
-        <error line="67" column="71" source="standard:function-signature" />
-        <error line="74" column="23" source="standard:multiline-expression-wrapping" />
-        <error line="78" column="38" source="standard:trailing-comma-on-call-site" />
-        <error line="92" column="1" source="standard:final-newline" />
+    <file name="src/main/kotlin/dev/slne/surf/eventbus/redis/cache/RedisSetIndex.kt">
+        <error line="9" column="46" source="standard:trailing-comma-on-declaration-site" />
+        <error line="12" column="64" source="standard:multiline-expression-wrapping" />
+        <error line="12" column="64" source="standard:function-signature" />
+        <error line="12" column="81" source="standard:chain-method-continuation" />
     </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/redis/cache/SimpleRedisCache.kt">
-        <error line="3" column="1" source="standard:import-ordering" />
-        <error line="25" column="48" source="standard:class-signature" />
-        <error line="25" column="65" source="standard:class-signature" />
-        <error line="26" column="1" source="standard:no-empty-first-line-in-class-body" />
-        <error line="46" column="21" source="standard:function-signature" />
-        <error line="46" column="29" source="standard:function-signature" />
-        <error line="46" column="37" source="standard:function-signature" />
-        <error line="58" column="30" source="standard:function-signature" />
-        <error line="58" column="38" source="standard:function-signature" />
-        <error line="58" column="61" source="standard:function-signature" />
-        <error line="71" column="38" source="standard:function-signature" />
-        <error line="71" column="46" source="standard:function-signature" />
-        <error line="71" column="74" source="standard:function-signature" />
-        <error line="71" column="98" source="standard:function-signature" />
-        <error line="82" column="1" source="standard:final-newline" />
+    <file name="src/main/kotlin/dev/slne/surf/eventbus/redis/cache/RedisSetIndexes.kt">
+        <error line="8" column="17" source="standard:backing-property-naming" />
+        <error line="17" column="68" source="standard:function-signature" />
+        <error line="24" column="37" source="standard:trailing-comma-on-declaration-site" />
+        <error line="31" column="27" source="standard:trailing-comma-on-declaration-site" />
+        <error line="32" column="27" source="standard:multiline-expression-wrapping" />
+        <error line="32" column="27" source="standard:function-signature" />
+        <error line="41" column="49" source="standard:trailing-comma-on-declaration-site" />
+        <error line="43" column="38" source="standard:function-signature" />
+        <error line="43" column="53" source="standard:function-signature" />
+        <error line="43" column="71" source="standard:function-signature" />
+        <error line="50" column="23" source="standard:multiline-expression-wrapping" />
+        <error line="54" column="38" source="standard:trailing-comma-on-call-site" />
     </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/redis/cache/SimpleSetRedisCache.kt">
         <error line="16" column="42" source="standard:class-signature" />
@@ -876,9 +385,6 @@
         <error line="16" column="43" source="standard:function-expression-body" />
         <error line="19" column="1" source="standard:final-newline" />
     </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/redis/internal/RedissonConfigDetails.kt">
-        <error line="21" column="27" source="standard:trailing-comma-on-declaration-site" />
-    </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/redis/sync/SyncStructure.kt">
         <error line="28" column="30" source="standard:class-signature" />
         <error line="28" column="47" source="standard:class-signature" />
@@ -964,11 +470,6 @@
         <error line="20" column="39" source="standard:function-signature" />
         <error line="22" column="1" source="standard:final-newline" />
     </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/service/ServiceDefaults.kt">
-        <error line="11" column="47" source="standard:trailing-comma-on-declaration-site" />
-        <error line="34" column="47" source="standard:trailing-comma-on-declaration-site" />
-        <error line="43" column="48" source="standard:trailing-comma-on-declaration-site" />
-    </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/service/ServiceInvoker.kt">
         <error line="8" column="22" source="standard:function-signature" />
         <error line="8" column="40" source="standard:function-signature" />
@@ -983,26 +484,21 @@
         <error line="29" column="73" source="standard:multiline-expression-wrapping" />
         <error line="29" column="73" source="standard:function-signature" />
     </file>
-    <file name="src/main/kotlin/dev/slne/surf/eventbus/transport/EventTransport.kt">
-        <error line="12" column="1" source="standard:no-empty-first-line-in-class-body" />
-        <error line="24" column="61" source="standard:trailing-comma-on-declaration-site" />
-        <error line="27" column="25" source="standard:function-signature" />
-        <error line="27" column="50" source="standard:function-signature" />
-        <error line="27" column="75" source="standard:function-signature" />
+    <file name="src/main/kotlin/dev/slne/surf/eventbus/transport/QueryFrame.kt">
+        <error line="14" column="24" source="standard:trailing-comma-on-declaration-site" />
     </file>
     <file name="src/main/kotlin/dev/slne/surf/eventbus/transport/QueryTransport.kt">
-        <error line="14" column="24" source="standard:trailing-comma-on-declaration-site" />
-        <error line="23" column="1" source="standard:no-empty-first-line-in-class-body" />
-        <error line="25" column="25" source="standard:function-signature" />
-        <error line="25" column="49" source="standard:function-signature" />
-        <error line="25" column="69" source="standard:function-signature" />
-        <error line="25" column="106" source="standard:function-signature" />
-        <error line="33" column="21" source="standard:function-signature" />
-        <error line="33" column="40" source="standard:function-signature" />
-        <error line="33" column="59" source="standard:function-signature" />
-        <error line="36" column="24" source="standard:function-signature" />
-        <error line="36" column="43" source="standard:function-signature" />
-        <error line="36" column="58" source="standard:function-signature" />
+        <error line="9" column="1" source="standard:no-empty-first-line-in-class-body" />
+        <error line="11" column="25" source="standard:function-signature" />
+        <error line="11" column="49" source="standard:function-signature" />
+        <error line="11" column="69" source="standard:function-signature" />
+        <error line="11" column="106" source="standard:function-signature" />
+        <error line="19" column="21" source="standard:function-signature" />
+        <error line="19" column="40" source="standard:function-signature" />
+        <error line="19" column="59" source="standard:function-signature" />
+        <error line="22" column="24" source="standard:function-signature" />
+        <error line="22" column="43" source="standard:function-signature" />
+        <error line="22" column="58" source="standard:function-signature" />
     </file>
     <file name="src/test/kotlin/dev/slne/surf/eventbus/circuitbreaker/CircuitBreakerConcurrencyTest.kt">
         <error line="18" column="1" source="standard:no-empty-first-line-in-class-body" />
@@ -1146,7 +642,7 @@
         <error line="103" column="22" source="standard:multiline-expression-wrapping" />
         <error line="118" column="24" source="standard:multiline-expression-wrapping" />
         <error line="119" column="22" source="standard:multiline-expression-wrapping" />
-        <error line="120" column="85" source="standard:trailing-comma-on-call-site" />
+        <error line="120" column="92" source="standard:trailing-comma-on-call-site" />
         <error line="127" column="87" source="standard:trailing-comma-on-call-site" />
         <error line="135" column="84" source="standard:trailing-comma-on-call-site" />
         <error line="141" column="81" source="standard:trailing-comma-on-call-site" />
@@ -1164,13 +660,13 @@
         <error line="24" column="42" source="standard:class-signature" />
     </file>
     <file name="src/test/kotlin/dev/slne/surf/eventbus/rabbitmq/SurfRabbitApiBuilderTest.kt">
-        <error line="11" column="1" source="standard:no-empty-first-line-in-class-body" />
-        <error line="17" column="32" source="standard:multiline-expression-wrapping" />
-        <error line="17" column="32" source="standard:function-signature" />
-        <error line="26" column="47" source="standard:function-signature" />
-        <error line="39" column="19" source="standard:multiline-expression-wrapping" />
-        <error line="39" column="32" source="standard:chain-method-continuation" />
-        <error line="85" column="82" source="standard:trailing-comma-on-call-site" />
+        <error line="13" column="1" source="standard:no-empty-first-line-in-class-body" />
+        <error line="19" column="32" source="standard:multiline-expression-wrapping" />
+        <error line="19" column="32" source="standard:function-signature" />
+        <error line="28" column="47" source="standard:function-signature" />
+        <error line="41" column="19" source="standard:multiline-expression-wrapping" />
+        <error line="41" column="32" source="standard:chain-method-continuation" />
+        <error line="87" column="82" source="standard:trailing-comma-on-call-site" />
     </file>
     <file name="src/test/kotlin/dev/slne/surf/eventbus/rabbitmq/identity/RabbitIdentityTest.kt">
         <error line="10" column="1" source="standard:no-empty-first-line-in-class-body" />
@@ -1180,14 +676,6 @@
         <error line="31" column="78" source="standard:trailing-comma-on-call-site" />
         <error line="62" column="22" source="standard:multiline-expression-wrapping" />
         <error line="82" column="45" source="standard:trailing-comma-on-call-site" />
-    </file>
-    <file name="src/test/kotlin/dev/slne/surf/eventbus/redis/RedisOsDetectionTest.kt">
-        <error line="30" column="1" source="standard:no-empty-first-line-in-class-body" />
-        <error line="33" column="18" source="standard:multiline-expression-wrapping" />
-        <error line="44" column="98" source="standard:trailing-comma-on-call-site" />
-        <error line="48" column="65" source="standard:trailing-comma-on-call-site" />
-        <error line="69" column="25" source="standard:multiline-expression-wrapping" />
-        <error line="73" column="26" source="standard:multiline-expression-wrapping" />
     </file>
     <file name="src/test/kotlin/dev/slne/surf/eventbus/redis/codec/AbstractCodecTest.kt">
         <error line="13" column="21" source="standard:multiline-expression-wrapping" />

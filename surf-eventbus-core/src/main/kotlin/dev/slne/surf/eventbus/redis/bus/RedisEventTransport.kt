@@ -1,9 +1,9 @@
 package dev.slne.surf.eventbus.redis.bus
 
 import dev.slne.surf.eventbus.InternalEventBusApi
-import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.event.EventTopics
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
+import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.transport.EventTransport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -26,17 +26,16 @@ import java.util.concurrent.CopyOnWriteArrayList
  */
 @OptIn(InternalEventBusApi::class)
 class RedisEventTransport(
-    private val redis: RedisApi,
+    private val redis: SurfRedisApi,
     private val json: Json,
-    private val ensureConnected: suspend () -> Unit = {}
+    private val ensureConnected: suspend () -> Unit = {},
 ) : EventTransport {
-
     private val subscriptions = CopyOnWriteArrayList<ListenerHandle>()
 
     override suspend fun connect(
         exactTopics: Set<String>,
         wildcardPatterns: Set<String>,
-        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit
+        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit,
     ) {
         ensureConnected()
 
@@ -51,7 +50,10 @@ class RedisEventTransport(
         }
     }
 
-    override suspend fun publish(envelope: EventEnvelope, binaryPayload: ByteArray?) {
+    override suspend fun publish(
+        envelope: EventEnvelope,
+        binaryPayload: ByteArray?,
+    ) {
         ensureConnected()
 
         if (binaryPayload == null) {
@@ -81,41 +83,70 @@ class RedisEventTransport(
     // .subscribe() returns is a no-op: that subscription has already completed, having
     // delivered the id. Only removeListener(id) detaches the listener.
 
-    private suspend fun subscribeJson(channel: String, onEvent: suspend (EventEnvelope, ByteArray?) -> Unit) {
+    private suspend fun subscribeJson(
+        channel: String,
+        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit,
+    ) {
         val topic = redis.redissonReactive.getTopic(channel, StringCodec.INSTANCE)
-        val listenerId = topic.addListener(String::class.java) { _, message ->
-            deliverJson(message, onEvent)
-        }.awaitSingle()
+        val listenerId =
+            topic
+                .addListener(String::class.java) { _, message ->
+                    deliverJson(message, onEvent)
+                }.awaitSingle()
         subscriptions += ListenerHandle.Topic(topic, listenerId)
     }
 
-    private suspend fun subscribeBinary(channel: String, onEvent: suspend (EventEnvelope, ByteArray?) -> Unit) {
+    private suspend fun subscribeBinary(
+        channel: String,
+        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit,
+    ) {
         val topic = redis.redissonReactive.getTopic(channel, ByteArrayCodec.INSTANCE)
-        val listenerId = topic.addListener(ByteArray::class.java) { _, message ->
-            deliverBinary(message, onEvent)
-        }.awaitSingle()
+        val listenerId =
+            topic
+                .addListener(ByteArray::class.java) { _, message ->
+                    deliverBinary(message, onEvent)
+                }.awaitSingle()
         subscriptions += ListenerHandle.Topic(topic, listenerId)
     }
 
     private suspend fun subscribeJsonPattern(
         wildcardPatterns: Set<String>,
-        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit
+        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit,
     ) {
-        val pattern = redis.redissonReactive.getPatternTopic(RedisChannels.JSON_PATTERN, StringCodec.INSTANCE)
-        val listenerId = pattern.addListener(String::class.java) { _, channel, message ->
-            if (matchesWildcards(channel.toString(), wildcardPatterns)) deliverJson(message, onEvent)
-        }.awaitSingle()
+        val pattern =
+            redis.redissonReactive.getPatternTopic(RedisChannels.JSON_PATTERN, StringCodec.INSTANCE)
+        val listenerId =
+            pattern
+                .addListener(String::class.java) { _, channel, message ->
+                    if (matchesWildcards(channel.toString(), wildcardPatterns)) {
+                        deliverJson(
+                            message,
+                            onEvent,
+                        )
+                    }
+                }.awaitSingle()
         subscriptions += ListenerHandle.Pattern(redis, RedisChannels.JSON_PATTERN, listenerId)
     }
 
     private suspend fun subscribeBinaryPattern(
         wildcardPatterns: Set<String>,
-        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit
+        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit,
     ) {
-        val pattern = redis.redissonReactive.getPatternTopic(RedisChannels.BINARY_PATTERN, ByteArrayCodec.INSTANCE)
-        val listenerId = pattern.addListener(ByteArray::class.java) { _, channel, message ->
-            if (matchesWildcards(channel.toString(), wildcardPatterns)) deliverBinary(message, onEvent)
-        }.awaitSingle()
+        val pattern =
+            redis.redissonReactive.getPatternTopic(
+                RedisChannels.BINARY_PATTERN,
+                ByteArrayCodec.INSTANCE,
+            )
+        val listenerId =
+            pattern
+                .addListener(ByteArray::class.java) { _, channel, message ->
+                    if (matchesWildcards(channel.toString(), wildcardPatterns)) {
+                        deliverBinary(
+                            message,
+                            onEvent,
+                        )
+                    }
+                }.awaitSingle()
         subscriptions += ListenerHandle.Pattern(redis, RedisChannels.BINARY_PATTERN, listenerId)
     }
 
@@ -130,7 +161,10 @@ class RedisEventTransport(
         suspend fun remove()
 
         /** `removeListener` on a reactive topic is a cold Mono, so the removal is awaited. */
-        class Topic(private val topic: RTopicReactive, private val listenerId: Int) : ListenerHandle {
+        class Topic(
+            private val topic: RTopicReactive,
+            private val listenerId: Int,
+        ) : ListenerHandle {
             override suspend fun remove() {
                 topic.removeListener(listenerId).awaitFirstOrNull()
             }
@@ -148,30 +182,41 @@ class RedisEventTransport(
          * id from the reactive `addListener` is valid here.
          */
         class Pattern(
-            private val redis: RedisApi,
+            private val redis: SurfRedisApi,
             private val patternName: String,
-            private val listenerId: Int
+            private val listenerId: Int,
         ) : ListenerHandle {
-            override suspend fun remove() = withContext(Dispatchers.IO) {
-                redis.redisson.getPatternTopic(patternName, StringCodec.INSTANCE)
-                    .removeListener(listenerId)
-            }
+            override suspend fun remove() =
+                withContext(Dispatchers.IO) {
+                    redis.redisson
+                        .getPatternTopic(patternName, StringCodec.INSTANCE)
+                        .removeListener(listenerId)
+                }
         }
     }
 
-    private fun matchesWildcards(channel: String, wildcardPatterns: Set<String>): Boolean {
+    private fun matchesWildcards(
+        channel: String,
+        wildcardPatterns: Set<String>,
+    ): Boolean {
         val topic = RedisChannels.topicOf(channel) ?: return false
         return wildcardPatterns.any { pattern -> EventTopics.matches(pattern, topic) }
     }
 
-    private fun deliverJson(message: String, onEvent: suspend (EventEnvelope, ByteArray?) -> Unit) {
-        redis.redisListenerScope.launch {
+    private fun deliverJson(
+        message: String,
+        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit,
+    ) {
+        redis.scope.launch {
             onEvent(EventEnvelope.decodeFromString(json, message), null)
         }
     }
 
-    private fun deliverBinary(message: ByteArray, onEvent: suspend (EventEnvelope, ByteArray?) -> Unit) {
-        redis.redisListenerScope.launch {
+    private fun deliverBinary(
+        message: ByteArray,
+        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit,
+    ) {
+        redis.scope.launch {
             val (envelope, payload) = BinaryFrame.decode(message, json)
             onEvent(envelope, payload)
         }

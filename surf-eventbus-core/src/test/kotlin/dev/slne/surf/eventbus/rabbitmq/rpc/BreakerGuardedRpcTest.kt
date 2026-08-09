@@ -3,10 +3,6 @@ package dev.slne.surf.eventbus.rabbitmq.rpc
 import dev.slne.surf.eventbus.circuitbreaker.CircuitBreakerRegistry
 import dev.slne.surf.eventbus.circuitbreaker.CircuitOpenException
 import dev.slne.surf.eventbus.circuitbreaker.CircuitState
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitConnectionException
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitPublishException
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitRequestTimeoutException
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitServiceUnavailableException
 import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
@@ -14,6 +10,11 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.time.Duration.Companion.milliseconds
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitServiceUnavailableException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitRequestTimeoutException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitRequestException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitPublishException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitConnectionException
 
 class BreakerGuardedRpcTest {
 
@@ -82,7 +83,7 @@ class BreakerGuardedRpcTest {
         }
 
         assertEquals(
-            CircuitState.CLOSED, registry.forName("svc").state,
+            CircuitState.CLOSED, registry.forName("svc").currentState(),
             "a service answering with errors is alive and must not be cut off"
         )
     }
@@ -100,7 +101,7 @@ class BreakerGuardedRpcTest {
             }
         }
 
-        assertEquals(CircuitState.OPEN, registry.forName("svc").state)
+        assertEquals(CircuitState.OPEN, registry.forName("svc").currentState())
     }
 
     @Test
@@ -137,7 +138,7 @@ class BreakerGuardedRpcTest {
             }
         }
 
-        assertEquals(CircuitState.OPEN, registry.forName("dead").state)
+        assertEquals(CircuitState.OPEN, registry.forName("dead").currentState())
         assertEquals(
             "ok", rpc.call(RabbitTarget.ServiceTarget("healthy")) { "ok" },
             "a per-service breaker must isolate failures; a global one would not"
@@ -175,7 +176,7 @@ class BreakerGuardedRpcTest {
 
         assertEquals(10, attempts.get(), "a timeout must not be retried")
         assertEquals(
-            CircuitState.CLOSED, registry.forName("svc").state,
+            CircuitState.CLOSED, registry.forName("svc").currentState(),
             "timeouts must not open the breaker"
         )
     }
@@ -204,7 +205,7 @@ class BreakerGuardedRpcTest {
 
         assertEquals(3, attempts.get(), "a publish failure must use all retry attempts")
         assertEquals(
-            CircuitState.CLOSED, registry.forName("svc").state,
+            CircuitState.CLOSED, registry.forName("svc").currentState(),
             "one call is one verdict regardless of its internal retries; threshold=2 needs a second failed call"
         )
     }

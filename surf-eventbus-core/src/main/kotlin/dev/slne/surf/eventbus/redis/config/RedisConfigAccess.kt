@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.config
 
 import dev.slne.surf.api.core.environment.EnvironmentVariables
-import dev.slne.surf.eventbus.config.RedisSettings
+import dev.slne.surf.eventbus.config.settings.RedisSettings
 import dev.slne.surf.eventbus.config.resolveEventBusSettings
 import dev.slne.surf.eventbus.platform.EventBusInstance
 import java.nio.file.Path

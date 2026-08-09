@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.bus
 
 import dev.slne.surf.eventbus.InternalEventBusApi
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
 import dev.slne.surf.eventbus.transport.QueryFrame
 import dev.slne.surf.eventbus.transport.QueryTransport
 import kotlinx.coroutines.CompletableDeferred
@@ -25,15 +25,18 @@ import java.util.concurrent.CopyOnWriteArrayList
  */
 @OptIn(InternalEventBusApi::class)
 class RedisQueryTransport(
-    private val redis: RedisApi,
+    private val redis: SurfRedisApi,
     private val json: Json,
-    private val ensureConnected: suspend () -> Unit = {}
+    private val ensureConnected: suspend () -> Unit = {},
 ) : QueryTransport {
-
     private val pending = ConcurrentHashMap<String, CompletableDeferred<String>>()
     private val subscriptions = CopyOnWriteArrayList<Pair<RTopicReactive, Int>>()
 
-    override suspend fun connect(contracts: Set<String>, instanceId: String, onQuery: suspend (QueryFrame) -> Unit) {
+    override suspend fun connect(
+        contracts: Set<String>,
+        instanceId: String,
+        onQuery: suspend (QueryFrame) -> Unit,
+    ) {
         ensureConnected()
 
         for (contract in contracts) {
@@ -42,7 +45,10 @@ class RedisQueryTransport(
         subscribeReply(RedisChannels.reply(instanceId))
     }
 
-    override suspend fun ask(frame: QueryFrame, timeoutMillis: Long): String? {
+    override suspend fun ask(
+        frame: QueryFrame,
+        timeoutMillis: Long,
+    ): String? {
         ensureConnected()
 
         val deferred = CompletableDeferred<String>()
@@ -60,7 +66,10 @@ class RedisQueryTransport(
         }
     }
 
-    override suspend fun answer(frame: QueryFrame, payload: String) {
+    override suspend fun answer(
+        frame: QueryFrame,
+        payload: String,
+    ) {
         ensureConnected()
 
         val answerFrame = frame.copy(payload = payload)
@@ -85,22 +94,29 @@ class RedisQueryTransport(
     // Awaits the subscription itself (not just firing off the request for one): a query or
     // reply published right after connect() returns must not race an in-flight SUBSCRIBE, or
     // the message is gone for good - Pub/Sub has no redelivery.
-    private suspend fun subscribeQuery(channel: String, onQuery: suspend (QueryFrame) -> Unit) {
+    private suspend fun subscribeQuery(
+        channel: String,
+        onQuery: suspend (QueryFrame) -> Unit,
+    ) {
         val topic = redis.redissonReactive.getTopic(channel, StringCodec.INSTANCE)
-        val listenerId = topic.addListener(String::class.java) { _, message ->
-            redis.redisListenerScope.launch {
-                onQuery(json.decodeFromString(QueryFrame.serializer(), message))
-            }
-        }.awaitSingle()
+        val listenerId =
+            topic
+                .addListener(String::class.java) { _, message ->
+                    redis.scope.launch {
+                        onQuery(json.decodeFromString(QueryFrame.serializer(), message))
+                    }
+                }.awaitSingle()
         subscriptions += topic to listenerId
     }
 
     private suspend fun subscribeReply(channel: String) {
         val topic = redis.redissonReactive.getTopic(channel, StringCodec.INSTANCE)
-        val listenerId = topic.addListener(String::class.java) { _, message ->
-            val frame = json.decodeFromString(QueryFrame.serializer(), message)
-            pending[frame.correlationId]?.complete(frame.payload)
-        }.awaitSingle()
+        val listenerId =
+            topic
+                .addListener(String::class.java) { _, message ->
+                    val frame = json.decodeFromString(QueryFrame.serializer(), message)
+                    pending[frame.correlationId]?.complete(frame.payload)
+                }.awaitSingle()
         subscriptions += topic to listenerId
     }
 }

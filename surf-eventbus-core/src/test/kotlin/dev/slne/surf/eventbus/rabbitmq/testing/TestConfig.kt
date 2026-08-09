@@ -1,6 +1,6 @@
 package dev.slne.surf.eventbus.rabbitmq.testing
 
-import dev.slne.surf.eventbus.config.RabbitMQSettings
+import dev.slne.surf.eventbus.config.settings.RabbitMQSettings
 
 /** Points a [RabbitMQSettings] at the Testcontainers broker with test-sized timeouts. */
 fun testConfig(

@@ -32,7 +32,7 @@ class CircuitBreakerTest {
         val (_, cb) = breaker()
 
         assertEquals("ok", cb.withBreaker { "ok" })
-        assertEquals(CircuitState.CLOSED, cb.state)
+        assertEquals(CircuitState.CLOSED, cb.currentState())
     }
 
     @Test
@@ -43,7 +43,7 @@ class CircuitBreakerTest {
             assertFailsWith<Boom> { cb.withBreaker { throw Boom() } }
         }
 
-        assertEquals(CircuitState.CLOSED, cb.state)
+        assertEquals(CircuitState.CLOSED, cb.currentState())
     }
 
     @Test
@@ -56,7 +56,7 @@ class CircuitBreakerTest {
         assertFailsWith<Boom> { cb.withBreaker { throw Boom() } }
         assertFailsWith<Boom> { cb.withBreaker { throw Boom() } }
 
-        assertEquals(CircuitState.CLOSED, cb.state)
+        assertEquals(CircuitState.CLOSED, cb.currentState())
     }
 
     @Test
@@ -67,7 +67,7 @@ class CircuitBreakerTest {
             assertFailsWith<Boom> { cb.withBreaker { throw Boom() } }
         }
 
-        assertEquals(CircuitState.OPEN, cb.state)
+        assertEquals(CircuitState.OPEN, cb.currentState())
     }
 
     @Test
@@ -98,7 +98,7 @@ class CircuitBreakerTest {
         clock.advance(29.seconds)
 
         assertFailsWith<CircuitOpenException> { cb.withBreaker { "never" } }
-        assertEquals(CircuitState.OPEN, cb.state)
+        assertEquals(CircuitState.OPEN, cb.currentState())
     }
 
     @Test
@@ -119,7 +119,7 @@ class CircuitBreakerTest {
 
         cb.withBreaker { "probe" }
 
-        assertEquals(CircuitState.CLOSED, cb.state)
+        assertEquals(CircuitState.CLOSED, cb.currentState())
     }
 
     @Test
@@ -129,7 +129,7 @@ class CircuitBreakerTest {
         clock.advance(30.seconds)
 
         assertFailsWith<Boom> { cb.withBreaker { throw Boom() } }
-        assertEquals(CircuitState.OPEN, cb.state)
+        assertEquals(CircuitState.OPEN, cb.currentState())
 
         clock.advance(29.seconds)
         assertFailsWith<CircuitOpenException> { cb.withBreaker { "never" } }
@@ -146,7 +146,7 @@ class CircuitBreakerTest {
             assertFailsWith<Business> { cb.withBreaker { throw Business() } }
         }
 
-        assertEquals(CircuitState.CLOSED, cb.state)
+        assertEquals(CircuitState.CLOSED, cb.currentState())
     }
 
     @Test
@@ -158,7 +158,7 @@ class CircuitBreakerTest {
         assertFailsWith<Boom> { cb.withBreaker { throw Boom() } }
 
         assertEquals(
-            CircuitState.OPEN, cb.state,
+            CircuitState.OPEN, cb.currentState(),
             "an ignored throwable must not clear the counter the way a success does"
         )
     }
@@ -173,18 +173,18 @@ class CircuitBreakerTest {
             }
         }
 
-        assertEquals(CircuitState.CLOSED, cb.state)
+        assertEquals(CircuitState.CLOSED, cb.currentState())
     }
 
     @Test
     fun `reset returns an open breaker to closed`() = runTest {
         val (_, cb) = breaker(threshold = 1)
         assertFailsWith<Boom> { cb.withBreaker { throw Boom() } }
-        assertEquals(CircuitState.OPEN, cb.state)
+        assertEquals(CircuitState.OPEN, cb.currentState())
 
         cb.reset()
 
-        assertEquals(CircuitState.CLOSED, cb.state)
+        assertEquals(CircuitState.CLOSED, cb.currentState())
         assertEquals("ok", cb.withBreaker { "ok" })
     }
 

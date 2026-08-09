@@ -29,6 +29,6 @@ class PaperEventBusInstance : EventBusPlatformInstance() {
     companion object {
         private const val FALLBACK_NAME = "surf-eventbus-paper"
 
-        fun get(): PaperEventBusInstance = EventBusInstance.instance as PaperEventBusInstance
+        fun get(): PaperEventBusInstance = EventBusInstance.INSTANCE as PaperEventBusInstance
     }
 }

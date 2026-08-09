@@ -4,14 +4,11 @@ import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.ConnectionFactory
 import com.rabbitmq.client.RecoveryDelayHandler
 import dev.slne.surf.api.core.util.logger
-import dev.slne.surf.eventbus.config.RabbitMQSettings
-import dev.slne.surf.eventbus.credentials.RabbitCredentialsProvider
-import dev.slne.surf.eventbus.rabbitmq.connection.RabbitConnectionListener
-import dev.slne.surf.eventbus.rabbitmq.connection.RabbitConnectionProvider
+import dev.slne.surf.eventbus.config.settings.RabbitMQSettings
+import dev.slne.surf.eventbus.credentials.provider.RabbitCredentialsProvider
 import dev.slne.surf.eventbus.rabbitmq.consumer.RabbitConsumer
 import dev.slne.surf.eventbus.rabbitmq.publisher.RabbitPublisherOptions
 import dev.slne.surf.eventbus.rabbitmq.publisher.RabbitPublisherPool
-import dev.slne.surf.eventbus.rabbitmq.connection.ReturnListenerBridge
 import io.netty.channel.Channel
 import io.netty.channel.IoHandlerFactory
 import io.netty.channel.MultiThreadIoEventLoopGroup
@@ -35,7 +32,7 @@ import kotlin.time.Duration.Companion.seconds
 
 class RabbitClient private constructor(
     private val connectionProvider: RabbitConnectionProvider,
-    private val publisherPool: RabbitPublisherPool
+    private val publisherPool: RabbitPublisherPool,
 ) : AutoCloseable {
     private val consumers = ConcurrentLinkedQueue<RabbitConsumer>()
 
@@ -46,213 +43,237 @@ class RabbitClient private constructor(
         private data class NettyTransport(
             val ioHandlerFactory: IoHandlerFactory,
             val channelClass: Class<out Channel>,
-            val name: String
+            val name: String,
         )
 
         private data class ActiveClientInfo(
             val connectionName: String,
             val createdAtMillis: Long,
             val creationThread: String,
-            val creationStackTrace: List<String>
+            val creationStackTrace: List<String>,
         )
 
         private val log = logger()
 
-        private val transport: NettyTransport = when {
-            IoUring.isAvailable() -> NettyTransport(
-                ioHandlerFactory = IoUringIoHandler.newFactory(),
-                channelClass = IoUringSocketChannel::class.java,
-                name = "IoUring"
-            )
+        private val transport: NettyTransport =
+            when {
+                IoUring.isAvailable() ->
+                    NettyTransport(
+                        ioHandlerFactory = IoUringIoHandler.newFactory(),
+                        channelClass = IoUringSocketChannel::class.java,
+                        name = "IoUring",
+                    )
 
-            Epoll.isAvailable() -> NettyTransport(
-                ioHandlerFactory = EpollIoHandler.newFactory(),
-                channelClass = EpollSocketChannel::class.java,
-                name = "Epoll"
-            )
+                Epoll.isAvailable() ->
+                    NettyTransport(
+                        ioHandlerFactory = EpollIoHandler.newFactory(),
+                        channelClass = EpollSocketChannel::class.java,
+                        name = "Epoll",
+                    )
 
-            KQueue.isAvailable() -> NettyTransport(
-                ioHandlerFactory = KQueueIoHandler.newFactory(),
-                channelClass = KQueueSocketChannel::class.java,
-                name = "KQueue"
-            )
+                KQueue.isAvailable() ->
+                    NettyTransport(
+                        ioHandlerFactory = KQueueIoHandler.newFactory(),
+                        channelClass = KQueueSocketChannel::class.java,
+                        name = "KQueue",
+                    )
 
-            else -> NettyTransport(
-                ioHandlerFactory = NioIoHandler.newFactory(),
-                channelClass = NioSocketChannel::class.java,
-                name = "NIO"
-            )
-        }
+                else ->
+                    NettyTransport(
+                        ioHandlerFactory = NioIoHandler.newFactory(),
+                        channelClass = NioSocketChannel::class.java,
+                        name = "NIO",
+                    )
+            }
 
         private val sharedEventLoopGroup: MultiThreadIoEventLoopGroup
         private val sharedConsumerExecutor: ExecutorService
         private val activeClients = ConcurrentHashMap<RabbitClient, ActiveClientInfo>()
 
         init {
-            log.atInfo()
+            log
+                .atInfo()
                 .log("Using ${transport.name} for RabbitMQ client")
 
-            val nettyThreadFactory = Thread.ofPlatform()
-                .name("rabbitmq-netty-thread-", 0)
-                .uncaughtExceptionHandler { thread, throwable ->
-                    log.atSevere()
-                        .withCause(throwable)
-                        .log(
-                            "Uncaught exception in RabbitMQ Netty thread (%s): %s",
-                            thread.name,
-                            throwable
-                        )
-                }
-                .factory()
-
-            sharedEventLoopGroup = MultiThreadIoEventLoopGroup(8, nettyThreadFactory, transport.ioHandlerFactory)
-            sharedConsumerExecutor = Executors.newFixedThreadPool(
-                16,
-                Thread.ofPlatform()
-                    .name("rabbitmq-consumer-thread-", 0)
+            val nettyThreadFactory =
+                Thread
+                    .ofPlatform()
+                    .name("rabbitmq-netty-thread-", 0)
                     .uncaughtExceptionHandler { thread, throwable ->
-                        log.atSevere()
+                        log
+                            .atSevere()
                             .withCause(throwable)
                             .log(
-                                "Uncaught exception in RabbitMQ consumer thread (%s): %s",
+                                "Uncaught exception in RabbitMQ Netty thread (%s): %s",
                                 thread.name,
-                                throwable
+                                throwable,
                             )
-                    }
-                    .daemon()
-                    .factory()
-            )
+                    }.factory()
+
+            sharedEventLoopGroup =
+                MultiThreadIoEventLoopGroup(8, nettyThreadFactory, transport.ioHandlerFactory)
+            sharedConsumerExecutor =
+                Executors.newFixedThreadPool(
+                    16,
+                    Thread
+                        .ofPlatform()
+                        .name("rabbitmq-consumer-thread-", 0)
+                        .uncaughtExceptionHandler { thread, throwable ->
+                            log
+                                .atSevere()
+                                .withCause(throwable)
+                                .log(
+                                    "Uncaught exception in RabbitMQ consumer thread (%s): %s",
+                                    thread.name,
+                                    throwable,
+                                )
+                        }.daemon()
+                        .factory(),
+                )
         }
 
         fun create(
             config: RabbitMQSettings,
             connectionName: String,
-            publisherOptions: RabbitPublisherOptions = RabbitPublisherOptions()
+            publisherOptions: RabbitPublisherOptions = RabbitPublisherOptions(),
         ): RabbitClient {
             // Address and secret come from the credentials seam, so an operator can source the
             // password from somewhere other than the config file.
             val credentials = RabbitCredentialsProvider.credentials(config)
 
-            val connectionFactory = ConnectionFactory().apply {
-                host = credentials.host
-                port = credentials.port
-                username = credentials.username
-                password = credentials.password
-                virtualHost = credentials.vhost
+            val connectionFactory =
+                ConnectionFactory().apply {
+                    host = credentials.host
+                    port = credentials.port
+                    username = credentials.username
+                    password = credentials.password
+                    virtualHost = credentials.vhost
 
-                isAutomaticRecoveryEnabled = true
-                isTopologyRecoveryEnabled = true
+                    isAutomaticRecoveryEnabled = true
+                    isTopologyRecoveryEnabled = true
 
-                /**
-                 * Uses capped exponential backoff with jitter instead of a fixed exponential delay.
-                 *
-                 * The randomized delay prevents all clients from attempting to recover their
-                 * connections, channels, queues, and consumers within the same millisecond window,
-                 * reducing synchronized retry spikes and avoiding a thundering-herd effect.
-                 */
-                recoveryDelayHandler = RecoveryDelayHandler { attempts ->
-                    val exponent = attempts.coerceIn(0, 4)
-                    val maximum = minOf(
-                        30_000L,
-                        2_000L shl exponent
-                    )
+                    /**
+                     * Uses capped exponential backoff with jitter instead of a fixed exponential delay.
+                     *
+                     * The randomized delay prevents all clients from attempting to recover their
+                     * connections, channels, queues, and consumers within the same millisecond window,
+                     * reducing synchronized retry spikes and avoiding a thundering-herd effect.
+                     */
+                    recoveryDelayHandler =
+                        RecoveryDelayHandler { attempts ->
+                            val exponent = attempts.coerceIn(0, 4)
+                            val maximum =
+                                minOf(
+                                    30_000L,
+                                    2_000L shl exponent,
+                                )
 
-                    val minimum = maxOf(
-                        2_000L,
-                        maximum / 2
-                    )
+                            val minimum =
+                                maxOf(
+                                    2_000L,
+                                    maximum / 2,
+                                )
 
-                    ThreadLocalRandom
-                        .current()
-                        .nextLong(
-                            minimum,
-                            maximum + 1
-                        )
+                            ThreadLocalRandom
+                                .current()
+                                .nextLong(
+                                    minimum,
+                                    maximum + 1,
+                                )
+                        }
+
+                    requestedHeartbeat = 60
+                    connectionTimeout =
+                        config.timeout.seconds.inWholeMilliseconds
+                            .toInt()
+
+                    setSharedExecutor(sharedConsumerExecutor)
+                    netty().eventLoopGroup(sharedEventLoopGroup)
+                    netty().bootstrapCustomizer { bootstrap ->
+                        bootstrap.channel(transport.channelClass)
+                    }
                 }
 
-                requestedHeartbeat = 60
-                connectionTimeout = config.timeout.seconds.inWholeMilliseconds.toInt()
+            val connectionProvider =
+                RabbitConnectionProvider(
+                    factory = connectionFactory,
+                    connectionName = connectionName,
+                )
 
-                setSharedExecutor(sharedConsumerExecutor)
-                netty().eventLoopGroup(sharedEventLoopGroup)
-                netty().bootstrapCustomizer { bootstrap ->
-                    bootstrap.channel(transport.channelClass)
-                }
-            }
+            val publisherPool =
+                RabbitPublisherPool(
+                    connectionProvider = connectionProvider,
+                    size = config.publisherPoolSize,
+                    options = publisherOptions,
+                )
 
-            val connectionProvider = RabbitConnectionProvider(
-                factory = connectionFactory,
-                connectionName = connectionName
-            )
+            val client =
+                RabbitClient(
+                    connectionProvider = connectionProvider,
+                    publisherPool = publisherPool,
+                )
 
-            val publisherPool = RabbitPublisherPool(
-                connectionProvider = connectionProvider,
-                size = config.publisherPoolSize,
-                options = publisherOptions
-            )
-
-            val client = RabbitClient(
-                connectionProvider = connectionProvider,
-                publisherPool = publisherPool
-            )
-
-            activeClients[client] = ActiveClientInfo(
-                connectionName = connectionName,
-                createdAtMillis = System.currentTimeMillis(),
-                creationThread = Thread.currentThread().name,
-                creationStackTrace = Throwable().stackTrace
-                    .drop(1)
-                    .take(12)
-                    .map { it.toString() }
-            )
+            activeClients[client] =
+                ActiveClientInfo(
+                    connectionName = connectionName,
+                    createdAtMillis = System.currentTimeMillis(),
+                    creationThread = Thread.currentThread().name,
+                    creationStackTrace =
+                        Throwable()
+                            .stackTrace
+                            .drop(1)
+                            .take(12)
+                            .map { it.toString() },
+                )
 
             return client
         }
 
-        fun healthSnapshot(): List<RabbitClientHealthSnapshot> {
-            return activeClients.entries
+        fun healthSnapshot(): List<RabbitClientHealthSnapshot> =
+            activeClients.entries
                 .map { (client, info) ->
                     RabbitClientHealthSnapshot(
                         connectionName = info.connectionName,
-                        connected = client.connectionProvider.isOpen
+                        connected = client.connectionProvider.isOpen,
                     )
-                }
-                .sortedBy(RabbitClientHealthSnapshot::connectionName)
-        }
+                }.sortedBy(RabbitClientHealthSnapshot::connectionName)
 
         @Blocking
         fun closeSharedResources() {
             val stillActive = activeClients.values.toList()
 
             if (stillActive.isNotEmpty()) {
-                log.atWarning()
+                log
+                    .atWarning()
                     .log(
                         "RabbitMQ shared resources are being shut down while %s RabbitClient(s) are still active. " +
-                                "These plugins probably did not call RabbitMQApi.disconnect(): %s",
+                            "These plugins probably did not call RabbitMQApi.disconnect(): %s",
                         stillActive.size,
-                        stillActive.joinToString { it.connectionName }
+                        stillActive.joinToString { it.connectionName },
                     )
 
-                log.atWarning()
+                log
+                    .atWarning()
                     .log(
                         "Any RabbitMQ connection recovery errors that appear after this message are expected follow-up " +
-                                "errors caused by shutting down shared RabbitMQ resources while RabbitMQ clients are " +
-                                "still active. Fix the plugins listed above by calling RabbitMQApi.disconnect() during shutdown."
+                            "errors caused by shutting down shared RabbitMQ resources while RabbitMQ clients are " +
+                            "still active. Fix the plugins listed above by calling RabbitMQApi.disconnect() during shutdown.",
                     )
 
                 Thread.sleep(Duration.ofSeconds(10))
 
                 stillActive.forEach { info ->
-                    log.atWarning()
+                    log
+                        .atWarning()
                         .log(
                             """
-                                Leaked RabbitClient:
-                                connectionName: ${info.connectionName}
-                                createdAt: ${Instant.ofEpochMilli(info.createdAtMillis)}
-                                creationThread: ${info.creationThread}
-                                creationStackTrace:
-                                ${info.creationStackTrace.joinToString(separator = "\n") { "    at $it" }}
-                                """.trimIndent()
+                            Leaked RabbitClient:
+                            connectionName: ${info.connectionName}
+                            createdAt: ${Instant.ofEpochMilli(info.createdAtMillis)}
+                            creationThread: ${info.creationThread}
+                            creationStackTrace:
+                            ${info.creationStackTrace.joinToString(separator = "\n") { "    at $it" }}
+                            """.trimIndent(),
                         )
                 }
             }
@@ -271,7 +292,7 @@ class RabbitClient private constructor(
         body: ByteArray,
         properties: AMQP.BasicProperties? = null,
         mandatory: Boolean = false,
-        expectedConnectionGeneration: Long? = null
+        expectedConnectionGeneration: Long? = null,
     ) {
         publisherPool.publish(
             exchange = exchange,
@@ -279,7 +300,7 @@ class RabbitClient private constructor(
             body = body,
             properties = properties,
             mandatory = mandatory,
-            expectedConnectionGeneration = expectedConnectionGeneration
+            expectedConnectionGeneration = expectedConnectionGeneration,
         )
     }
 
@@ -289,10 +310,11 @@ class RabbitClient private constructor(
     }
 
     fun newConsumer(name: String): RabbitConsumer {
-        val consumer = RabbitConsumer(
-            connectionProvider = connectionProvider,
-            name = name
-        )
+        val consumer =
+            RabbitConsumer(
+                connectionProvider = connectionProvider,
+                name = name,
+            )
         consumers.add(consumer)
 
         return consumer

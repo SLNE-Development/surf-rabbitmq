@@ -13,12 +13,6 @@ import dev.slne.surf.eventbus.audit.AuditSink
 import dev.slne.surf.eventbus.rabbitmq.audit.RabbitAuditSink
 import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
 import dev.slne.surf.eventbus.rabbitmq.connection.RabbitMQConnection
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitRequestException
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitRequestTimeoutException
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitSerializerNotFoundException
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitConnectionException
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitConnectionLostException
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitServiceUnavailableException
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitResponsePacket
 import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
@@ -51,6 +45,12 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
+import dev.slne.surf.eventbus.rabbitmq.exception.serialization.SurfRabbitSerializerNotFoundException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitServiceUnavailableException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitRequestTimeoutException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitRequestException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitConnectionLostException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitConnectionException
 
 /**
  * Merges the former `ClientRabbitMQConnectionImpl` and `ServerRabbitMQConnectionImpl`.

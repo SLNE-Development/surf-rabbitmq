@@ -42,8 +42,8 @@ class CircuitBreakerRegistryTest {
 
         assertFailsWith<Boom> { punish.withBreaker { throw Boom() } }
 
-        assertEquals(CircuitState.OPEN, punish.state)
-        assertEquals(CircuitState.CLOSED, factions.state)
+        assertEquals(CircuitState.OPEN, punish.currentState())
+        assertEquals(CircuitState.CLOSED, factions.currentState())
         assertEquals("ok", factions.withBreaker { "ok" })
     }
 
@@ -69,8 +69,8 @@ class CircuitBreakerRegistryTest {
 
         reg.resetAll()
 
-        assertEquals(CircuitState.CLOSED, a.state)
-        assertEquals(CircuitState.CLOSED, b.state)
+        assertEquals(CircuitState.CLOSED, a.currentState())
+        assertEquals(CircuitState.CLOSED, b.currentState())
     }
 
     @Test

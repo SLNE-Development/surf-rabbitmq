@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.sync.map
 
 import dev.slne.surf.api.core.util.logger
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
 import dev.slne.surf.eventbus.redis.sync.AbstractStreamSyncStructure
 import dev.slne.surf.eventbus.redis.sync.AbstractSyncStructure
 import dev.slne.surf.eventbus.redis.sync.AbstractSyncStructure.SimpleVersionedSnapshot
@@ -19,20 +19,20 @@ import kotlin.concurrent.write
 import kotlin.time.Duration
 
 class SyncMapImpl<K : Any, V : Any> internal constructor(
-    api: RedisApi,
+    api: SurfRedisApi,
     id: String,
     ttl: Duration,
     private val keyCodec: SyncValueCodec<K>,
     private val valueCodec: SyncValueCodec<V>,
 ) : AbstractStreamSyncStructure<SyncMapChange<K, V>, SimpleVersionedSnapshot<Map<String, String>>>(
-    api,
-    id,
-    ttl,
-    Registry,
-    NAMESPACE,
-    CodecDescriptor.of(keyCodec, valueCodec)
-), SyncMap<K, V> {
-
+        api,
+        id,
+        ttl,
+        Registry,
+        NAMESPACE,
+        CodecDescriptor.of(keyCodec, valueCodec),
+    ),
+    SyncMap<K, V> {
     companion object {
         private val log = logger()
         private const val NAMESPACE = AbstractSyncStructure.NAMESPACE + "map:"
@@ -60,7 +60,7 @@ class SyncMapImpl<K : Any, V : Any> internal constructor(
     private val remoteMap by lazy {
         api.redissonReactive.getMap<String, String>(
             dataKey,
-            StringCodec.INSTANCE
+            StringCodec.INSTANCE,
         )
     }
 
@@ -69,20 +69,28 @@ class SyncMapImpl<K : Any, V : Any> internal constructor(
         trackDisposable(RedisExpirableUtils.refreshContinuously(ttl, remoteMap))
     }
 
-    override fun registerListeners0(): List<Mono<Int>> = listOf(
-        remoteMap.addListener(DeletedObjectListener { requestResync() }),
-        remoteMap.addListener(ExpiredObjectListener { requestResync() })
-    )
+    override fun registerListeners0(): List<Mono<Int>> =
+        listOf(
+            remoteMap.addListener(DeletedObjectListener { requestResync() }),
+            remoteMap.addListener(ExpiredObjectListener { requestResync() }),
+        )
 
     override fun unregisterListener(id: Int): Mono<*> = remoteMap.removeListener(id)
 
     override fun snapshot() = lock.read { Object2ObjectOpenHashMap(map) }
+
     override fun size() = lock.read { map.size }
+
     override fun containsKey(key: K) = lock.read { map.containsKey(key) }
+
     override fun get(key: K): V? = lock.read { map[key] }
+
     override fun isEmpty() = lock.read { map.isEmpty() }
 
-    override fun put(key: K, value: V): V? {
+    override fun put(
+        key: K,
+        value: V,
+    ): V? {
         val previous = lock.write { map.put(key, value) }
 
         putRemote(key, value)
@@ -123,21 +131,24 @@ class SyncMapImpl<K : Any, V : Any> internal constructor(
     }
 
     override fun clear() {
-        val had = lock.write {
-            val h = map.isNotEmpty()
-            map.clear()
-            h
-        }
+        val had =
+            lock.write {
+                val h = map.isNotEmpty()
+                map.clear()
+                h
+            }
         if (!had) return
 
         clearRemote()
         notifyListeners(SyncMapChange.Cleared())
     }
 
-    override fun loadFromRemote0(): Mono<SimpleVersionedSnapshot<Map<String, String>>> = Mono.zip(
-        remoteMap.readAllMap(),
-        versionCounter.get().onErrorReturn(0L)
-    ).map { SimpleVersionedSnapshot.fromTuple(it) }
+    override fun loadFromRemote0(): Mono<SimpleVersionedSnapshot<Map<String, String>>> =
+        Mono
+            .zip(
+                remoteMap.readAllMap(),
+                versionCounter.get().onErrorReturn(0L),
+            ).map { SimpleVersionedSnapshot.fromTuple(it) }
 
     override fun overrideFromRemote(raw: SimpleVersionedSnapshot<Map<String, String>>) {
         val rawValue = raw.value
@@ -154,7 +165,10 @@ class SyncMapImpl<K : Any, V : Any> internal constructor(
         super.overrideFromRemote(raw)
     }
 
-    private fun putRemote(key: K, value: V) {
+    private fun putRemote(
+        key: K,
+        value: V,
+    ) {
         writeToRemote(PUT_SCRIPT, EVENT_PUT, encodeKey(key), encodeValue(value))
     }
 
@@ -171,7 +185,10 @@ class SyncMapImpl<K : Any, V : Any> internal constructor(
         writeToRemote(CLEAR_SCRIPT, EVENT_CLEAR)
     }
 
-    override fun onStreamEvent(type: String, data: StreamEventData) = when (type) {
+    override fun onStreamEvent(
+        type: String,
+        data: StreamEventData,
+    ) = when (type) {
         EVENT_PUT -> onPutEvent(data)
         EVENT_REMOVE -> onRemoveEvent(data)
         EVENT_CLEAR -> onCleared(data)
@@ -187,21 +204,22 @@ class SyncMapImpl<K : Any, V : Any> internal constructor(
         val decodedVal = decodeValue(encodedVal)
         val decodedOldVal = encodedOldVal?.let { decodeValue(it) }
 
-        val ok = lock.write {
-            val cur = map[decodedKey]
+        val ok =
+            lock.write {
+                val cur = map[decodedKey]
 
-            // Updates map entry if preconditions are satisfied
-            if (decodedOldVal == null) {
-                if (cur != null) return@write false
-                map[decodedKey] = decodedVal
-                true
-            } else {
-                if (cur == null) return@write false
-                if (cur != decodedOldVal) return@write false
-                map[decodedKey] = decodedVal
-                true
+                // Updates map entry if preconditions are satisfied
+                if (decodedOldVal == null) {
+                    if (cur != null) return@write false
+                    map[decodedKey] = decodedVal
+                    true
+                } else {
+                    if (cur == null) return@write false
+                    if (cur != decodedOldVal) return@write false
+                    map[decodedKey] = decodedVal
+                    true
+                }
             }
-        }
 
         if (!ok) return requestResync()
         notifyListeners(SyncMapChange.Put(decodedKey, decodedVal, decodedOldVal))
@@ -214,36 +232,41 @@ class SyncMapImpl<K : Any, V : Any> internal constructor(
         val decodedKey = decodeKey(encodedKey)
         val decodedOldVal = decodeValue(encodedOldVal)
 
-        val ok = lock.write {
-            val cur = map[decodedKey] ?: return@write false
-            if (cur != decodedOldVal) return@write false
-            map.remove(decodedKey)
-            true
-        }
+        val ok =
+            lock.write {
+                val cur = map[decodedKey] ?: return@write false
+                if (cur != decodedOldVal) return@write false
+                map.remove(decodedKey)
+                true
+            }
         if (!ok) return requestResync()
         notifyListeners(SyncMapChange.Removed(decodedKey, decodedOldVal))
     }
 
     @Suppress("UNUSED_PARAMETER")
     private fun onCleared(data: StreamEventData) {
-        val had = lock.write {
-            val h = map.isNotEmpty()
-            map.clear()
-            h
-        }
+        val had =
+            lock.write {
+                val h = map.isNotEmpty()
+                map.clear()
+                h
+            }
 
         if (had) notifyListeners(SyncMapChange.Cleared())
     }
 
     private fun encodeKey(key: K): String = keyCodec.encode(key)
+
     private fun decodeKey(raw: String): K = keyCodec.decode(raw)
+
     private fun encodeValue(value: V): String = valueCodec.encode(value)
+
     private fun decodeValue(raw: String): V = valueCodec.decode(raw)
 
     private object CodecDescriptor {
         fun of(
             keyCodec: SyncValueCodec<*>,
-            valueCodec: SyncValueCodec<*>
+            valueCodec: SyncValueCodec<*>,
         ): String? {
             val key = keyCodec.descriptor
             val value = valueCodec.descriptor

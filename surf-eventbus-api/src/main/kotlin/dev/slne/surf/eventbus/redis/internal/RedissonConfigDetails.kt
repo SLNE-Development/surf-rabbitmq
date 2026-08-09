@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.internal
 
 import dev.slne.surf.eventbus.InternalEventBusApi
-import dev.slne.surf.eventbus.config.RedisSettings
+import dev.slne.surf.eventbus.config.settings.RedisSettings
 import kotlinx.serialization.modules.SerializersModule
 import org.redisson.misc.RedisURI
 
@@ -18,5 +18,5 @@ data class RedissonConfigDetails(
     val redisURI: RedisURI,
     val settings: RedisSettings,
     val serializerModule: SerializersModule,
-    val pluginName: String
+    val pluginName: String,
 )

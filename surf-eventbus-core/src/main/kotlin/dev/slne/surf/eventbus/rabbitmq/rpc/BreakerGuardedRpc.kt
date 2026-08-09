@@ -2,14 +2,16 @@ package dev.slne.surf.eventbus.rabbitmq.rpc
 
 import dev.slne.surf.api.core.util.logger
 import dev.slne.surf.eventbus.circuitbreaker.CircuitBreakerRegistry
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitConnectionException
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitServiceUnavailableException
 import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitServiceUnavailableException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitRequestTimeoutException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitRequestException
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitConnectionException
 
 /**
  * Guards outgoing calls with a per-target circuit breaker and a short retry.

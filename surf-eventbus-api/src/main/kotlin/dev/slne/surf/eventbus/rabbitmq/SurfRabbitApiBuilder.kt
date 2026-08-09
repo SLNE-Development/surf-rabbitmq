@@ -2,8 +2,8 @@ package dev.slne.surf.eventbus.rabbitmq
 
 import dev.slne.surf.api.core.environment.EnvironmentVariables
 import dev.slne.surf.eventbus.config.EventBusConfigFiles
-import dev.slne.surf.eventbus.config.RabbitMQSettings
 import dev.slne.surf.eventbus.config.resolveEventBusSettings
+import dev.slne.surf.eventbus.config.settings.RabbitMQSettings
 import dev.slne.surf.eventbus.platform.EventBusInstance
 import dev.slne.surf.eventbus.platform.StandaloneLifecycleHook
 import dev.slne.surf.eventbus.rabbitmq.identity.RabbitIdentity
@@ -24,7 +24,7 @@ import java.nio.file.Path
 @OptIn(ExperimentalSerializationApi::class)
 class SurfRabbitApiBuilder internal constructor(
     private val serviceName: String,
-    private val dataPath: Path
+    private val dataPath: Path,
 ) {
     private var serializers: SerializersModule = EmptySerializersModule()
     private var configOverride: RabbitMQSettings? = null
@@ -34,9 +34,10 @@ class SurfRabbitApiBuilder internal constructor(
     private var environment: EnvironmentVariables = EnvironmentVariables.system
 
     /** Additional serializers for packet, event and RPC payload types. */
-    fun serializers(module: SerializersModule): SurfRabbitApiBuilder = apply {
-        serializers = module
-    }
+    fun serializers(module: SerializersModule): SurfRabbitApiBuilder =
+        apply {
+            serializers = module
+        }
 
     /**
      * Gives this process a stable instance id instead of a random suffix.
@@ -46,19 +47,22 @@ class SurfRabbitApiBuilder internal constructor(
      * configuration (e.g. the Paper server name). A duplicated name fails loudly at connect,
      * because the instance queues are exclusive.
      */
-    fun instanceName(name: String): SurfRabbitApiBuilder = apply {
-        instanceName = name
-    }
+    fun instanceName(name: String): SurfRabbitApiBuilder =
+        apply {
+            instanceName = name
+        }
 
     /** Overrides the global config file name (standalone mode only). */
-    fun configFileName(name: String): SurfRabbitApiBuilder = apply {
-        configFileName = name
-    }
+    fun configFileName(name: String): SurfRabbitApiBuilder =
+        apply {
+            configFileName = name
+        }
 
     /** Supplies settings directly, bypassing file loading. Intended for tests. */
-    fun config(config: RabbitMQSettings): SurfRabbitApiBuilder = apply {
-        configOverride = config
-    }
+    fun config(config: RabbitMQSettings): SurfRabbitApiBuilder =
+        apply {
+            configOverride = config
+        }
 
     /**
      * Resolves the environment layer from [variables] instead of the real process environment.
@@ -67,9 +71,10 @@ class SurfRabbitApiBuilder internal constructor(
      * by actually setting environment variables, which a test cannot do portably and a caller
      * embedding the bus may not want to do at all.
      */
-    fun environment(variables: Map<String, String>): SurfRabbitApiBuilder = apply {
-        environment = EnvironmentVariables.from(variables)
-    }
+    fun environment(variables: Map<String, String>): SurfRabbitApiBuilder =
+        apply {
+            environment = EnvironmentVariables.from(variables)
+        }
 
     /**
      * Uses [hook] instead of looking one up via `ServiceLoader`.
@@ -78,18 +83,20 @@ class SurfRabbitApiBuilder internal constructor(
      * running `@AutoService`'s processor next to this project's own on one `kspTest` task hits
      * a KSP2 analysis-API lifetime bug. Injection removes the reason to run either.
      */
-    fun standaloneHook(hook: StandaloneLifecycleHook): SurfRabbitApiBuilder = apply {
-        standaloneHook = hook
-    }
+    fun standaloneHook(hook: StandaloneLifecycleHook): SurfRabbitApiBuilder =
+        apply {
+            standaloneHook = hook
+        }
 
     fun build(): SurfRabbitApi {
         require(serviceName.isNotBlank()) { "serviceName must not be blank" }
 
         val platform = EventBusInstance.orNull()
         val standalone = platform == null && configOverride == null
-        val hook = standaloneHook
-            ?: StandaloneLifecycleHook.discover()
-            ?: StandaloneLifecycleHook.NoOp
+        val hook =
+            standaloneHook
+                ?: StandaloneLifecycleHook.discover()
+                ?: StandaloneLifecycleHook.NoOp
         val config = configOverride ?: resolveConfig(platform, hook)
 
         return SurfRabbitApi(

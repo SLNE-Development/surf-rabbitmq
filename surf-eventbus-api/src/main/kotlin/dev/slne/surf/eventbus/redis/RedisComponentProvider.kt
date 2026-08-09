@@ -19,13 +19,13 @@ import kotlin.time.Duration
 
 @InternalEventBusApi
 interface RedisComponentProvider {
-
     val eventLoopGroup: MultiThreadIoEventLoopGroup
     val redissonExecutorService: ExecutorService
 
     val clientId: String
 
     fun createRedissonConfig(details: RedissonConfigDetails): Config
+
     fun tryExtractPluginNameFromClass(clazz: Class<*>): String
 
     fun <K : Any, V : Any> createSimpleCache(
@@ -33,7 +33,7 @@ interface RedisComponentProvider {
         serializer: KSerializer<V>,
         ttl: Duration,
         keyToString: (K) -> String,
-        redisApi: RedisApi
+        redisApi: SurfRedisApi,
     ): SimpleRedisCache<K, V>
 
     fun <T : Any> createSimpleSetRedisCache(
@@ -42,35 +42,35 @@ interface RedisComponentProvider {
         ttl: Duration,
         idOf: (T) -> String,
         indexes: RedisSetIndexes<T>,
-        redisApi: RedisApi
+        redisApi: SurfRedisApi,
     ): SimpleSetRedisCache<T>
 
     fun <E : Any> createSyncList(
         id: String,
         elementSerializer: KSerializer<E>,
         ttl: Duration,
-        api: RedisApi
+        api: SurfRedisApi,
     ): SyncList<E>
 
     fun <E : Any> createSyncList(
         id: String,
         codec: RedisCodec<E>,
         ttl: Duration,
-        api: RedisApi
+        api: SurfRedisApi,
     ): SyncList<E>
 
     fun <E : Any> createSyncSet(
         id: String,
         elementSerializer: KSerializer<E>,
         ttl: Duration,
-        api: RedisApi
+        api: SurfRedisApi,
     ): SyncSet<E>
 
     fun <E : Any> createSyncSet(
         id: String,
         codec: RedisCodec<E>,
         ttl: Duration,
-        api: RedisApi
+        api: SurfRedisApi,
     ): SyncSet<E>
 
     fun <T : Any> createSyncValue(
@@ -78,7 +78,7 @@ interface RedisComponentProvider {
         serializer: KSerializer<T>,
         defaultValue: T,
         ttl: Duration,
-        api: RedisApi
+        api: SurfRedisApi,
     ): SyncValue<T>
 
     fun <T : Any> createSyncValue(
@@ -86,7 +86,7 @@ interface RedisComponentProvider {
         codec: RedisCodec<T>,
         defaultValue: T,
         ttl: Duration,
-        api: RedisApi
+        api: SurfRedisApi,
     ): SyncValue<T>
 
     fun <K : Any, V : Any> createSyncMap(
@@ -94,7 +94,7 @@ interface RedisComponentProvider {
         keySerializer: KSerializer<K>,
         valueSerializer: KSerializer<V>,
         ttl: Duration,
-        api: RedisApi
+        api: SurfRedisApi,
     ): SyncMap<K, V>
 
     fun <K : Any, V : Any> createSyncMap(
@@ -102,7 +102,7 @@ interface RedisComponentProvider {
         keyCodec: RedisCodec<K>,
         valueCodec: RedisCodec<V>,
         ttl: Duration,
-        api: RedisApi
+        api: SurfRedisApi,
     ): SyncMap<K, V>
 
     @InternalEventBusApi

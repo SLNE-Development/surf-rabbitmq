@@ -1,9 +1,9 @@
 package dev.slne.surf.eventbus.redis.sync
 
-import kotlinx.coroutines.reactive.awaitFirstOrNull
 import dev.slne.surf.api.core.util.logger
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
 import dev.slne.surf.eventbus.redis.util.*
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import org.jetbrains.annotations.MustBeInvokedByOverriders
 import org.redisson.api.RAtomicLongReactive
 import org.redisson.api.RBucketReactive
@@ -20,12 +20,12 @@ import kotlin.time.Duration
 import kotlin.time.toJavaDuration
 
 abstract class AbstractStreamSyncStructure<L, R : AbstractSyncStructure.VersionedSnapshot>(
-    api: RedisApi,
+    api: SurfRedisApi,
     id: String,
     ttl: Duration,
     scriptRegistry: LuaScriptRegistry,
     structureNamespace: String,
-    private val codecDescriptor: String? = null
+    private val codecDescriptor: String? = null,
 ) : AbstractSyncStructure<L, R>(api, id, ttl) {
     companion object {
         private val log = logger()
@@ -61,7 +61,7 @@ abstract class AbstractStreamSyncStructure<L, R : AbstractSyncStructure.Versione
 
     protected val versionCounter: RAtomicLongReactive by lazy {
         api.redissonReactive.getAtomicLong(
-            versionKey
+            versionKey,
         )
     }
     protected val scriptExecutor = LuaScriptExecutor.getInstance(api, scriptRegistry)
@@ -85,27 +85,31 @@ abstract class AbstractStreamSyncStructure<L, R : AbstractSyncStructure.Versione
                 ttl,
                 stream,
                 versionCounter,
-                *codecDescriptor?.let { arrayOf(codecBucket) }.orEmpty()
-            )
+                *codecDescriptor?.let { arrayOf(codecBucket) }.orEmpty(),
+            ),
         )
     }
 
-    private fun processStreamEvent(type: String, msg: String) {
+    private fun processStreamEvent(
+        type: String,
+        msg: String,
+    ) {
         // Parse "version<DELIM>origin<DELIM>payload" without allocating an ArrayList per message.
         val firstDelim = msg.indexOf(MESSAGE_DELIMITER)
         if (firstDelim < 0) {
-            log.atWarning()
+            log
+                .atWarning()
                 .log(
                     "Malformed stream message for type %s: expected at least 2 parts but got 1: %s",
                     type,
-                    msg
+                    msg,
                 )
             return
         }
         val secondDelim = msg.indexOf(MESSAGE_DELIMITER, firstDelim + 1)
         if (secondDelim < 0) {
             throw IllegalArgumentException(
-                "Malformed stream message for type '$type': missing payload delimiter in message: $msg"
+                "Malformed stream message for type '$type': missing payload delimiter in message: $msg",
             )
         }
 
@@ -113,21 +117,23 @@ abstract class AbstractStreamSyncStructure<L, R : AbstractSyncStructure.Versione
         val version = parseVersion(msg, firstDelim)
 
         if (version == null) {
-            log.atWarning()
+            log
+                .atWarning()
                 .log(
                     "Malformed stream message for type %s: invalid version in message: %s",
                     type,
-                    msg
+                    msg,
                 )
             return
         }
 
         if (origin.isBlank()) {
-            log.atWarning()
+            log
+                .atWarning()
                 .log(
                     "Malformed stream message for type %s: empty origin part in message: %s",
                     type,
-                    msg
+                    msg,
                 )
             return
         }
@@ -140,7 +146,10 @@ abstract class AbstractStreamSyncStructure<L, R : AbstractSyncStructure.Versione
         onStreamEvent(type, StreamEventData(version, origin, payload))
     }
 
-    private fun parseVersion(message: String, end: Int): Long? {
+    private fun parseVersion(
+        message: String,
+        end: Int,
+    ): Long? {
         if (end == 0) return null
         var result = 0L
         for (i in 0 until end) {
@@ -153,104 +162,113 @@ abstract class AbstractStreamSyncStructure<L, R : AbstractSyncStructure.Versione
 
     private fun validateCodecConfiguration(): Mono<Void> {
         val expected = codecDescriptor
-        return codecBucket.get()
+        return codecBucket
+            .get()
             .flatMap { actual ->
                 if (expected == null) {
-                    Mono.error<Void>(
-                        IllegalStateException(
-                            "Cannot use JSON encoding for synchronized structure '$id': " +
-                                    "existing Redis data uses codec '$actual'"
-                        )
-                    ).thenReturn(true)
+                    Mono
+                        .error<Void>(
+                            IllegalStateException(
+                                "Cannot use JSON encoding for synchronized structure '$id': " +
+                                    "existing Redis data uses codec '$actual'",
+                            ),
+                        ).thenReturn(true)
                 } else {
                     validateCodecDescriptor(expected, actual).thenReturn(true)
                 }
-            }
-            .switchIfEmpty(
+            }.switchIfEmpty(
                 if (expected == null) {
                     Mono.just(true)
                 } else {
-                    api.redissonReactive.keys.countExists(dataKey)
+                    api.redissonReactive.keys
+                        .countExists(dataKey)
                         .flatMap { existingDataKeys ->
                             if (existingDataKeys > 0L) {
                                 Mono.error(
                                     IllegalStateException(
                                         "Cannot enable custom codec '$expected' for synchronized structure '$id': " +
-                                                "existing Redis data has no codec metadata"
-                                    )
+                                            "existing Redis data has no codec metadata",
+                                    ),
                                 )
                             } else {
                                 registerCodecDescriptor(codecBucket, expected)
                             }
-                        }
-                        .thenReturn(true)
-                }
-            )
-            .then()
+                        }.thenReturn(true)
+                },
+            ).then()
     }
 
     private fun registerCodecDescriptor(
         bucket: RBucketReactive<String>,
-        descriptor: String
+        descriptor: String,
     ): Mono<Void> {
-        val register = if (ttl > Duration.ZERO) {
-            bucket.setIfAbsent(descriptor, ttl.toJavaDuration())
-        } else {
-            bucket.setIfAbsent(descriptor)
-        }
-        return register.then(bucket.get())
+        val register =
+            if (ttl > Duration.ZERO) {
+                bucket.setIfAbsent(descriptor, ttl.toJavaDuration())
+            } else {
+                bucket.setIfAbsent(descriptor)
+            }
+        return register
+            .then(bucket.get())
             .switchIfEmpty(
                 Mono.error(
-                    IllegalStateException("Codec metadata disappeared while initializing '$id' ($codecKey)")
-                )
-            )
-            .flatMap { actual -> validateCodecDescriptor(descriptor, actual) }
+                    IllegalStateException("Codec metadata disappeared while initializing '$id' ($codecKey)"),
+                ),
+            ).flatMap { actual -> validateCodecDescriptor(descriptor, actual) }
     }
 
-    private fun validateCodecDescriptor(expected: String, actual: String): Mono<Void> {
-        return if (actual == expected) {
+    private fun validateCodecDescriptor(
+        expected: String,
+        actual: String,
+    ): Mono<Void> =
+        if (actual == expected) {
             Mono.empty()
         } else {
             Mono.error(
                 IllegalStateException(
-                    "Codec mismatch for synchronized structure '$id': expected '$expected', found '$actual'"
-                )
+                    "Codec mismatch for synchronized structure '$id': expected '$expected', found '$actual'",
+                ),
             )
         }
-    }
 
-    protected abstract fun onStreamEvent(type: String, data: StreamEventData)
+    protected abstract fun onStreamEvent(
+        type: String,
+        data: StreamEventData,
+    )
 
     protected fun writeToRemote(
         script: String,
         eventType: String,
-        vararg values: String
+        vararg values: String,
     ) {
-        scriptExecutor.execute<Long>(
-            script,
-            RScript.Mode.READ_WRITE,
-            RScript.ReturnType.LONG,
-            scriptKeys,
-            instanceId,
-            msgDelimiterStr,
-            streamMaxLengthStr,
-            STREAM_FIELD_TYPE,
-            STREAM_FIELD_MSG,
-            eventType,
-            *values
-        ).subscribe(
-            { newVersion ->
-                when (newVersion) {
-                    -1L -> requestResync()
-                    0L -> Unit
-                    else -> applyVersion(newVersion)
-                }
-            },
-            { e ->
-                log.atWarning().withCause(e)
-                    .log("Error executing Lua script '$script' for '$id' ($streamKey)")
-            }
-        )
+        scriptExecutor
+            .execute<Long>(
+                script,
+                RScript.Mode.READ_WRITE,
+                RScript.ReturnType.LONG,
+                scriptKeys,
+                instanceId,
+                msgDelimiterStr,
+                streamMaxLengthStr,
+                STREAM_FIELD_TYPE,
+                STREAM_FIELD_MSG,
+                eventType,
+                *values,
+            ).subscribe(
+                { newVersion ->
+                    when (newVersion) {
+                        -1L -> requestResync()
+                        0L -> Unit
+                        else -> applyVersion(newVersion)
+                    }
+                },
+                { e ->
+                    log
+                        .atWarning()
+                        .withCause(e)
+                        .log("Error executing Lua script '$script' for '$id' ($streamKey)")
+                },
+            )
     }
 
     /**
@@ -261,40 +279,47 @@ abstract class AbstractStreamSyncStructure<L, R : AbstractSyncStructure.Versione
     protected fun writeBatchToRemote(
         script: String,
         eventType: String,
-        vararg values: String
+        vararg values: String,
     ) {
-        scriptExecutor.execute<List<Any>>(
-            script,
-            RScript.Mode.READ_WRITE,
-            RScript.ReturnType.LIST,
-            scriptKeys,
-            instanceId,
-            msgDelimiterStr,
-            streamMaxLengthStr,
-            STREAM_FIELD_TYPE,
-            STREAM_FIELD_MSG,
-            eventType,
-            *values
-        ).subscribe(
-            { range ->
-                val first = range.getOrNull(0).asLongOrZero()
-                val last = range.getOrNull(1).asLongOrZero()
-                if (first != 0L || last != 0L) applyVersionRange(first, last)
-            },
-            { e ->
-                log.atWarning().withCause(e)
-                    .log("Error executing batched Lua script '$script' for '$id' ($streamKey)")
-            }
-        )
+        scriptExecutor
+            .execute<List<Any>>(
+                script,
+                RScript.Mode.READ_WRITE,
+                RScript.ReturnType.LIST,
+                scriptKeys,
+                instanceId,
+                msgDelimiterStr,
+                streamMaxLengthStr,
+                STREAM_FIELD_TYPE,
+                STREAM_FIELD_MSG,
+                eventType,
+                *values,
+            ).subscribe(
+                { range ->
+                    val first = range.getOrNull(0).asLongOrZero()
+                    val last = range.getOrNull(1).asLongOrZero()
+                    if (first != 0L || last != 0L) applyVersionRange(first, last)
+                },
+                { e ->
+                    log
+                        .atWarning()
+                        .withCause(e)
+                        .log("Error executing batched Lua script '$script' for '$id' ($streamKey)")
+                },
+            )
     }
 
-    private fun Any?.asLongOrZero(): Long = when (this) {
-        is Number -> toLong()
-        null -> 0L
-        else -> toString().toLongOrNull() ?: 0L
-    }
+    private fun Any?.asLongOrZero(): Long =
+        when (this) {
+            is Number -> toLong()
+            null -> 0L
+            else -> toString().toLongOrNull() ?: 0L
+        }
 
-    private fun applyVersionRange(first: Long, last: Long) {
+    private fun applyVersionRange(
+        first: Long,
+        last: Long,
+    ) {
         if (!bootstrapped.get()) {
             requestResync()
             return
@@ -333,28 +358,30 @@ abstract class AbstractStreamSyncStructure<L, R : AbstractSyncStructure.Versione
         }
     }
 
-    private fun startPolling(): Disposable = stream.pollContinuously(cursorId) {
-        onSuccess { batch ->
-            for ((messageId, fields) in batch) {
-                val type = fields[STREAM_FIELD_TYPE] ?: continue
-                val msg = fields[STREAM_FIELD_MSG] ?: continue
-                try {
-                    processStreamEvent(type, msg)
-                    cursorId.set(messageId)
-                } catch (t: Throwable) {
-                    log.atWarning()
-                        .withCause(t)
-                        .log("Error handling stream event for '$id' ($streamKey)")
-                    requestResync()
+    private fun startPolling(): Disposable =
+        stream.pollContinuously(cursorId) {
+            onSuccess { batch ->
+                for ((messageId, fields) in batch) {
+                    val type = fields[STREAM_FIELD_TYPE] ?: continue
+                    val msg = fields[STREAM_FIELD_MSG] ?: continue
+                    try {
+                        processStreamEvent(type, msg)
+                        cursorId.set(messageId)
+                    } catch (t: Throwable) {
+                        log
+                            .atWarning()
+                            .withCause(t)
+                            .log("Error handling stream event for '$id' ($streamKey)")
+                        requestResync()
+                    }
                 }
             }
-        }
 
-        onFailure { e ->
-            log.atWarning().withCause(e).log("Stream poll failed for '$id' ($streamKey)")
-            requestResync()
+            onFailure { e ->
+                log.atWarning().withCause(e).log("Stream poll failed for '$id' ($streamKey)")
+                requestResync()
+            }
         }
-    }
 
     protected fun requestResync() {
         if (!resyncInFlight.compareAndSet(false, true)) return
@@ -373,7 +400,7 @@ abstract class AbstractStreamSyncStructure<L, R : AbstractSyncStructure.Versione
     protected data class StreamEventData(
         val version: Long,
         val origin: String,
-        private val encodedPayload: String
+        private val encodedPayload: String,
     ) {
         fun payload(index: Int): String {
             require(index >= 0) { "Payload index must not be negative: $index" }
@@ -384,13 +411,21 @@ abstract class AbstractStreamSyncStructure<L, R : AbstractSyncStructure.Versione
                 start = delimiter + 1
             }
             val end = encodedPayload.indexOf(MESSAGE_DELIMITER, start)
-            return if (end < 0) encodedPayload.substring(start) else encodedPayload.substring(start, end)
+            return if (end < 0) {
+                encodedPayload.substring(start)
+            } else {
+                encodedPayload.substring(
+                    start,
+                    end,
+                )
+            }
         }
 
-        fun payloadOrNull(index: Int): String? = try {
-            payload(index)
-        } catch (_: IndexOutOfBoundsException) {
-            null
-        }
+        fun payloadOrNull(index: Int): String? =
+            try {
+                payload(index)
+            } catch (_: IndexOutOfBoundsException) {
+                null
+            }
     }
 }

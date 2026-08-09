@@ -6,11 +6,12 @@ import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
 
 @InternalEventBusApi
 interface RabbitRpcServiceFactory {
-
     fun createRpcService(api: SurfRabbitApi): RabbitRpcService
 
     @InternalEventBusApi
-    companion object {
-        val instance = requiredService<RabbitRpcServiceFactory>()
+    companion object : RabbitRpcServiceFactory by instance {
+        val INSTANCE get() = instance
     }
 }
+
+private val instance = requiredService<RabbitRpcServiceFactory>()

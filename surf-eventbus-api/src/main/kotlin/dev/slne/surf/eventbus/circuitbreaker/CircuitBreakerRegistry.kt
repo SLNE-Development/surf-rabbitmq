@@ -21,26 +21,29 @@ class CircuitBreakerRegistry(
     private val failureThreshold: Int = 5,
     private val openDuration: Duration = 30.seconds,
     private val clock: Clock = Clock.systemUTC(),
-    private val isFailure: (Throwable) -> Boolean = { true }
+    private val isFailure: (Throwable) -> Boolean = { true },
 ) {
     private val breakers = ConcurrentHashMap<String, CircuitBreaker>()
 
     /** Returns the breaker for [name], creating it on first call. */
-    fun forName(name: String): CircuitBreaker = breakers.computeIfAbsent(name) {
-        CircuitBreaker(
-            name = it,
-            failureThreshold = failureThreshold,
-            openDuration = openDuration,
-            clock = clock,
-            isFailure = isFailure
-        )
-    }
+    fun forName(name: String): CircuitBreaker =
+        breakers.computeIfAbsent(name) {
+            CircuitBreaker(
+                name = it,
+                failureThreshold = failureThreshold,
+                openDuration = openDuration,
+                clock = clock,
+                isFailure = isFailure,
+            )
+        }
 
     /** The names of all breakers created so far. */
     fun names(): Set<String> = breakers.keys.toSet()
 
     /** Closes every breaker and clears its failure counter. */
-    fun resetAll() {
-        breakers.values.forEach(CircuitBreaker::reset)
+    suspend fun resetAll() {
+        breakers.values.forEach {
+            it.reset()
+        }
     }
 }

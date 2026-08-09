@@ -4,14 +4,14 @@
 > plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Do **not** use
 > `superpowers:subagent-driven-development` — this repository's owner has forbidden subagents.
 
-**Goal:** Aus zwei zusammengeschobenen Projekten eine API machen: ein Vertragsmodell statt zwei,
-ein KSP-Prozessor statt zwei, ein Opt-in-Marker statt drei, Pakete, die nach ihrer Sache heißen —
-und die offenen Tasks 4, 5 und 6 aus Plan 4 abschließen.
+**Goal:** Aus zwei zusammengeschobenen Projekten eine API machen: ein Vertragsmodell statt zwei, ein
+KSP-Prozessor statt zwei, ein Opt-in-Marker statt drei, Pakete, die nach ihrer Sache heißen — und
+die offenen Tasks 4, 5 und 6 aus Plan 4 abschließen.
 
 **Architecture:** `@QueryService` und `@RpcService` teilen sich ein transportneutrales
 Vertragsmodell in `dev.slne.surf.eventbus.service`; jeder Transport erbt es und ergänzt nur seine
 eigene Art, eine Client-Instanz zu bauen. Ein KSP-Prozessor liest beide Annotationen mit einer
-Modellfabrik und schreibt über zwei Backends. Was ein Transport hat und der andere nicht — 
+Modellfabrik und schreibt über zwei Backends. Was ein Transport hat und der andere nicht —
 Credentials, Konfigurationsschichten, Plattform-Instanz, Ausnahmewurzel — wird für beide gebaut.
 
 **Tech Stack:** Kotlin 2.x, KSP2, KotlinPoet 2.3.0, kotlinx.serialization, Gradle mit
@@ -27,13 +27,13 @@ Testcontainers (RabbitMQ, Redis), Kotlin ABI Validation (`updateLegacyAbi`/`chec
   der Status ist „nicht verifiziert".
 - **Kein fremdes Repository wird verändert** — insbesondere nicht surf-microservice, dessen
   `RabbitModule`-Enumeration veraltet ist, und nicht surf-database-r2dbc.
-- **Version 2.0 ist nicht wire- und nicht ABI-kompatibel zu 1.6.x.** Der Paketumbau kostet
-  deshalb nichts, was nicht schon bezahlt ist — aber jeder ABI-Dump wird nach dem Umbau neu
-  erzeugt und gelesen, nicht blind überschrieben.
+- **Version 2.0 ist nicht wire- und nicht ABI-kompatibel zu 1.6.x.** Der Paketumbau kostet deshalb
+  nichts, was nicht schon bezahlt ist — aber jeder ABI-Dump wird nach dem Umbau neu erzeugt und
+  gelesen, nicht blind überschrieben.
 - **Ein Opt-in-Marker:** `dev.slne.surf.eventbus.InternalEventBusApi`. `InternalRabbitMQ` und
   `InternalRedisAPI` verschwinden restlos.
-- **Umgebungspräfixe bleiben** `SURF_EVENTBUS_RABBITMQ_*` und `SURF_EVENTBUS_REDIS_*`. Eine
-  gesetzte alte Variable ist ein Startfehler und bleibt es.
+- **Umgebungspräfixe bleiben** `SURF_EVENTBUS_RABBITMQ_*` und `SURF_EVENTBUS_REDIS_*`. Eine gesetzte
+  alte Variable ist ein Startfehler und bleibt es.
 - **Nach jeder Task muss `./gradlew build -PskipIntegration` grün sein**, bevor committet wird.
 - **`surf-eventbus-test` existiert nicht mehr.** Alles Testbare liegt in
   `surf-eventbus-api/src/test`, `surf-eventbus-core/src/test` und `surf-eventbus-ksp/src/test`.
@@ -44,46 +44,46 @@ Testcontainers (RabbitMQ, Redis), Kotlin ABI Validation (`updateLegacyAbi`/`chec
 
 **Neu:**
 
-| Datei | Verantwortung |
-|---|---|
-| `…-api/…/service/ServiceDescriptor.kt` | gemeinsamer Descriptor-Obertyp |
-| `…-api/…/service/ServiceCallable.kt` | eine Methode eines Vertrags |
-| `…-api/…/service/ServiceParameter.kt` | ein Parameter, mit `isOptional` und Annotationen |
-| `…-api/…/service/ServiceType.kt` | `KType` plus Typ-Annotationen |
-| `…-api/…/service/ServiceInvoker.kt` | der generierte Aufrufhandle |
-| `…-api/…/service/ServiceDefaults.kt` | `ServiceCallableDefault`, `ServiceParameterDefault`, `ServiceTypeDefault`, `ServiceTypeKrpc` |
-| `…-api/…/platform/EventBusInstance.kt` | die eine Plattform-SPI |
-| `…-api/…/platform/StandaloneLifecycleHook.kt` | Bus-weit statt Rabbit-only |
-| `…-api/…/exception/SurfEventBusException.kt` | Ausnahmewurzel |
-| `…-api/…/credentials/CredentialsProvider.kt` | gemeinsamer Obertyp der zwei Nahtstellen |
-| `…-api/…/credentials/RabbitCredentialsProvider.kt` | Rabbit-Zugangsdaten als Naht |
-| `…-core/…/redis/RedisRuntime.kt` | Eventloop, Scheduler, Executor — aus `RedisInstance` gelöst |
-| `…-core/…/rabbitmq/audit/AuditReports.kt` | die fünf Meldepfade an einem Ort |
-| `…-core/…/rabbitmq/credentials/RabbitCredentialsProviderImpl.kt` | Default aus der Konfiguration |
-| `…-ksp/…/ksp/ServiceProcessor.kt` | ein Lauf über beide Annotationen |
-| `…-ksp/…/ksp/model/ServiceModelFactory.kt` | gemeinsames Einlesen, zwei Regelwerke |
-| `…-ksp/…/ksp/codegen/*Codegen.kt` | geteilte Emitter plus zwei Backends |
-| `…-api/src/test/…/structure/PackageLayoutTest.kt` | verbietet `common`, `rabbitmq.api`, kebab-case |
-| `…-api/src/test/…/structure/InternalNotInAbiTest.kt` | ersetzt `AggregateCompletenessTest` |
-| `…-core/src/test/…/testing/RequiresDocker.kt` | einmal statt zweimal |
-| `…-platform-*/…/{Paper,Velocity,Standalone}EventBusInstance.kt` | eine Instanz je Plattform, beide Transporte |
-| `docs/rollout-2.0.md` | Rollout-Notiz |
+| Datei                                                            | Verantwortung                                                                                |
+|------------------------------------------------------------------|----------------------------------------------------------------------------------------------|
+| `…-api/…/service/ServiceDescriptor.kt`                           | gemeinsamer Descriptor-Obertyp                                                               |
+| `…-api/…/service/ServiceCallable.kt`                             | eine Methode eines Vertrags                                                                  |
+| `…-api/…/service/ServiceParameter.kt`                            | ein Parameter, mit `isOptional` und Annotationen                                             |
+| `…-api/…/service/ServiceType.kt`                                 | `KType` plus Typ-Annotationen                                                                |
+| `…-api/…/service/ServiceInvoker.kt`                              | der generierte Aufrufhandle                                                                  |
+| `…-api/…/service/ServiceDefaults.kt`                             | `ServiceCallableDefault`, `ServiceParameterDefault`, `ServiceTypeDefault`, `ServiceTypeKrpc` |
+| `…-api/…/platform/EventBusInstance.kt`                           | die eine Plattform-SPI                                                                       |
+| `…-api/…/platform/StandaloneLifecycleHook.kt`                    | Bus-weit statt Rabbit-only                                                                   |
+| `…-api/…/exception/SurfEventBusException.kt`                     | Ausnahmewurzel                                                                               |
+| `…-api/…/credentials/CredentialsProvider.kt`                     | gemeinsamer Obertyp der zwei Nahtstellen                                                     |
+| `…-api/…/credentials/RabbitCredentialsProvider.kt`               | Rabbit-Zugangsdaten als Naht                                                                 |
+| `…-core/…/redis/RedisRuntime.kt`                                 | Eventloop, Scheduler, Executor — aus `RedisInstance` gelöst                                  |
+| `…-core/…/rabbitmq/audit/AuditReports.kt`                        | die fünf Meldepfade an einem Ort                                                             |
+| `…-core/…/rabbitmq/credentials/RabbitCredentialsProviderImpl.kt` | Default aus der Konfiguration                                                                |
+| `…-ksp/…/ksp/ServiceProcessor.kt`                                | ein Lauf über beide Annotationen                                                             |
+| `…-ksp/…/ksp/model/ServiceModelFactory.kt`                       | gemeinsames Einlesen, zwei Regelwerke                                                        |
+| `…-ksp/…/ksp/codegen/*Codegen.kt`                                | geteilte Emitter plus zwei Backends                                                          |
+| `…-api/src/test/…/structure/PackageLayoutTest.kt`                | verbietet `common`, `rabbitmq.api`, kebab-case                                               |
+| `…-api/src/test/…/structure/InternalNotInAbiTest.kt`             | ersetzt `AggregateCompletenessTest`                                                          |
+| `…-core/src/test/…/testing/RequiresDocker.kt`                    | einmal statt zweimal                                                                         |
+| `…-platform-*/…/{Paper,Velocity,Standalone}EventBusInstance.kt`  | eine Instanz je Plattform, beide Transporte                                                  |
+| `docs/rollout-2.0.md`                                            | Rollout-Notiz                                                                                |
 
 **Gelöscht:**
 
-| Typ | Grund |
-|---|---|
-| `query/callable/**`, `query/descriptor/**` | in `service/` aufgegangen |
-| `rabbitmq/api/rpc/{callable,invoker,type}/**`, `rpc/descriptor/RabbitRpcServiceDescriptor.kt` | dito |
-| `core/query/serialization/{QueryParametersSerializer,QuerySerializerCache}.kt` | dito |
-| `rabbitmq/api/InternalRabbitMQ.kt`, `redis/util/InternalRedisAPI.kt` | ein Marker |
-| `ksp/processor/query/**`, `rabbitmq/processor/**` | ein Prozessor |
-| `PluginRabbitMQConfig.kt` | in `RabbitMQConfig` aufgegangen |
-| `rabbitmq/api/internal/RabbitMQInstance.kt`, `redis/RedisInstance.kt` | `EventBusInstance` |
-| `redis/testing/FakeRedisInstance.kt` | tot, referenziert nichts und wird nicht referenziert |
-| `AggregateCompletenessTest.kt` | kann nicht fehlschlagen |
-| `redis/testing/RequiresDocker.kt` | Dublette |
-| `rabbitmq/StandaloneRabbitMqInstance.kt` (in core) | zieht ins Standalone-Plattform-Modul |
+| Typ                                                                                           | Grund                                                |
+|-----------------------------------------------------------------------------------------------|------------------------------------------------------|
+| `query/callable/**`, `query/descriptor/**`                                                    | in `service/` aufgegangen                            |
+| `rabbitmq/api/rpc/{callable,invoker,type}/**`, `rpc/descriptor/RabbitRpcServiceDescriptor.kt` | dito                                                 |
+| `core/query/serialization/{QueryParametersSerializer,QuerySerializerCache}.kt`                | dito                                                 |
+| `rabbitmq/api/InternalRabbitMQ.kt`, `redis/util/InternalRedisAPI.kt`                          | ein Marker                                           |
+| `ksp/processor/query/**`, `rabbitmq/processor/**`                                             | ein Prozessor                                        |
+| `PluginRabbitMQConfig.kt`                                                                     | in `RabbitMQConfig` aufgegangen                      |
+| `rabbitmq/api/internal/RabbitMQInstance.kt`, `redis/RedisInstance.kt`                         | `EventBusInstance`                                   |
+| `redis/testing/FakeRedisInstance.kt`                                                          | tot, referenziert nichts und wird nicht referenziert |
+| `AggregateCompletenessTest.kt`                                                                | kann nicht fehlschlagen                              |
+| `redis/testing/RequiresDocker.kt`                                                             | Dublette                                             |
+| `rabbitmq/StandaloneRabbitMqInstance.kt` (in core)                                            | zieht ins Standalone-Plattform-Modul                 |
 
 ---
 
@@ -93,12 +93,14 @@ Zuerst, weil dieser Schritt jede Datei berührt, die einen der drei Marker nennt
 Umbenennungen wäre dieselbe Datei zweimal dran.
 
 **Files:**
+
 - Modify: `…-api/…/InternalEventBusApi.kt`
 - Delete: `…-api/…/rabbitmq/api/InternalRabbitMQ.kt`, `…-api/…/redis/util/InternalRedisAPI.kt`
 - Modify: `build.gradle.kts:28-34`, `surf-eventbus-api/build.gradle.kts:15-24`
 - Modify: jede Datei, die `InternalRabbitMQ` oder `InternalRedisAPI` importiert oder nennt
 
 **Interfaces:**
+
 - Produces: `@InternalEventBusApi` mit `@InternalAPIMarker`, `RequiresOptIn.Level.ERROR` und den
   sechs Zielen, die `InternalRabbitMQ` heute hat.
 
@@ -144,10 +146,12 @@ git rm surf-eventbus-api/src/main/kotlin/dev/slne/surf/eventbus/redis/util/Inter
 Dann in jeder Kotlin-Datei unter `surf-eventbus-api/src`, `surf-eventbus-core/src`,
 `surf-eventbus-ksp/src` und `surf-eventbus-platform/*/src`:
 
-- `import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ` → `import dev.slne.surf.eventbus.InternalEventBusApi`
+- `import dev.slne.surf.eventbus.rabbitmq.api.InternalRabbitMQ` →
+  `import dev.slne.surf.eventbus.InternalEventBusApi`
 - `import dev.slne.surf.eventbus.redis.util.InternalRedisAPI` → dito
 - `@InternalRabbitMQ` / `@InternalRedisAPI` → `@InternalEventBusApi`
-- `@OptIn(InternalRabbitMQ::class)` / `@OptIn(InternalRedisAPI::class)` → `@OptIn(InternalEventBusApi::class)`
+- `@OptIn(InternalRabbitMQ::class)` / `@OptIn(InternalRedisAPI::class)` →
+  `@OptIn(InternalEventBusApi::class)`
 
 Doppelte Importe und doppelte `@OptIn`-Argumente in derselben Datei danach entfernen.
 
@@ -184,7 +188,8 @@ kotlin {
 
 - [ ] **Step 4: Prüfen, dass keiner der alten Namen überlebt**
 
-Run: `grep -rn "InternalRabbitMQ\|InternalRedisAPI" --include=*.kt --include=*.kts . | grep -v /build/`
+Run:
+`grep -rn "InternalRabbitMQ\|InternalRedisAPI" --include=*.kt --include=*.kts . | grep -v /build/`
 Expected: keine Ausgabe.
 
 Run: `./gradlew build -PskipIntegration`
@@ -196,8 +201,8 @@ Run: `./gradlew updateLegacyAbi`
 
 Dann `git diff surf-eventbus-api/api/surf-eventbus-api.api` lesen. Erwartet werden **nur**
 Zeilen, die vorher durch `InternalRabbitMQ`/`InternalRedisAPI` gefiltert waren und jetzt durch
-`InternalEventBusApi` gefiltert sind — also im Saldo nichts. Taucht eine bisher interne Klasse
-neu im Dump auf, fehlt ihr die Annotation; nachtragen statt den Dump hinnehmen.
+`InternalEventBusApi` gefiltert sind — also im Saldo nichts. Taucht eine bisher interne Klasse neu
+im Dump auf, fehlt ihr die Annotation; nachtragen statt den Dump hinnehmen.
 
 Run: `./gradlew checkLegacyAbi`
 Expected: SUCCESS.
@@ -218,11 +223,14 @@ in three times to reach one internal surface."
 ## Task 2: Ein Vertragsmodell für Query und RPC
 
 **Files:**
-- Create: `…-api/…/service/{ServiceDescriptor,ServiceCallable,ServiceParameter,ServiceType,ServiceInvoker,ServiceDefaults}.kt`
+
+- Create:
+  `…-api/…/service/{ServiceDescriptor,ServiceCallable,ServiceParameter,ServiceType,ServiceInvoker,ServiceDefaults}.kt`
 - Create: `…-api/src/test/…/service/ServiceDefaultsTest.kt`
 - Modify: `…-api/…/query/descriptor/QueryServiceDescriptor.kt`,
   `…-api/…/rabbitmq/api/rpc/descriptor/RabbitRpcServiceDescriptor.kt`
-- Delete: `…-api/…/query/callable/{QueryCallable,QueryCallableDefault,QueryInvoker,QueryParameter,QueryParameterDefault}.kt`
+- Delete:
+  `…-api/…/query/callable/{QueryCallable,QueryCallableDefault,QueryInvoker,QueryParameter,QueryParameterDefault}.kt`
 - Delete: `…-api/…/rabbitmq/api/rpc/callable/{RabbitRpcCallable,RabbitRpcCallableDefault}.kt`,
   `…/rpc/invoker/RabbitRpcInvoker.kt`,
   `…/rpc/type/{RabbitRpcParameter,RabbitRpcParameterDefault,RabbitRpcType,RabbitRpcTypeDefault,RabbitRpcTypeKrpc}.kt`
@@ -240,21 +248,32 @@ in three times to reach one internal surface."
   `…-ksp/…/ksp/processor/query/codegen/QueryDescriptorCodegen.kt`
 
 **Interfaces:**
+
 - Consumes: `@InternalEventBusApi` aus Task 1.
 - Produces:
-  - `interface ServiceDescriptor<Service : Any> { val simpleName: String; val fqName: String; val callables: Map<String, ServiceCallable<Service>>; fun getCallable(name: String): ServiceCallable<Service>? }`
-  - `interface ServiceCallable<Service : Any> { val name: String; val returnType: ServiceType; val invoker: ServiceInvoker<Service>; val parameters: Array<out ServiceParameter>; val fireAndForget: Boolean }`
-  - `interface ServiceParameter { val name: String; val type: ServiceType; val isOptional: Boolean; val annotations: List<Annotation> }`
-  - `interface ServiceType { val kType: KType; val annotations: List<Annotation> }`
-  - `fun interface ServiceInvoker<Service : Any> { suspend fun call(service: Service, arguments: Array<Any?>): Any? }`
-  - `class ServiceCallableDefault<Service : Any>(name, returnType, invoker, parameters, fireAndForget = false)`
-  - `class ServiceParameterDefault(name, type, isOptional, annotations)`
-  - `class ServiceTypeDefault(kType, annotations)`
-  - `class ServiceTypeKrpc(kType, annotations, serializers: Map<KClass<out KSerializer<*>>, KSerializer<*>>)`
-  - `interface QueryServiceDescriptor<Service : Any> : ServiceDescriptor<Service> { val timeoutMillis: Long; fun createInstance(instanceId: String, json: Json, transport: QueryTransport): Service }`
-  - `interface RpcServiceDescriptor<Service : Any> : ServiceDescriptor<Service> { val defaultService: String; fun createInstance(serviceId: Long, api: SurfRabbitApi, target: RabbitTarget): Service }`
-  - `class ParametersSerializer(callable: ServiceCallable<*>, module: SerializersModule) : KSerializer<Array<Any?>>`
-  - `class ServiceSerializerCache { fun getParameterSerializer(callable, module): ParametersSerializer; fun getReturnTypeSerializer(callable, module): KSerializer<Any?> }`
+    -
+    `interface ServiceDescriptor<Service : Any> { val simpleName: String; val fqName: String; val callables: Map<String, ServiceCallable<Service>>; fun getCallable(name: String): ServiceCallable<Service>? }`
+    -
+    `interface ServiceCallable<Service : Any> { val name: String; val returnType: ServiceType; val invoker: ServiceInvoker<Service>; val parameters: Array<out ServiceParameter>; val fireAndForget: Boolean }`
+    -
+    `interface ServiceParameter { val name: String; val type: ServiceType; val isOptional: Boolean; val annotations: List<Annotation> }`
+    - `interface ServiceType { val kType: KType; val annotations: List<Annotation> }`
+    -
+    `fun interface ServiceInvoker<Service : Any> { suspend fun call(service: Service, arguments: Array<Any?>): Any? }`
+    -
+    `class ServiceCallableDefault<Service : Any>(name, returnType, invoker, parameters, fireAndForget = false)`
+    - `class ServiceParameterDefault(name, type, isOptional, annotations)`
+    - `class ServiceTypeDefault(kType, annotations)`
+    -
+    `class ServiceTypeKrpc(kType, annotations, serializers: Map<KClass<out KSerializer<*>>, KSerializer<*>>)`
+    -
+    `interface QueryServiceDescriptor<Service : Any> : ServiceDescriptor<Service> { val timeoutMillis: Long; fun createInstance(instanceId: String, json: Json, transport: QueryTransport): Service }`
+    -
+    `interface RpcServiceDescriptor<Service : Any> : ServiceDescriptor<Service> { val defaultService: String; fun createInstance(serviceId: Long, api: SurfRabbitApi, target: RabbitTarget): Service }`
+    -
+    `class ParametersSerializer(callable: ServiceCallable<*>, module: SerializersModule) : KSerializer<Array<Any?>>`
+    -
+    `class ServiceSerializerCache { fun getParameterSerializer(callable, module): ParametersSerializer; fun getReturnTypeSerializer(callable, module): KSerializer<Any?> }`
 
 - [ ] **Step 1: Test für die Standardimplementierungen schreiben**
 
@@ -487,8 +506,7 @@ Expected: PASS, alle drei.
 
 - [ ] **Step 5: Die zwei Descriptor-Untertypen umschreiben**
 
-`…-api/…/query/descriptor/QueryServiceDescriptor.kt` — `callables` und `getCallable` erbt es
-jetzt:
+`…-api/…/query/descriptor/QueryServiceDescriptor.kt` — `callables` und `getCallable` erbt es jetzt:
 
 ```kotlin
 package dev.slne.surf.eventbus.query.descriptor
@@ -549,17 +567,17 @@ git rm -r surf-eventbus-api/src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/api/
 
 Ersetzungen in jeder verbleibenden Datei:
 
-| Alt | Neu |
-|---|---|
-| `QueryCallable<S>`, `RabbitRpcCallable<S>` | `ServiceCallable<S>` |
-| `QueryCallableDefault`, `RabbitRpcCallableDefault` | `ServiceCallableDefault` |
-| `QueryParameter`, `RabbitRpcParameter` | `ServiceParameter` |
+| Alt                                                  | Neu                       |
+|------------------------------------------------------|---------------------------|
+| `QueryCallable<S>`, `RabbitRpcCallable<S>`           | `ServiceCallable<S>`      |
+| `QueryCallableDefault`, `RabbitRpcCallableDefault`   | `ServiceCallableDefault`  |
+| `QueryParameter`, `RabbitRpcParameter`               | `ServiceParameter`        |
 | `QueryParameterDefault`, `RabbitRpcParameterDefault` | `ServiceParameterDefault` |
-| `QueryInvoker<S>`, `RabbitRpcInvoker<S>` | `ServiceInvoker<S>` |
-| `RabbitRpcType` | `ServiceType` |
-| `RabbitRpcTypeDefault` | `ServiceTypeDefault` |
-| `RabbitRpcTypeKrpc` | `ServiceTypeKrpc` |
-| `RabbitRpcServiceDescriptor<S>` | `RpcServiceDescriptor<S>` |
+| `QueryInvoker<S>`, `RabbitRpcInvoker<S>`             | `ServiceInvoker<S>`       |
+| `RabbitRpcType`                                      | `ServiceType`             |
+| `RabbitRpcTypeDefault`                               | `ServiceTypeDefault`      |
+| `RabbitRpcTypeKrpc`                                  | `ServiceTypeKrpc`         |
+| `RabbitRpcServiceDescriptor<S>`                      | `RpcServiceDescriptor<S>` |
 
 Zwei Stellen brauchen mehr als eine Umbenennung, weil der Query-Pfad bisher rohe `KType`
 benutzte:
@@ -576,8 +594,8 @@ Expected: SUCCESS. Fehler hier sind übersehene Aufrufstellen; sie werden benann
 
 - [ ] **Step 8: Die zwei Serializer zu einem machen**
 
-`…-core/src/main/kotlin/dev/slne/surf/eventbus/service/serialization/ParametersSerializer.kt` —
-die RPC-Fassung gewinnt, weil sie eine Obermenge ist. Sie entsteht durch Umbenennen von
+`…-core/src/main/kotlin/dev/slne/surf/eventbus/service/serialization/ParametersSerializer.kt` — die
+RPC-Fassung gewinnt, weil sie eine Obermenge ist. Sie entsteht durch Umbenennen von
 `CallableParametersSerializer` und Ersetzen des Typparameters:
 
 ```kotlin
@@ -607,7 +625,8 @@ class ParametersSerializer(
 ```
 
 Der Rumpf wird 1:1 aus `CallableParametersSerializer` übernommen — einschließlich
-`module.buildContextual(...)`, `isOptional` im Descriptor und der `!seen[i] && !parameter.isOptional`-Prüfung.
+`module.buildContextual(...)`, `isOptional` im Descriptor und der
+`!seen[i] && !parameter.isOptional`-Prüfung.
 `RpcSerializationUtils.buildContextual` zieht mit nach `service/serialization/`.
 
 `…/service/serialization/ServiceSerializerCache.kt`:
@@ -648,9 +667,9 @@ git rm surf-eventbus-core/src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/common
 
 - [ ] **Step 9: Die Namen im Codegen nachziehen**
 
-Damit der Build wieder durchläuft, zeigen die beiden `ClassNames`-Objekte im KSP-Modul auf die
-neuen Typen. Das ist Zwischenarbeit — Task 3 legt beide Objekte ohnehin zusammen —, aber ohne
-sie kompiliert nichts:
+Damit der Build wieder durchläuft, zeigen die beiden `ClassNames`-Objekte im KSP-Modul auf die neuen
+Typen. Das ist Zwischenarbeit — Task 3 legt beide Objekte ohnehin zusammen —, aber ohne sie
+kompiliert nichts:
 
 `…-ksp/…/ksp/processor/query/Names.kt`:
 
@@ -702,22 +721,29 @@ type annotations along the way, so @Contextual now reaches them."
 ## Task 3: Ein KSP-Prozessor
 
 **Files:**
+
 - Create: `…-ksp/…/ksp/{ServiceProcessor,ServiceProcessorProvider}.kt`
-- Create: `…-ksp/…/ksp/model/{ServiceModel,ServiceFunctionModel,ServiceParameterModel,ServiceModelFactory,ContractKind}.kt`
-- Create: `…-ksp/…/ksp/codegen/{Names,CallableCodegen,TypeCodegen,InvokerCodegen,QueryDescriptorCodegen,QueryClientCodegen,RpcDescriptorCodegen,RpcClientCodegen,RpcAnnotationCodegen}.kt`
+- Create:
+  `…-ksp/…/ksp/model/{ServiceModel,ServiceFunctionModel,ServiceParameterModel,ServiceModelFactory,ContractKind}.kt`
+- Create:
+  `…-ksp/…/ksp/codegen/{Names,CallableCodegen,TypeCodegen,InvokerCodegen,QueryDescriptorCodegen,QueryClientCodegen,RpcDescriptorCodegen,RpcClientCodegen,RpcAnnotationCodegen}.kt`
 - Delete: `…-ksp/…/ksp/processor/**`, `…-ksp/…/rabbitmq/**`
-- Modify: `…-ksp/src/main/resources/META-INF/services/com.google.devtools.ksp.processing.SymbolProcessorProvider`
+- Modify:
+  `…-ksp/src/main/resources/META-INF/services/com.google.devtools.ksp.processing.SymbolProcessorProvider`
 - Modify: `…-ksp/src/test/…/CompilationSupport.kt`
 - Create: `…-ksp/src/test/…/OneProcessorTest.kt`
 
 **Interfaces:**
+
 - Consumes: das Vertragsmodell aus Task 2.
 - Produces:
-  - `enum class ContractKind { QUERY, RPC }`
-  - `class ServiceModel(kind, serviceClassName, descriptorClassName, clientClassName, packageName, simpleName, fqName, defaultService, timeoutMillis, functions, containingFile)`
-  - `class ServiceModelFactory(logger: KSPLogger) { fun create(declaration: KSClassDeclaration, kind: ContractKind): ServiceModel? }`
-  - `class ServiceProcessorProvider : SymbolProcessorProvider` — der **einzige** Eintrag in
-    `META-INF/services`
+    - `enum class ContractKind { QUERY, RPC }`
+    -
+    `class ServiceModel(kind, serviceClassName, descriptorClassName, clientClassName, packageName, simpleName, fqName, defaultService, timeoutMillis, functions, containingFile)`
+    -
+    `class ServiceModelFactory(logger: KSPLogger) { fun create(declaration: KSClassDeclaration, kind: ContractKind): ServiceModel? }`
+    - `class ServiceProcessorProvider : SymbolProcessorProvider` — der **einzige** Eintrag in
+      `META-INF/services`
 
 - [ ] **Step 1: Test schreiben, der einen Prozessor verlangt**
 
@@ -836,8 +862,8 @@ class ServiceModel(
 Parameter-Träger; sie behalten `typeParameterResolver`, `parameters`, `returnType`, `name`,
 `invokerName` und ergänzen `fireAndForget: Boolean` (für Queries immer `false`).
 
-`ServiceModelFactory` entsteht aus `RpcServiceModelFactory` — der reicheren der beiden — und
-bekommt am Anfang von `create` die kind-abhängige Validierung:
+`ServiceModelFactory` entsteht aus `RpcServiceModelFactory` — der reicheren der beiden — und bekommt
+am Anfang von `create` die kind-abhängige Validierung:
 
 ```kotlin
     fun create(declaration: KSClassDeclaration, kind: ContractKind): ServiceModel? {
@@ -876,15 +902,14 @@ bekommt am Anfang von `create` die kind-abhängige Validierung:
     }
 ```
 
-`readFunction`, `readServiceAttribute` und `readTimeoutAttribute` sind die entsprechenden
-privaten Helfer aus `RpcServiceModelFactory` beziehungsweise `QueryServiceModelFactory`,
-unverändert übernommen; `readFunction` setzt `fireAndForget` nur für `ContractKind.RPC` und
-sonst `false`.
+`readFunction`, `readServiceAttribute` und `readTimeoutAttribute` sind die entsprechenden privaten
+Helfer aus `RpcServiceModelFactory` beziehungsweise `QueryServiceModelFactory`, unverändert
+übernommen; `readFunction` setzt `fireAndForget` nur für `ContractKind.RPC` und sonst `false`.
 
 `QueryRules` trägt die bestehenden Prüfungen aus `QueryServiceModelFactory`: jede Methode
 `suspend`, jeder Rückgabetyp nullable, `@FireAndForget` abgelehnt, kein privater Vertrag.
-`RpcRules` trägt die aus `RpcServiceModelFactory`: jede Methode `suspend`, `@FireAndForget` nur
-mit `Unit`-Rückgabe. Beide implementieren
+`RpcRules` trägt die aus `RpcServiceModelFactory`: jede Methode `suspend`, `@FireAndForget` nur mit
+`Unit`-Rückgabe. Beide implementieren
 
 ```kotlin
 interface ContractRules {
@@ -970,9 +995,9 @@ class ServiceProcessorProvider : SymbolProcessorProvider {
 
 - [ ] **Step 5: Codegen zusammenlegen**
 
-Ein `…/ksp/codegen/Names.kt` hält `Names`, `ClassNames`, `MemberNames` und `Types` — die
-Vereinigung der beiden heutigen Dateien, ohne die Dubletten
-(`kotlinTypeOf`, `arrayOf`, `emptyArray`, `mapOf`, `emptyMap`, `kotlinKClass`, `kotlinArray`,
+Ein `…/ksp/codegen/Names.kt` hält `Names`, `ClassNames`, `MemberNames` und `Types` — die Vereinigung
+der beiden heutigen Dateien, ohne die Dubletten (`kotlinTypeOf`, `arrayOf`, `emptyArray`, `mapOf`,
+`emptyMap`, `kotlinKClass`, `kotlinArray`,
 `anyNullableArray`, `optIn`).
 
 Geteilte Emitter, aus den RPC-Fassungen gezogen, weil sie Annotationen und `isOptional` schon
@@ -1036,16 +1061,18 @@ model, two backends where the output genuinely differs."
 
 ## Task 4: Pakete und Dateinamen
 
-Rein mechanisch, aber breit — deshalb nach den inhaltlichen Änderungen und mit einem Test, der
-den Zustand danach festhält.
+Rein mechanisch, aber breit — deshalb nach den inhaltlichen Änderungen und mit einem Test, der den
+Zustand danach festhält.
 
 **Files:**
+
 - Create: `…-api/src/test/…/structure/PackageLayoutTest.kt`
 - Move: siehe Tabellen unten
 - Modify: `build.gradle.kts` (`buildConfig`-Paket), `surf-eventbus-api/build.gradle.kts`
   (`buildConfig.forClass`), `…-platform-*/build.gradle.kts` (`mainClass`, `bootstrapper`)
 
 **Interfaces:**
+
 - Produces: keine neuen Typen. Alle Typen aus Tasks 1–3 unter ihren neuen Paketnamen.
 
 - [ ] **Step 1: Den Test schreiben, der den Zielzustand beschreibt**
@@ -1113,18 +1140,18 @@ Expected: FAIL, alle drei — mit der vollständigen Liste dessen, was umzuziehe
 
 - [ ] **Step 3: `surf-eventbus-api` umziehen**
 
-| Von | Nach |
-|---|---|
-| `rabbitmq/api/*.kt` | `rabbitmq/` |
-| `rabbitmq/api/{connection,exception,identity,packet,rpc,target,version}/` | `rabbitmq/{…}/` |
-| `rabbitmq/api/internal/config/` | `rabbitmq/config/` |
-| `rabbitmq/api/internal/StandaloneLifecycleHook.kt` | `platform/StandaloneLifecycleHook.kt` |
-| `rabbitmq/api/internal/RabbitMQInstance.kt` | bleibt vorerst, verschwindet in Task 5 |
-| `core/envelope/EventEnvelope.kt` | `transport/EventEnvelope.kt` |
-| `common/circuitbreaker/` | `circuitbreaker/` |
-| `common/serialization/` | `serialization/` |
-| `common/platform/` | `platform/` |
-| `common/config/LegacyEnvironmentGuard.kt` | `config/LegacyEnvironmentGuard.kt` |
+| Von                                                                       | Nach                                   |
+|---------------------------------------------------------------------------|----------------------------------------|
+| `rabbitmq/api/*.kt`                                                       | `rabbitmq/`                            |
+| `rabbitmq/api/{connection,exception,identity,packet,rpc,target,version}/` | `rabbitmq/{…}/`                        |
+| `rabbitmq/api/internal/config/`                                           | `rabbitmq/config/`                     |
+| `rabbitmq/api/internal/StandaloneLifecycleHook.kt`                        | `platform/StandaloneLifecycleHook.kt`  |
+| `rabbitmq/api/internal/RabbitMQInstance.kt`                               | bleibt vorerst, verschwindet in Task 5 |
+| `core/envelope/EventEnvelope.kt`                                          | `transport/EventEnvelope.kt`           |
+| `common/circuitbreaker/`                                                  | `circuitbreaker/`                      |
+| `common/serialization/`                                                   | `serialization/`                       |
+| `common/platform/`                                                        | `platform/`                            |
+| `common/config/LegacyEnvironmentGuard.kt`                                 | `config/LegacyEnvironmentGuard.kt`     |
 
 Die Testquellen ziehen mit: `src/test/…/common/circuitbreaker/` → `src/test/…/circuitbreaker/`,
 `src/test/…/common/config/` → `src/test/…/config/`,
@@ -1134,41 +1161,41 @@ Die Testquellen ziehen mit: `src/test/…/common/circuitbreaker/` → `src/test/
 
 - [ ] **Step 4: `surf-eventbus-core` umziehen**
 
-| Von | Nach |
-|---|---|
-| `rabbitmq/common/connection/client/` | `rabbitmq/connection/` |
-| `rabbitmq/common/connection/consumer/` | `rabbitmq/consumer/` |
-| `rabbitmq/common/connection/publisher/` | `rabbitmq/publisher/` |
-| `rabbitmq/common/connection/*.kt` | `rabbitmq/connection/` |
-| `rabbitmq/common/health/` | `rabbitmq/health/` |
-| `rabbitmq/common/packet/` | `rabbitmq/packet/` |
-| `rabbitmq/common/rpc/{exception,packet}/` | `rabbitmq/rpc/{exception,packet}/` |
-| `rabbitmq/common/rpc/serialization/RpcSerializationUtils.kt` | `service/serialization/` (Task 2) |
-| `rabbitmq/common/topology/` | `rabbitmq/topology/` |
-| `rabbitmq/core/connection/` | `rabbitmq/connection/` |
-| `rabbitmq/core/publish/MessageKind.kt` | `rabbitmq/publisher/MessageKind.kt` |
-| `rabbitmq/core/retry/` | `rabbitmq/retry/` |
-| `rabbitmq/core/rpc/BreakerGuardedRpc.kt` | `rabbitmq/rpc/BreakerGuardedRpc.kt` |
-| `rabbitmq/listener/` | `rabbitmq/consumer/` |
-| `rabbitmq/rpc/service/RpcServiceExecutor.kt` | `rabbitmq/rpc/RpcServiceExecutor.kt` |
-| `rabbitmq/shared/serialization/` | `serialization/` |
-| `RedisTransportLocator.kt` (Paketwurzel) | `core/RedisTransportLocator.kt` |
+| Von                                                          | Nach                                 |
+|--------------------------------------------------------------|--------------------------------------|
+| `rabbitmq/common/connection/client/`                         | `rabbitmq/connection/`               |
+| `rabbitmq/common/connection/consumer/`                       | `rabbitmq/consumer/`                 |
+| `rabbitmq/common/connection/publisher/`                      | `rabbitmq/publisher/`                |
+| `rabbitmq/common/connection/*.kt`                            | `rabbitmq/connection/`               |
+| `rabbitmq/common/health/`                                    | `rabbitmq/health/`                   |
+| `rabbitmq/common/packet/`                                    | `rabbitmq/packet/`                   |
+| `rabbitmq/common/rpc/{exception,packet}/`                    | `rabbitmq/rpc/{exception,packet}/`   |
+| `rabbitmq/common/rpc/serialization/RpcSerializationUtils.kt` | `service/serialization/` (Task 2)    |
+| `rabbitmq/common/topology/`                                  | `rabbitmq/topology/`                 |
+| `rabbitmq/core/connection/`                                  | `rabbitmq/connection/`               |
+| `rabbitmq/core/publish/MessageKind.kt`                       | `rabbitmq/publisher/MessageKind.kt`  |
+| `rabbitmq/core/retry/`                                       | `rabbitmq/retry/`                    |
+| `rabbitmq/core/rpc/BreakerGuardedRpc.kt`                     | `rabbitmq/rpc/BreakerGuardedRpc.kt`  |
+| `rabbitmq/listener/`                                         | `rabbitmq/consumer/`                 |
+| `rabbitmq/rpc/service/RpcServiceExecutor.kt`                 | `rabbitmq/rpc/RpcServiceExecutor.kt` |
+| `rabbitmq/shared/serialization/`                             | `serialization/`                     |
+| `RedisTransportLocator.kt` (Paketwurzel)                     | `core/RedisTransportLocator.kt`      |
 
 Die Testquellen spiegeln das: `rabbitmq/common/**` → `rabbitmq/**`, `rabbitmq/core/**` →
 `rabbitmq/**`, wobei `rabbitmq/common/testing/` zu `rabbitmq/testing/` wird.
 
 - [ ] **Step 5: Dateinamen richtigstellen**
 
-| Von | Nach |
-|---|---|
-| `redis/codec/byte-buf-extensions.kt` | `redis/codec/ByteBufExtensions.kt` |
-| `redis/codec/codec-extension.kt` | `redis/codec/CodecExtensions.kt` |
-| `redis/util/util.kt` | `redis/util/RedisUtils.kt` |
-| `rabbitmq/exception/api.kt` | `rabbitmq/exception/ApiExceptions.kt` |
-| `rabbitmq/exception/connection.kt` | `rabbitmq/exception/ConnectionExceptions.kt` |
-| `rabbitmq/exception/packet.kt` | `rabbitmq/exception/PacketExceptions.kt` |
-| `rabbitmq/exception/protocol.kt` | `rabbitmq/exception/ProtocolExceptions.kt` |
-| `rabbitmq/exception/request.kt` | `rabbitmq/exception/RequestExceptions.kt` |
+| Von                                   | Nach                                            |
+|---------------------------------------|-------------------------------------------------|
+| `redis/codec/byte-buf-extensions.kt`  | `redis/codec/ByteBufExtensions.kt`              |
+| `redis/codec/codec-extension.kt`      | `redis/codec/CodecExtensions.kt`                |
+| `redis/util/util.kt`                  | `redis/util/RedisUtils.kt`                      |
+| `rabbitmq/exception/api.kt`           | `rabbitmq/exception/ApiExceptions.kt`           |
+| `rabbitmq/exception/connection.kt`    | `rabbitmq/exception/ConnectionExceptions.kt`    |
+| `rabbitmq/exception/packet.kt`        | `rabbitmq/exception/PacketExceptions.kt`        |
+| `rabbitmq/exception/protocol.kt`      | `rabbitmq/exception/ProtocolExceptions.kt`      |
+| `rabbitmq/exception/request.kt`       | `rabbitmq/exception/RequestExceptions.kt`       |
 | `rabbitmq/exception/serialization.kt` | `rabbitmq/exception/SerializationExceptions.kt` |
 
 `redis/codec/default/` heißt weiter so — `default` ist hier ein Sachbegriff (die mitgelieferten
@@ -1222,13 +1249,15 @@ PackageLayoutTest keeps all three from coming back."
 ## Task 5: Symmetrie zwischen den Transporten
 
 **Files:**
+
 - Create: `…-api/…/platform/EventBusInstance.kt`
 - Create: `…-api/…/exception/SurfEventBusException.kt`
 - Create: `…-api/…/credentials/{CredentialsProvider,RabbitCredentialsProvider}.kt`
 - Move: `…-api/…/redis/credentials/RedisCredentialsProvider.kt` → `…-api/…/credentials/`
 - Create: `…-core/…/redis/RedisRuntime.kt`
 - Create: `…-core/…/rabbitmq/credentials/RabbitCredentialsProviderImpl.kt`
-- Modify: `…-api/…/rabbitmq/config/{RabbitMQConfig,CommonRabbitMQConfig,RabbitEnvironment,RabbitMQEnvironmentConfig}.kt`
+- Modify:
+  `…-api/…/rabbitmq/config/{RabbitMQConfig,CommonRabbitMQConfig,RabbitEnvironment,RabbitMQEnvironmentConfig}.kt`
 - Delete: `…-api/…/rabbitmq/config/PluginRabbitMQConfig.kt`,
   `…-api/…/rabbitmq/internal/RabbitMQInstance.kt`, `…-core/…/redis/RedisInstance.kt`
 - Modify: `…-core/…/redis/config/{RedisConfig,RedisConfigResolver}.kt`,
@@ -1239,17 +1268,21 @@ PackageLayoutTest keeps all three from coming back."
   `…-core/src/test/…/redis/config/RedisConfigLayeringTest.kt`
 
 **Interfaces:**
+
 - Consumes: `@InternalEventBusApi`, die Paketnamen aus Task 4.
 - Produces:
-  - `interface EventBusInstance { val dataPath: Path; fun getResourceAsStream(name: String): InputStream?; fun tryExtractPluginName(clazz: Class<*>): String; companion object { val instance: EventBusInstance } }`
-  - `class RedisRuntime(instance: EventBusInstance) { val eventLoopGroup; val redissonExecutorService; val streamPollScheduler; val ttlRefreshScheduler; fun load(); fun disable() }`
-  - `abstract class SurfEventBusException(message: String, cause: Throwable?) : RuntimeException`
-  - `interface CredentialsProvider`
-  - `interface RedisCredentialsProvider : CredentialsProvider { fun redisURI(): RedisURI }`
-  - `interface RabbitCredentialsProvider : CredentialsProvider { fun connectionFactory(config: CommonRabbitMQConfig): ConnectionFactory }`
-  - `data class RabbitMQConfig(...)` mit Sentinel-Typen und
-    `companion object Global : SpongeYmlConfigClass<RabbitMQConfig>` sowie
-    `object Plugin : SpongeYmlConfigClass<RabbitMQConfig>`
+    -
+    `interface EventBusInstance { val dataPath: Path; fun getResourceAsStream(name: String): InputStream?; fun tryExtractPluginName(clazz: Class<*>): String; companion object { val instance: EventBusInstance } }`
+    -
+    `class RedisRuntime(instance: EventBusInstance) { val eventLoopGroup; val redissonExecutorService; val streamPollScheduler; val ttlRefreshScheduler; fun load(); fun disable() }`
+    - `abstract class SurfEventBusException(message: String, cause: Throwable?) : RuntimeException`
+    - `interface CredentialsProvider`
+    - `interface RedisCredentialsProvider : CredentialsProvider { fun redisURI(): RedisURI }`
+    -
+    `interface RabbitCredentialsProvider : CredentialsProvider { fun connectionFactory(config: CommonRabbitMQConfig): ConnectionFactory }`
+    - `data class RabbitMQConfig(...)` mit Sentinel-Typen und
+      `companion object Global : SpongeYmlConfigClass<RabbitMQConfig>` sowie
+      `object Plugin : SpongeYmlConfigClass<RabbitMQConfig>`
 
 - [ ] **Step 1: Den URI-Fehler festnageln**
 
@@ -1368,31 +1401,30 @@ Expected: PASS, alle drei.
 
 - [ ] **Step 5: Die zwei RabbitMQ-Konfigurationsklassen zu einer machen**
 
-`GlobalRabbitMQConfig` und `PluginRabbitMQConfig` sind vierzehn Felder mit derselben KDoc,
-zweimal. Danach eine `RabbitMQConfig` mit durchgehenden Sentinel-Typen
-(`StringOrDefault`, `IntOr.Default`, `BooleanOr.Default`) — die Plugin-Fassung, weil eine
-Sentinel-Schicht die andere ausdrücken kann und nicht umgekehrt — plus die Defaults an genau
-einer Stelle:
+`GlobalRabbitMQConfig` und `PluginRabbitMQConfig` sind vierzehn Felder mit derselben KDoc, zweimal.
+Danach eine `RabbitMQConfig` mit durchgehenden Sentinel-Typen (`StringOrDefault`, `IntOr.Default`,
+`BooleanOr.Default`) — die Plugin-Fassung, weil eine Sentinel-Schicht die andere ausdrücken kann und
+nicht umgekehrt — plus die Defaults an genau einer Stelle:
 
 Die vierzehn Felder, ihre Sentinel-Typen und die eingebauten Standardwerte — die aus
 `GlobalRabbitMQConfig` heute, jetzt an genau einer Stelle:
 
-| Feld | Typ | Standard |
-|---|---|---|
-| `host` | `StringOrDefault` | `"localhost"` |
-| `port` | `IntOr.Default` | `5672` |
-| `username` | `StringOrDefault` | `"guest"` |
-| `password` | `StringOrDefault` | `"guest"` |
-| `vhost` | `StringOrDefault` | `"/"` |
-| `timeout` | `IntOr.Default` | `30` |
-| `requestTimeoutSeconds` | `IntOr.Default` | `60` |
-| `publisherPoolSize` | `IntOr.Default` | `2` |
-| `serverPrefetchCount` | `IntOr.Default` | `128` |
-| `persistRequests` | `BooleanOr.Default` | `true` |
-| `persistResponses` | `BooleanOr.Default` | `false` |
-| `outgoingRequestChunkingEnabled` | `BooleanOr.Default` | `true` |
-| `outgoingResponseChunkingEnabled` | `BooleanOr.Default` | `true` |
-| `auditServiceName` | `StringOrDefault` | `"surf-eventbus-audit"` |
+| Feld                              | Typ                 | Standard                |
+|-----------------------------------|---------------------|-------------------------|
+| `host`                            | `StringOrDefault`   | `"localhost"`           |
+| `port`                            | `IntOr.Default`     | `5672`                  |
+| `username`                        | `StringOrDefault`   | `"guest"`               |
+| `password`                        | `StringOrDefault`   | `"guest"`               |
+| `vhost`                           | `StringOrDefault`   | `"/"`                   |
+| `timeout`                         | `IntOr.Default`     | `30`                    |
+| `requestTimeoutSeconds`           | `IntOr.Default`     | `60`                    |
+| `publisherPoolSize`               | `IntOr.Default`     | `2`                     |
+| `serverPrefetchCount`             | `IntOr.Default`     | `128`                   |
+| `persistRequests`                 | `BooleanOr.Default` | `true`                  |
+| `persistResponses`                | `BooleanOr.Default` | `false`                 |
+| `outgoingRequestChunkingEnabled`  | `BooleanOr.Default` | `true`                  |
+| `outgoingResponseChunkingEnabled` | `BooleanOr.Default` | `true`                  |
+| `auditServiceName`                | `StringOrDefault`   | `"surf-eventbus-audit"` |
 
 ```kotlin
 @ConfigSerializable
@@ -1448,14 +1480,14 @@ data class RabbitMQConfig(
 Die Sichtbarkeitskollision zwischen dem Feld `host: StringOrDefault` und der Property
 `host: String` löst Kotlin nicht von selbst — die Felder heißen im Konstruktor deshalb
 `rawHost`, `rawPort` und so fort, mit `@ConfigSerializable`-Namen über
-`@Setting("host")`. Das ist die einzige Stelle, an der die Zusammenlegung Kosten hat, und sie
-ist billiger als vierzehn Felder in zwei Dateien.
+`@Setting("host")`. Das ist die einzige Stelle, an der die Zusammenlegung Kosten hat, und sie ist
+billiger als vierzehn Felder in zwei Dateien.
 
-`resolveRabbitMQConfig(global: RabbitMQConfig, plugin: RabbitMQConfig?, environment)` bleibt in
-der Signatur gleich bis auf die Typen. `CommonRabbitMQConfig` bekommt Kotlin-Properties statt
+`resolveRabbitMQConfig(global: RabbitMQConfig, plugin: RabbitMQConfig?, environment)` bleibt in der
+Signatur gleich bis auf die Typen. `CommonRabbitMQConfig` bekommt Kotlin-Properties statt
 `getHost()`/`isPersistRequests()`; `RabbitEnvironment` und `PluginWithGlobalFallback` ziehen mit.
-`RabbitEnvironmentTest` prüft danach `resolved.host` statt `resolved.getHost()` — sonst
-unverändert, denn die Schichtenlogik ändert sich nicht.
+`RabbitEnvironmentTest` prüft danach `resolved.host` statt `resolved.getHost()` — sonst unverändert,
+denn die Schichtenlogik ändert sich nicht.
 
 - [ ] **Step 6: Redis die vierte Schicht wirklich geben**
 
@@ -1469,8 +1501,8 @@ val redisConfig by lazy {
 }
 ```
 
-mit denselben zwei Companions wie bei RabbitMQ. `RedisConfigLayeringTest` bekommt einen Fall
-dazu, der beweist, dass die Plugin-Schicht die globale schlägt und die Umgebung beide.
+mit denselben zwei Companions wie bei RabbitMQ. `RedisConfigLayeringTest` bekommt einen Fall dazu,
+der beweist, dass die Plugin-Schicht die globale schlägt und die Umgebung beide.
 
 - [ ] **Step 7: Eine Plattform-SPI statt zwei**
 
@@ -1506,8 +1538,8 @@ interface EventBusInstance {
 ```
 
 `…-core/…/redis/RedisRuntime.kt` nimmt aus `RedisInstance` den `init`-Block, die zwei Scheduler,
-`load()` und `disable()` — unverändert, nur nicht mehr auf der SPI. Es wird einmal pro Prozess
-von `RedisComponentProviderImpl` gebaut.
+`load()` und `disable()` — unverändert, nur nicht mehr auf der SPI. Es wird einmal pro Prozess von
+`RedisComponentProviderImpl` gebaut.
 
 ```bash
 git rm surf-eventbus-api/src/main/kotlin/dev/slne/surf/eventbus/rabbitmq/internal/RabbitMQInstance.kt
@@ -1536,7 +1568,7 @@ abstract class SurfEventBusException(message: String, cause: Throwable? = null) 
 
 `SurfRabbitException` erbt davon. `RedisCodecException` zieht unter ein neues
 `SurfRedisException : SurfEventBusException` in `…-api/…/redis/RedisExceptions.kt`.
-`SurfRabbitApiNotFrozenException` bleibt bewusst `IllegalStateException` — es ist eine
+`SurfEventBusNotFrozenException` bleibt bewusst `IllegalStateException` — es ist eine
 Vorbedingungsverletzung, kein Transportfehler; der bestehende KDoc-Absatz sagt das bereits und
 bleibt stehen.
 
@@ -1577,6 +1609,7 @@ password belongs after a colon."
 ## Task 6: Hacks auflösen
 
 **Files:**
+
 - Modify: `…-core/src/test/…/core/testing/FakeStandaloneLifecycleHook.kt`
 - Delete: `…-core/src/test/…/redis/testing/FakeRedisInstance.kt`,
   `…-core/src/test/resources/META-INF/services/…StandaloneLifecycleHook`,
@@ -1590,16 +1623,17 @@ password belongs after a colon."
 - Modify: `.github/workflows/publish.yml:13`
 
 **Interfaces:**
+
 - Consumes: `EventBusInstance`, `StandaloneLifecycleHook` aus Task 5.
 - Produces:
-  - `SurfEventBusBuilder.withStandaloneHook(hook: StandaloneLifecycleHook): SurfEventBusBuilder`
-    — die Testnaht, die den `ServiceLoader` überflüssig macht
-  - `object AuditReports { fun handlerFailed(...): AuditReport; fun unroutable(...): AuditReport; fun undeserializable(...): AuditReport; fun chunkSeriesExpired(...): AuditReport }`
+    - `SurfEventBusBuilder.withStandaloneHook(hook: StandaloneLifecycleHook): SurfEventBusBuilder`
+      — die Testnaht, die den `ServiceLoader` überflüssig macht
+    -
+    `object AuditReports { fun handlerFailed(...): AuditReport; fun unroutable(...): AuditReport; fun undeserializable(...): AuditReport; fun chunkSeriesExpired(...): AuditReport }`
 
 - [ ] **Step 1: Die Testnaht schreiben, die den ServiceLoader ersetzt**
 
-`SurfEventBusBuilder` bekommt neben `withRedis(event, query)` eine zweite Naht desselben
-Zuschnitts:
+`SurfEventBusBuilder` bekommt neben `withRedis(event, query)` eine zweite Naht desselben Zuschnitts:
 
 ```kotlin
     /**
@@ -1625,11 +1659,11 @@ git rm surf-eventbus-core/src/test/resources/META-INF/services/dev.slne.surf.eve
 git rm surf-eventbus-core/src/test/kotlin/dev/slne/surf/eventbus/redis/testing/FakeRedisInstance.kt
 ```
 
-`FakeStandaloneLifecycleHook` behält seinen ersten KDoc-Absatz (warum ein No-op-Double nötig
-ist) und verliert den zweiten (die handgeschriebene Registrierung), weil es sie nicht mehr gibt.
+`FakeStandaloneLifecycleHook` behält seinen ersten KDoc-Absatz (warum ein No-op-Double nötig ist)
+und verliert den zweiten (die handgeschriebene Registrierung), weil es sie nicht mehr gibt.
 
-`FakeRedisInstance` verschwindet: die Klasse wird nirgends referenziert, und ihre KDoc
-beschreibt eine `META-INF/services`-Registrierung, die nie existiert hat.
+`FakeRedisInstance` verschwindet: die Klasse wird nirgends referenziert, und ihre KDoc beschreibt
+eine `META-INF/services`-Registrierung, die nie existiert hat.
 
 - [ ] **Step 3: Tests laufen lassen**
 
@@ -1693,8 +1727,8 @@ Wurzelsuche wie `PackageLayoutTest`:
 
 - [ ] **Step 6: `AuditReports` nachtragen**
 
-Plan 4 Task 1 Step 9 sah die Datei vor; die fünf Meldepfade wurden ohne sie verdrahtet, jeder
-mit seinem eigenen `AuditReport(...)`-Aufruf. Sie bündelt die gemeinsamen Felder:
+Plan 4 Task 1 Step 9 sah die Datei vor; die fünf Meldepfade wurden ohne sie verdrahtet, jeder mit
+seinem eigenen `AuditReport(...)`-Aufruf. Sie bündelt die gemeinsamen Felder:
 
 ```kotlin
 package dev.slne.surf.eventbus.rabbitmq.audit
@@ -1811,9 +1845,9 @@ class AuditReports(
 ```
 
 Die vier Funktionen ersetzen die `AuditReport(...)`-Aufrufe, die `RetryPublisher`,
-`ReturnListenerBridge`, `RabbitConsumer` (zweimal) und `RabbitPacketChunkAssembler` heute je
-einzeln zusammensetzen. `RabbitAuditSinkTest` bleibt unverändert grün — die Senke ändert sich
-nicht, nur wer ihre Argumente baut.
+`ReturnListenerBridge`, `RabbitConsumer` (zweimal) und `RabbitPacketChunkAssembler` heute je einzeln
+zusammensetzen. `RabbitAuditSinkTest` bleibt unverändert grün — die Senke ändert sich nicht, nur wer
+ihre Argumente baut.
 
 Ein Test hält die eine Eigenschaft fest, die über alle vier Pfade gelten muss —
 `…-core/src/test/…/rabbitmq/audit/AuditReportsTest.kt`:
@@ -1847,14 +1881,14 @@ Ein Test hält die eine Eigenschaft fest, die über alle vier Pfade gelten muss 
 - [ ] **Step 7: Die zwei TODOs auflösen**
 
 `RabbitListenerHandlerManager` fängt `SurfRabbitProtocolVersionMismatchException` und tut nichts
-Bestimmtes damit. Ein Versions-Mismatch ist kein wiederholbarer Fehler: die Gegenstelle spricht
-ein anderes Protokoll und wird es beim nächsten Versuch auch. Er wird geloggt und als
-`AuditKind.UNDESERIALIZABLE` gemeldet, die Nachricht wird geackt und verworfen — dieselbe
-Behandlung wie ein Deserialisierungsfehler, weil es einer ist.
+Bestimmtes damit. Ein Versions-Mismatch ist kein wiederholbarer Fehler: die Gegenstelle spricht ein
+anderes Protokoll und wird es beim nächsten Versuch auch. Er wird geloggt und als
+`AuditKind.UNDESERIALIZABLE` gemeldet, die Nachricht wird geackt und verworfen — dieselbe Behandlung
+wie ein Deserialisierungsfehler, weil es einer ist.
 
 `RabbitConnectionImpl:73` trägt den Hinweis, dass Meldungen dauerhaft in der Queue liegen oder
-verschwinden, je nachdem ob der Microservice sie je deklariert hat. Der `TODO(...)`-Marker wird
-zu einer Aussage: der Zustand ist gewollt und in `docs/rollout-2.0.md` Schritt 3 beschrieben.
+verschwinden, je nachdem ob der Microservice sie je deklariert hat. Der `TODO(...)`-Marker wird zu
+einer Aussage: der Zustand ist gewollt und in `docs/rollout-2.0.md` Schritt 3 beschrieben.
 
 - [ ] **Step 8: Den toten Publish-Workflow richtigstellen**
 
@@ -1886,6 +1920,7 @@ The publish workflow named jars that stopped existing at the rename."
 ## Task 7: Plattform-Module vereinen (Plan 4 Task 4)
 
 **Files:**
+
 - Create: `…-platform-paper/…/paper/PaperEventBusInstance.kt`
 - Create: `…-platform-velocity/…/velocity/VelocityEventBusInstance.kt`
 - Create: `…-platform-standalone/…/standalone/StandaloneEventBusInstance.kt`
@@ -1893,11 +1928,13 @@ The publish workflow named jars that stopped existing at the rename."
   `…-platform-velocity/…/VelocityRabbitMqInstance.kt`,
   `…-platform-standalone/…/StandaloneRedisInstance.kt`,
   `…-core/…/rabbitmq/StandaloneRabbitMqInstance.kt`
-- Modify: `…-platform-paper/…/{PaperBootstrap,PaperMain}.kt`, `…-platform-velocity/…/VelocityMain.kt`
+- Modify: `…-platform-paper/…/{PaperBootstrap,PaperMain}.kt`,
+  `…-platform-velocity/…/VelocityMain.kt`
 - Modify: alle drei `build.gradle.kts` (Paketpfade in `mainClass`/`bootstrapper`)
 - Create: `…-platform-standalone/src/test/…/StandaloneEventBusInstanceTest.kt`
 
 **Interfaces:**
+
 - Consumes: `EventBusInstance` aus Task 5.
 - Produces: `class StandaloneEventBusInstance(override val dataPath: Path) : EventBusInstance`,
   registriert mit `@AutoService(EventBusInstance::class)`; dazu die beiden Plugin-Fassungen.
@@ -1994,12 +2031,14 @@ Expected: SUCCESS.
 unzip -l surf-eventbus-platform/surf-eventbus-platform-paper/build/libs/*-all.jar \
   | grep -c "dev/slne/surf/eventbus/shaded/io/netty/buffer/ByteBuf.class"
 ```
+
 Expected: `1`
 
 ```bash
 unzip -l surf-eventbus-platform/surf-eventbus-platform-paper/build/libs/*-all.jar \
   | grep -c "io/netty/buffer/ByteBuf.class"
 ```
+
 Expected: `1` — dieselbe Datei, kein unrelocierter Zweitpfad.
 
 Run: `./gradlew :surf-eventbus-platform:surf-eventbus-platform-velocity:shadowJar`
@@ -2022,25 +2061,29 @@ class never belonged."
 ## Task 8: Container-Suiten (Plan 4 Task 5)
 
 Plan 4 wollte sie in `surf-eventbus-test`. Das Modul wurde am 2026-08-01 gelöscht; die Suiten
-entstehen in `surf-eventbus-core/src/test`, neben `RabbitBrokerExtension`, das dort schon liegt
-und auf CI gebaut wird.
+entstehen in `surf-eventbus-core/src/test`, neben `RabbitBrokerExtension`, das dort schon liegt und
+auf CI gebaut wird.
 
 **Files:**
+
 - Create: `…-core/src/test/…/testing/{RedisContainerExtension,DatabaseContainerExtension}.kt`
-- Create: `…-core/src/test/…/suite/{EventSuiteTest,QuerySuiteTest,RpcSuiteTest,TransportEnablementTest}.kt`
+- Create:
+  `…-core/src/test/…/suite/{EventSuiteTest,QuerySuiteTest,RpcSuiteTest,TransportEnablementTest}.kt`
 - Modify: `…-core/build.gradle.kts` (Testcontainers-Redis-Abhängigkeit)
 - Modify: `docs/superpowers/notes/2026-07-31-fundament-verification.md`
 
 **Interfaces:**
+
 - Consumes: alles aus Tasks 1–7.
-- Produces: `class RedisContainerExtension : BeforeAllCallback, AfterAllCallback { val uri: String }`,
+- Produces:
+  `class RedisContainerExtension : BeforeAllCallback, AfterAllCallback { val uri: String }`,
   `class DatabaseContainerExtension : …`, und die vier Suiten mit der Spec-Nummer im Methodennamen.
 
 - [ ] **Step 1: Die Redis-Extension schreiben**
 
 Nach dem Muster von `RabbitBrokerExtension`: ein Container pro Suite-Lauf, ein eindeutiger
-Schlüsselraum je Test für Kollisionsfreiheit, Abbau am Ende. Testcontainers hat kein
-Redis-Modul; ein `GenericContainer` genügt.
+Schlüsselraum je Test für Kollisionsfreiheit, Abbau am Ende. Testcontainers hat kein Redis-Modul;
+ein `GenericContainer` genügt.
 
 `surf-eventbus-core/src/test/kotlin/dev/slne/surf/eventbus/testing/RedisContainerExtension.kt`:
 
@@ -2088,27 +2131,27 @@ Die Abhängigkeit steht bereits in `surf-eventbus-core/build.gradle.kts`
 
 - [ ] **Step 2: Die Datenbank-Extension schreiben**
 
-Dasselbe Muster mit `PostgreSQLContainer`. Sie wird von der Audit-Suite gebraucht, die erst
-laufen kann, wenn Task 2 aus Plan 4 entblockt ist — deshalb entsteht die Extension jetzt und
+Dasselbe Muster mit `PostgreSQLContainer`. Sie wird von der Audit-Suite gebraucht, die erst laufen
+kann, wenn Task 2 aus Plan 4 entblockt ist — deshalb entsteht die Extension jetzt und
 `AuditSuiteTest` **nicht**.
 
 - [ ] **Step 3: Die vier Suiten schreiben**
 
-| Suite | Testnummern aus dem Spec |
-|---|---|
-| `EventSuiteTest` | 1–12, 12a–12c |
-| `QuerySuiteTest` | 13–23 |
-| `RpcSuiteTest` | 24–32 |
-| `TransportEnablementTest` | 33–37 (ohne Container) |
+| Suite                     | Testnummern aus dem Spec |
+|---------------------------|--------------------------|
+| `EventSuiteTest`          | 1–12, 12a–12c            |
+| `QuerySuiteTest`          | 13–23                    |
+| `RpcSuiteTest`            | 24–32                    |
+| `TransportEnablementTest` | 33–37 (ohne Container)   |
 
 Jede Methode heißt nach ihrer Nummer und Aussage, etwa
-``fun `11 - an event with every subscriber offline expires`()``, damit Spec und Suite
-aufeinander zeigen. Tests, die schon in Plan 2 oder 3 entstanden sind, werden **nicht** kopiert;
-die Suite verweist im KDoc auf ihren Ort. Neu entstehen hier nur die Fälle, die mehr als ein
-Subsystem gleichzeitig hochfahren.
+``fun `11 - an event with every subscriber offline expires`()``, damit Spec und Suite aufeinander
+zeigen. Tests, die schon in Plan 2 oder 3 entstanden sind, werden **nicht** kopiert; die Suite
+verweist im KDoc auf ihren Ort. Neu entstehen hier nur die Fälle, die mehr als ein Subsystem
+gleichzeitig hochfahren.
 
-`AuditSuiteTest` (38–49) entsteht nicht: Fälle 38, 47 und 48 brauchen den Microservice aus
-Plan 4 Task 2, der blockiert ist. Der Grund gehört als KDoc an `DatabaseContainerExtension`.
+`AuditSuiteTest` (38–49) entsteht nicht: Fälle 38, 47 und 48 brauchen den Microservice aus Plan 4
+Task 2, der blockiert ist. Der Grund gehört als KDoc an `DatabaseContainerExtension`.
 
 - [ ] **Step 4: Ausführbarkeit prüfen, nicht Ausführung behaupten**
 
@@ -2116,8 +2159,8 @@ Run: `./gradlew :surf-eventbus-core:compileTestKotlin`
 Expected: SUCCESS — das ist hier das erreichbare Kriterium.
 
 Run: `./gradlew :surf-eventbus-core:test`
-Expected: alle Container-Tests SKIPPED, weil kein Docker-Daemon erreichbar ist. Die Meldung
-lautet „Docker is not available - integration test skipped, NOT verified".
+Expected: alle Container-Tests SKIPPED, weil kein Docker-Daemon erreichbar ist. Die Meldung lautet
+„Docker is not available - integration test skipped, NOT verified".
 
 - [ ] **Step 5: Verifikationsnotiz fortschreiben**
 
@@ -2129,8 +2172,8 @@ Konsolidierung" ergänzen: welche Suiten existieren, wie viele Tests sie enthalt
 grep -rl "@RequiresDocker" --include=*.kt . | grep -v /build/
 ```
 
-Der Abschnitt hält außerdem fest, dass `surf-eventbus-test` gelöscht wurde und die Notiz von
-Plan 4, die es noch nennt, damit überholt ist.
+Der Abschnitt hält außerdem fest, dass `surf-eventbus-test` gelöscht wurde und die Notiz von Plan 4,
+die es noch nennt, damit überholt ist.
 
 - [ ] **Step 6: Commit**
 
@@ -2148,14 +2191,16 @@ suite is missing on purpose — its microservice is still blocked."
 ## Task 9: Dokumentation und Abschluss (Plan 4 Task 6)
 
 **Files:**
+
 - Modify: `README.md` (vollständig ersetzt)
 - Create: `docs/rollout-2.0.md`
 - Modify: `docs/superpowers/plans/2026-07-31-eventbus-4-audit-plattform-doku.md` (Task 2 Stand)
 
 **Interfaces:**
+
 - Consumes: alles.
-- Produces: eine README, die die drei Verben, die Aufgabenteilung und die Zusagen beschreibt,
-  und eine Rollout-Notiz mit den Schritten, die ein Betreiber tun muss.
+- Produces: eine README, die die drei Verben, die Aufgabenteilung und die Zusagen beschreibt, und
+  eine Rollout-Notiz mit den Schritten, die ein Betreiber tun muss.
 
 - [ ] **Step 1: Prüfen, ob Task 2 aus Plan 4 noch blockiert ist**
 
@@ -2166,33 +2211,33 @@ Bevor die Dokumentation den Zustand festschreibt, wird die Blockade einmal nachg
 ```
 
 Und die Frage, die die Notiz stellt: löst ein neueres `surf-database-r2dbc` als 2.3.1 die
-`@Metadata`-Frage? Wenn ja, bleibt Task 2 aus Plan 4 stehen und wird dort abgearbeitet — nicht
-hier. Wenn nein, bekommt
-`docs/superpowers/notes/2026-08-01-audit-microservice-blocked.md` eine Zeile mit dem heutigen
-Datum und der geprüften Version.
+`@Metadata`-Frage? Wenn ja, bleibt Task 2 aus Plan 4 stehen und wird dort abgearbeitet — nicht hier.
+Wenn nein, bekommt
+`docs/superpowers/notes/2026-08-01-audit-microservice-blocked.md` eine Zeile mit dem heutigen Datum
+und der geprüften Version.
 
 - [ ] **Step 2: README schreiben**
 
-Die heutige README heißt noch `surf-rabbitmq` und dokumentiert `SURF_RABBITMQ_*` — Variablen,
-die seit Plan 1 `SURF_EVENTBUS_RABBITMQ_*` heißen und deren alte Namen ein Startfehler sind.
-Reihenfolge nach Nutzen, nicht nach Modulstruktur:
+Die heutige README heißt noch `surf-rabbitmq` und dokumentiert `SURF_RABBITMQ_*` — Variablen, die
+seit Plan 1 `SURF_EVENTBUS_RABBITMQ_*` heißen und deren alte Namen ein Startfehler sind. Reihenfolge
+nach Nutzen, nicht nach Modulstruktur:
 
 1. Die drei Verben mit je einem Beispiel und der Zusage darunter.
 2. Die Aufgabenteilung als Tabelle — welche Zusage welchen Transport hat und was im Fehlerfall
    passiert.
-3. **An erster Stelle unter den Zusagen:** Events haben keine Durability. Wer offline ist,
-   verpasst sie, es gibt keine Wiederzustellung, und ein gescheiterter Handler hinterlässt eine
-   Audit-Zeile statt einer Wiederholung. Alles, was nicht verloren gehen darf, ist ein
+3. **An erster Stelle unter den Zusagen:** Events haben keine Durability. Wer offline ist, verpasst
+   sie, es gibt keine Wiederzustellung, und ein gescheiterter Handler hinterlässt eine Audit-Zeile
+   statt einer Wiederholung. Alles, was nicht verloren gehen darf, ist ein
    `@FireAndForget`-Aufruf.
 4. `@QueryService`-Anleitung mit der Falle: `null` heißt Abstinenz. Ein Vertrag muss „nichts
-   gefunden" von „nicht zuständig" unterscheidbar machen — bei `Boolean?` über `false`, sonst
-   über einen Ergebnistyp.
+   gefunden" von „nicht zuständig" unterscheidbar machen — bei `Boolean?` über `false`, sonst über
+   einen Ergebnistyp.
 5. Konfiguration: die vier Schichten und die vollständige Tabelle der `SURF_EVENTBUS_*`-Variablen,
    für **beide** Transporte, weil Redis seit Task 5 dieselben vier Schichten hat.
 6. Redis-Sync-Strukturen: vor `freeze()` erstellen. Diese Falle bleibt und bekommt einen eigenen
    Abschnitt, einmal statt zweimal.
-7. Das Audit: welche Meldepfade es gibt, dass der schreibende Dienst noch nicht existiert, und
-   was das für einen Betreiber heute bedeutet.
+7. Das Audit: welche Meldepfade es gibt, dass der schreibende Dienst noch nicht existiert, und was
+   das für einen Betreiber heute bedeutet.
 
 - [ ] **Step 3: Rollout-Notiz schreiben**
 
@@ -2200,35 +2245,36 @@ Reihenfolge nach Nutzen, nicht nach Modulstruktur:
 
 1. **Env-Variablen umbenennen.** Vollständige Alt-nach-Neu-Tabelle für beide Transporte. Eine
    gesetzte alte Variable ist ein Startfehler — das ist Absicht, nicht ein Bug.
-2. **Alte Queues löschen.** `x-dead-letter-exchange` ist aus den Argumenten gefallen, und
-   Argumente sind Teil der Queue-Identität: die Neudeklaration einer bestehenden
+2. **Alte Queues löschen.** `x-dead-letter-exchange` ist aus den Argumenten gefallen, und Argumente
+   sind Teil der Queue-Identität: die Neudeklaration einer bestehenden
    `surf.service.*` scheitert mit `PRECONDITION_FAILED (406)`. Entweder die betroffenen Queues
    löschen oder den Vhost neu aufsetzen:
    ```bash
    rabbitmqctl list_queues name | grep '^surf\.'
    rabbitmqadmin delete queue name=surf.service.<dienst>
    ```
-3. **Das Audit hat noch kein Ziel.** Der Meldeweg steht, der schreibende Microservice ist
-   blockiert. Meldungen gehen mit `mandatory = false` raus und werden verworfen, solange seine
-   Queue nicht existiert — das kostet nichts und blockiert nichts, aber es heißt auch, dass eine
-   fehlende Audit-Zeile heute keine Aussage ist.
+3. **Das Audit hat noch kein Ziel.** Der Meldeweg steht, der schreibende Microservice ist blockiert.
+   Meldungen gehen mit `mandatory = false` raus und werden verworfen, solange seine Queue nicht
+   existiert — das kostet nichts und blockiert nichts, aber es heißt auch, dass eine fehlende
+   Audit-Zeile heute keine Aussage ist.
 4. **Ein Plugin statt zwei.** Ein Server lädt `surf-eventbus-platform-paper` beziehungsweise
    `-velocity` und damit eine Netty-Kopie statt zwei. Die alten Plugins `surf-rabbitmq-paper`
    und die surf-redis-Plugins müssen vorher weg.
-5. **Gemeinsam deployen.** Wire-Format und API sind inkompatibel zu 1.6.x/1.5.x; gemischter
-   Betrieb funktioniert nicht.
+5. **Gemeinsam deployen.** Wire-Format und API sind inkompatibel zu 1.6.x/1.5.x; gemischter Betrieb
+   funktioniert nicht.
 
 - [ ] **Step 4: Prüfen, dass die README keine falschen Versprechen macht**
 
-Gegen `docs/superpowers/specs/2026-07-29-surf-eventbus-design.md` lesen und vier Dinge
-bestätigen: dass nirgends „durable" über Events steht, dass `InstanceTarget` als „für
-namentlich bekannte Server" beschrieben ist und nicht als Server-zu-Server-Kanal, dass das Audit
-als best effort beschrieben ist — keine Zeile ist keine Garantie, dass nichts passiert ist —,
-und dass keine Umgebungsvariable ohne `SURF_EVENTBUS_`-Präfix mehr vorkommt:
+Gegen `docs/superpowers/specs/2026-07-29-surf-eventbus-design.md` lesen und vier Dinge bestätigen:
+dass nirgends „durable" über Events steht, dass `InstanceTarget` als „für namentlich bekannte
+Server" beschrieben ist und nicht als Server-zu-Server-Kanal, dass das Audit als best effort
+beschrieben ist — keine Zeile ist keine Garantie, dass nichts passiert ist —, und dass keine
+Umgebungsvariable ohne `SURF_EVENTBUS_`-Präfix mehr vorkommt:
 
 ```bash
 grep -n "SURF_RABBITMQ_\|SURF_REDIS_" README.md docs/rollout-2.0.md
 ```
+
 Expected: keine Ausgabe.
 
 - [ ] **Step 5: Der letzte vollständige Lauf**
@@ -2262,44 +2308,44 @@ an audit path whose writer does not exist yet."
 
 **Spec-Abdeckung (Spec-Abschnitt → Task):**
 
-| Spec | Task |
-|---|---|
-| 1 Ein Vertragsmodell (`service/`, `ParametersSerializer`, `ServiceSerializerCache`) | 2 |
-| 2 Ein KSP-Prozessor | 3 |
-| 3 Pakete und Dateinamen | 4 |
-| 4 Ein Marker statt drei | 1 |
-| 5 Konfiguration: eine `RabbitMQConfig`, Kotlin-Properties, Redis-Plugin-Schicht | 5 Steps 5–6 |
-| 5 Credentials für beide, URI-Fehler | 5 Steps 1–4 |
-| 5 `EventBusInstance`, `RedisRuntime`, `StandaloneLifecycleHook` bus-weit | 5 Step 7 |
-| 5 Ausnahmewurzel | 5 Step 8 |
-| 5 `RequiresDocker` einmal | 5 Step 9 |
-| 6 `META-INF/services`-Hack, `FakeRedisInstance`, `AggregateCompletenessTest` | 6 Steps 1–4 |
-| 6 CWD-abhängige Tests, `AuditReports`, zwei TODOs, `publish.yml` | 6 Steps 5–8 |
-| 7 Plan-4 Task 4 Plattform-Module | 7 |
-| 7 Plan-4 Task 5 Container-Suiten | 8 |
-| 7 Plan-4 Task 6 Dokumentation | 9 |
-| 7 Plan-4 Task 2 als blockiert weitertragen | 9 Step 1 |
-| „Wie geprüft wird": Test gegen `common`, `rabbitmq.api`, kebab-case | 4 Step 1 |
+| Spec                                                                                | Task        |
+|-------------------------------------------------------------------------------------|-------------|
+| 1 Ein Vertragsmodell (`service/`, `ParametersSerializer`, `ServiceSerializerCache`) | 2           |
+| 2 Ein KSP-Prozessor                                                                 | 3           |
+| 3 Pakete und Dateinamen                                                             | 4           |
+| 4 Ein Marker statt drei                                                             | 1           |
+| 5 Konfiguration: eine `RabbitMQConfig`, Kotlin-Properties, Redis-Plugin-Schicht     | 5 Steps 5–6 |
+| 5 Credentials für beide, URI-Fehler                                                 | 5 Steps 1–4 |
+| 5 `EventBusInstance`, `RedisRuntime`, `StandaloneLifecycleHook` bus-weit            | 5 Step 7    |
+| 5 Ausnahmewurzel                                                                    | 5 Step 8    |
+| 5 `RequiresDocker` einmal                                                           | 5 Step 9    |
+| 6 `META-INF/services`-Hack, `FakeRedisInstance`, `AggregateCompletenessTest`        | 6 Steps 1–4 |
+| 6 CWD-abhängige Tests, `AuditReports`, zwei TODOs, `publish.yml`                    | 6 Steps 5–8 |
+| 7 Plan-4 Task 4 Plattform-Module                                                    | 7           |
+| 7 Plan-4 Task 5 Container-Suiten                                                    | 8           |
+| 7 Plan-4 Task 6 Dokumentation                                                       | 9           |
+| 7 Plan-4 Task 2 als blockiert weitertragen                                          | 9 Step 1    |
+| „Wie geprüft wird": Test gegen `common`, `rabbitmq.api`, kebab-case                 | 4 Step 1    |
 
-**Typkonsistenz:** `ServiceCallable`, `ServiceParameter`, `ServiceType`, `ServiceInvoker` und
-die vier `*Default`-Klassen werden in Task 2 Step 3 definiert und in Task 3 Step 5 vom Codegen
-emittiert — unter denselben Namen. `RpcServiceDescriptor` (Task 2 Step 5) ist der Name, den
-Task 3 Step 5 in `ClassNames.rpcServiceDescriptor` einträgt; `RabbitRpcServiceDescriptor`
-kommt nach Task 2 nirgends mehr vor. `EventBusInstance` (Task 5 Step 7) ist der Typ, den
-Task 7 Step 3 dreimal implementiert und den `RabbitMQConfig` (Task 5 Step 5) für seinen
+**Typkonsistenz:** `ServiceCallable`, `ServiceParameter`, `ServiceType`, `ServiceInvoker` und die
+vier `*Default`-Klassen werden in Task 2 Step 3 definiert und in Task 3 Step 5 vom Codegen
+emittiert — unter denselben Namen. `RpcServiceDescriptor` (Task 2 Step 5) ist der Name, den Task 3
+Step 5 in `ClassNames.rpcServiceDescriptor` einträgt; `RabbitRpcServiceDescriptor`
+kommt nach Task 2 nirgends mehr vor. `EventBusInstance` (Task 5 Step 7) ist der Typ, den Task 7 Step
+3 dreimal implementiert und den `RabbitMQConfig` (Task 5 Step 5) für seinen
 `dataPath` benutzt. `StandaloneLifecycleHook` zieht in Task 4 Step 3 nach
-`dev.slne.surf.eventbus.platform` und ist dort der Typ, den `withStandaloneHook` in Task 6
-Step 1 nimmt. `ParametersSerializer` und `ServiceSerializerCache` (Task 2 Step 8) liegen in
-`dev.slne.surf.eventbus.service.serialization` und werden von Task 3 Step 5 unter genau diesem
-Paket referenziert.
+`dev.slne.surf.eventbus.platform` und ist dort der Typ, den `withStandaloneHook` in Task 6 Step 1
+nimmt. `ParametersSerializer` und `ServiceSerializerCache` (Task 2 Step 8) liegen in
+`dev.slne.surf.eventbus.service.serialization` und werden von Task 3 Step 5 unter genau diesem Paket
+referenziert.
 
-**Reihenfolgeabhängigkeiten:** Task 1 vor 4, weil sonst jede Datei zweimal angefasst wird.
-Task 2 vor 3, weil der Prozessor auf die Typen zeigt. Task 4 nach 1–3, damit inhaltlich
-geänderte Dateien nicht zusätzlich umziehen. Task 5 vor 7, weil die Plattform-Module
+**Reihenfolgeabhängigkeiten:** Task 1 vor 4, weil sonst jede Datei zweimal angefasst wird. Task 2
+vor 3, weil der Prozessor auf die Typen zeigt. Task 4 nach 1–3, damit inhaltlich geänderte Dateien
+nicht zusätzlich umziehen. Task 5 vor 7, weil die Plattform-Module
 `EventBusInstance` brauchen. Task 8 nach 7, weil die Suiten beide Transporte auf einer Plattform
 hochfahren. Task 9 zuletzt, weil sie den Endzustand beschreibt.
 
 **Bewusst nicht hier:** die Wiederaufspaltung in Untermodule, eine gemeinsame Annotation für
 `@QueryService` und `@RpcService`, der Audit-Microservice, die Korrektur der
-`RabbitModule`-Enumeration in surf-microservice, die Umbenennung des GitHub-Repositories, der
-Umbau der Consumer.
+`RabbitModule`-Enumeration in surf-microservice, die Umbenennung des GitHub-Repositories, der Umbau
+der Consumer.

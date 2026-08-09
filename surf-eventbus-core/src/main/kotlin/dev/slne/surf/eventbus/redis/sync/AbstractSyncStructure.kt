@@ -1,9 +1,9 @@
 package dev.slne.surf.eventbus.redis.sync
 
-import kotlinx.coroutines.reactive.awaitFirstOrNull
 import dev.slne.surf.api.core.util.logger
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
 import dev.slne.surf.eventbus.redis.util.DisposableAware
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import org.jetbrains.annotations.MustBeInvokedByOverriders
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -13,12 +13,12 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.time.Duration
 
-
 abstract class AbstractSyncStructure<L, R : AbstractSyncStructure.VersionedSnapshot>(
-    protected val api: RedisApi,
+    protected val api: SurfRedisApi,
     id: String,
-    override val ttl: Duration
-) : DisposableAware(), SyncStructure<L> {
+    override val ttl: Duration,
+) : DisposableAware(),
+    SyncStructure<L> {
     companion object {
         /**
          * Key prefix for every synchronised structure.
@@ -46,26 +46,31 @@ abstract class AbstractSyncStructure<L, R : AbstractSyncStructure.VersionedSnaps
         loadFromRemote().awaitFirstOrNull()
     }
 
-    private fun registerListeners(): Mono<Void> = Flux.merge(registerListeners0())
-        .doOnError { e ->
-            log.atSevere()
-                .withCause(e)
-                .log("Failed to register listeners for $id")
-        }
-        .doOnNext { listenerIds.add(it) }
-        .then()
+    private fun registerListeners(): Mono<Void> =
+        Flux
+            .merge(registerListeners0())
+            .doOnError { e ->
+                log
+                    .atSevere()
+                    .withCause(e)
+                    .log("Failed to register listeners for $id")
+            }.doOnNext { listenerIds.add(it) }
+            .then()
 
-    private fun unregisterListeners(): Mono<Void> = Flux.fromIterable(listenerIds)
-        .concatMap { unregisterListener(it).thenReturn(it) }
-        .doOnError { e ->
-            log.atSevere()
-                .withCause(e)
-                .log("Failed to unregister listeners for $id")
-        }
-        .doOnNext { listenerIds.remove(it) }
-        .then()
+    private fun unregisterListeners(): Mono<Void> =
+        Flux
+            .fromIterable(listenerIds)
+            .concatMap { unregisterListener(it).thenReturn(it) }
+            .doOnError { e ->
+                log
+                    .atSevere()
+                    .withCause(e)
+                    .log("Failed to unregister listeners for $id")
+            }.doOnNext { listenerIds.remove(it) }
+            .then()
 
     protected abstract fun registerListeners0(): List<Mono<Int>>
+
     protected abstract fun unregisterListener(id: Int): Mono<*>
 
     @MustBeInvokedByOverriders
@@ -86,30 +91,31 @@ abstract class AbstractSyncStructure<L, R : AbstractSyncStructure.VersionedSnaps
             try {
                 listener(value)
             } catch (e: Throwable) {
-                log.atSevere()
+                log
+                    .atSevere()
                     .withCause(e)
                     .log("Error notifying listener for $id")
             }
         }
     }
 
-    protected fun loadFromRemote(): Mono<Void> = loadFromRemote0()
-        .onErrorResume {
-            log.atWarning()
-                .withCause(it)
-                .log("Failed to load remote state for $id")
-            Mono.empty()
-        }
-        .doOnSuccess { raw ->
-            if (raw != null) {
-                overrideFromRemote(raw)
-            }
-        }
-        .then()
+    protected fun loadFromRemote(): Mono<Void> =
+        loadFromRemote0()
+            .onErrorResume {
+                log
+                    .atWarning()
+                    .withCause(it)
+                    .log("Failed to load remote state for $id")
+                Mono.empty()
+            }.doOnSuccess { raw ->
+                if (raw != null) {
+                    overrideFromRemote(raw)
+                }
+            }.then()
 
     protected abstract fun loadFromRemote0(): Mono<R>
-    protected abstract fun overrideFromRemote(raw: R)
 
+    protected abstract fun overrideFromRemote(raw: R)
 
     interface VersionedSnapshot {
         val version: Long
@@ -117,11 +123,10 @@ abstract class AbstractSyncStructure<L, R : AbstractSyncStructure.VersionedSnaps
 
     data class SimpleVersionedSnapshot<V>(
         val value: V,
-        override val version: Long
+        override val version: Long,
     ) : VersionedSnapshot {
         companion object {
-            fun <V : Any> fromTuple(tuple: Tuple2<V, Long>) =
-                SimpleVersionedSnapshot(tuple.t1, tuple.t2)
+            fun <V : Any> fromTuple(tuple: Tuple2<V, Long>) = SimpleVersionedSnapshot(tuple.t1, tuple.t2)
         }
     }
 }

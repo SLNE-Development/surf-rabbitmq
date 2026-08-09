@@ -2,7 +2,7 @@ package dev.slne.surf.eventbus
 
 import dev.slne.surf.eventbus.event.SurfBusEvent
 import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
 import java.nio.file.Path
 import kotlin.reflect.KClass
 
@@ -20,12 +20,14 @@ import kotlin.reflect.KClass
  * [SurfEventBusFactory], discovered via `ServiceLoader`, so this module never depends on it.
  */
 interface SurfEventBus {
-
     /** Registers `@SurfSubscribe` methods on [listener]. Requires the Redis transport. */
     fun subscribe(listener: Any)
 
     /** Offers an `@RpcService` or `@QueryService` contract. The descriptor decides which. */
-    fun <T : Any> registerService(contract: KClass<T>, implementation: T)
+    fun <T : Any> registerService(
+        contract: KClass<T>,
+        implementation: T,
+    )
 
     /** Publishes to every matching subscriber. Requires the Redis transport. */
     suspend fun publish(event: SurfBusEvent)
@@ -52,23 +54,25 @@ interface SurfEventBus {
     val rabbit: SurfRabbitApi
 
     /** The Redis-only surface: sync structures, caches. Throws when the transport is not enabled. */
-    val redis: RedisApi
+    val redis: SurfRedisApi
 
     companion object {
-        fun builder(serviceName: String, dataPath: Path): SurfEventBusBuilder =
-            SurfEventBusFactory.instance.builder(serviceName, dataPath)
+        fun builder(
+            serviceName: String,
+            dataPath: Path,
+        ): SurfEventBusBuilder = SurfEventBusFactory.instance.builder(serviceName, dataPath)
     }
 }
 
-inline fun <reified T : Any> SurfEventBus.registerService(implementation: T) =
-    registerService(T::class, implementation)
+inline fun <reified T : Any> SurfEventBus.registerService(implementation: T) = registerService(T::class, implementation)
 
 inline fun <reified T : Any> SurfEventBus.query(): T = query(T::class)
 
 inline fun <reified T : Any> SurfEventBus.rpc(): T = rpc(T::class)
 
 inline fun <reified L : Any> SurfEventBus.subscribe() {
-    val instance = L::class.objectInstance
-        ?: error("${L::class.simpleName} is not a Kotlin object; pass the instance to subscribe(listener)")
+    val instance =
+        L::class.objectInstance
+            ?: error("${L::class.simpleName} is not a Kotlin object; pass the instance to subscribe(listener)")
     subscribe(instance)
 }

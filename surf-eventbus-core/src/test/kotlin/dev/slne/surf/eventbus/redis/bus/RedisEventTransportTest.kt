@@ -1,8 +1,8 @@
 package dev.slne.surf.eventbus.redis.bus
 
-import dev.slne.surf.eventbus.transport.EventEnvelope
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
 import dev.slne.surf.eventbus.testing.RequiresDocker
+import dev.slne.surf.eventbus.transport.EventEnvelope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.test.runTest
@@ -25,10 +25,10 @@ import kotlin.time.Duration.Companion.seconds
  */
 @RequiresDocker
 class RedisEventTransportTest {
-
-    private suspend fun newApi(): RedisApi {
+    private suspend fun newApi(): SurfRedisApi {
         val uri = RedisURI("redis://${redis.host}:${redis.getMappedPort(6379)}")
-        val api = RedisApi.create(uri).freezeAndConnect()
+        val api = SurfRedisApi.create(uri)
+        api.freezeAndConnect()
         apis += api
         return api
     }
@@ -39,89 +39,112 @@ class RedisEventTransportTest {
     }
 
     @Test
-    fun `three instances receive a broadcast event`() = runTest(timeout = 10.seconds) {
-        val received = List(3) { Channel<EventEnvelope>(capacity = 1) }
-        val transports = received.map { channel ->
-            newTransport().apply {
-                connect(setOf("faction.disbanded"), emptySet()) { envelope, _ -> channel.send(envelope) }
-            }
+    fun `three instances receive a broadcast event`() =
+        runTest(timeout = 10.seconds) {
+            val received = List(3) { Channel<EventEnvelope>(capacity = 1) }
+            val transports =
+                received.map { channel ->
+                    newTransport().apply {
+                        connect(setOf("faction.disbanded"), emptySet()) { envelope, _ ->
+                            channel.send(
+                                envelope,
+                            )
+                        }
+                    }
+                }
+
+            transports.first().publish(envelope("faction.disbanded"), null)
+
+            received.forEach { channel -> assertEquals("faction.disbanded", channel.receive().topic) }
         }
 
-        transports.first().publish(envelope("faction.disbanded"), null)
+    @Test
+    fun `an exact topic only reaches a subscriber for that topic`() =
+        runTest(timeout = 10.seconds) {
+            val matched = Channel<EventEnvelope>(capacity = 1)
+            val unrelated = Channel<EventEnvelope>(capacity = 1)
 
-        received.forEach { channel -> assertEquals("faction.disbanded", channel.receive().topic) }
-    }
+            newTransport().connect(
+                setOf("faction.disbanded"),
+                emptySet(),
+            ) { e, _ -> matched.send(e) }
+            val other = newTransport()
+            other.connect(setOf("player.joined"), emptySet()) { e, _ -> unrelated.send(e) }
+
+            newTransport().publish(envelope("faction.disbanded"), null)
+
+            assertEquals("faction.disbanded", matched.receive().topic)
+            assertNull(withTimeoutOrNullSeconds(unrelated))
+        }
 
     @Test
-    fun `an exact topic only reaches a subscriber for that topic`() = runTest(timeout = 10.seconds) {
-        val matched = Channel<EventEnvelope>(capacity = 1)
-        val unrelated = Channel<EventEnvelope>(capacity = 1)
+    fun `a single-segment wildcard matches one segment`() =
+        runTest(timeout = 10.seconds) {
+            val channel = Channel<EventEnvelope>(capacity = 1)
+            newTransport().connect(emptySet(), setOf("faction.*")) { e, _ -> channel.send(e) }
 
-        newTransport().connect(setOf("faction.disbanded"), emptySet()) { e, _ -> matched.send(e) }
-        val other = newTransport()
-        other.connect(setOf("player.joined"), emptySet()) { e, _ -> unrelated.send(e) }
+            newTransport().publish(envelope("faction.disbanded"), null)
 
-        newTransport().publish(envelope("faction.disbanded"), null)
-
-        assertEquals("faction.disbanded", matched.receive().topic)
-        assertNull(withTimeoutOrNullSeconds(unrelated))
-    }
+            assertEquals("faction.disbanded", channel.receive().topic)
+        }
 
     @Test
-    fun `a single-segment wildcard matches one segment`() = runTest(timeout = 10.seconds) {
-        val channel = Channel<EventEnvelope>(capacity = 1)
-        newTransport().connect(emptySet(), setOf("faction.*")) { e, _ -> channel.send(e) }
+    fun `a hash wildcard matches zero or more segments`() =
+        runTest(timeout = 10.seconds) {
+            val channel = Channel<EventEnvelope>(capacity = 1)
+            newTransport().connect(emptySet(), setOf("faction.#")) { e, _ -> channel.send(e) }
 
-        newTransport().publish(envelope("faction.disbanded"), null)
+            newTransport().publish(envelope("faction.member.kicked"), null)
 
-        assertEquals("faction.disbanded", channel.receive().topic)
-    }
-
-    @Test
-    fun `a hash wildcard matches zero or more segments`() = runTest(timeout = 10.seconds) {
-        val channel = Channel<EventEnvelope>(capacity = 1)
-        newTransport().connect(emptySet(), setOf("faction.#")) { e, _ -> channel.send(e) }
-
-        newTransport().publish(envelope("faction.member.kicked"), null)
-
-        assertEquals("faction.member.kicked", channel.receive().topic)
-    }
+            assertEquals("faction.member.kicked", channel.receive().topic)
+        }
 
     @Test
-    fun `two overlapping patterns both fire`() = runTest(timeout = 10.seconds) {
-        val first = Channel<EventEnvelope>(capacity = 1)
-        val second = Channel<EventEnvelope>(capacity = 1)
-        newTransport().connect(emptySet(), setOf("faction.*")) { e, _ -> first.send(e) }
-        newTransport().connect(emptySet(), setOf("faction.#")) { e, _ -> second.send(e) }
+    fun `two overlapping patterns both fire`() =
+        runTest(timeout = 10.seconds) {
+            val first = Channel<EventEnvelope>(capacity = 1)
+            val second = Channel<EventEnvelope>(capacity = 1)
+            newTransport().connect(emptySet(), setOf("faction.*")) { e, _ -> first.send(e) }
+            newTransport().connect(emptySet(), setOf("faction.#")) { e, _ -> second.send(e) }
 
-        newTransport().publish(envelope("faction.disbanded"), null)
+            newTransport().publish(envelope("faction.disbanded"), null)
 
-        assertEquals("faction.disbanded", first.receive().topic)
-        assertEquals("faction.disbanded", second.receive().topic)
-    }
-
-    @Test
-    fun `a codec event arrives on the binary channel`() = runTest(timeout = 10.seconds) {
-        val channel = Channel<ByteArray?>(capacity = 1)
-        newTransport().connect(setOf("faction.disbanded"), emptySet()) { _, payload -> channel.send(payload) }
-
-        newTransport().publish(envelope("faction.disbanded"), byteArrayOf(1, 2, 3))
-
-        assertEquals(listOf<Byte>(1, 2, 3), channel.receive()?.toList())
-    }
+            assertEquals("faction.disbanded", first.receive().topic)
+            assertEquals("faction.disbanded", second.receive().topic)
+        }
 
     @Test
-    fun `a wildcard subscription receives both JSON and codec events`() = runTest(timeout = 10.seconds) {
-        val channel = Channel<ByteArray?>(capacity = 2)
-        newTransport().connect(emptySet(), setOf("faction.#")) { _, payload -> channel.send(payload) }
+    fun `a codec event arrives on the binary channel`() =
+        runTest(timeout = 10.seconds) {
+            val channel = Channel<ByteArray?>(capacity = 1)
+            newTransport().connect(setOf("faction.disbanded"), emptySet()) { _, payload ->
+                channel.send(
+                    payload,
+                )
+            }
 
-        val publisher = newTransport()
-        publisher.publish(envelope("faction.disbanded"), null)
-        publisher.publish(envelope("faction.renamed"), byteArrayOf(9))
+            newTransport().publish(envelope("faction.disbanded"), byteArrayOf(1, 2, 3))
 
-        assertNull(channel.receive())
-        assertEquals(listOf<Byte>(9), channel.receive()?.toList())
-    }
+            assertEquals(listOf<Byte>(1, 2, 3), channel.receive()?.toList())
+        }
+
+    @Test
+    fun `a wildcard subscription receives both JSON and codec events`() =
+        runTest(timeout = 10.seconds) {
+            val channel = Channel<ByteArray?>(capacity = 2)
+            newTransport().connect(emptySet(), setOf("faction.#")) { _, payload ->
+                channel.send(
+                    payload,
+                )
+            }
+
+            val publisher = newTransport()
+            publisher.publish(envelope("faction.disbanded"), null)
+            publisher.publish(envelope("faction.renamed"), byteArrayOf(9))
+
+            assertNull(channel.receive())
+            assertEquals(listOf<Byte>(9), channel.receive()?.toList())
+        }
 
     /**
      * Regression test for C3.
@@ -133,29 +156,34 @@ class RedisEventTransportTest {
      * tests a bus from an earlier case answered a later one.
      */
     @Test
-    fun `disconnect removes the listeners, so no later event is delivered`() = runTest(timeout = 10.seconds) {
-        val channel = Channel<EventEnvelope>(capacity = 1)
-        val subscriber = newTransport()
-        subscriber.connect(setOf("faction.disbanded"), emptySet()) { e, _ -> channel.send(e) }
+    fun `disconnect removes the listeners, so no later event is delivered`() =
+        runTest(timeout = 10.seconds) {
+            val channel = Channel<EventEnvelope>(capacity = 1)
+            val subscriber = newTransport()
+            subscriber.connect(setOf("faction.disbanded"), emptySet()) { e, _ -> channel.send(e) }
 
-        subscriber.disconnect()
-        newTransport().publish(envelope("faction.disbanded"), null)
+            subscriber.disconnect()
+            newTransport().publish(envelope("faction.disbanded"), null)
 
-        assertNull(withTimeoutOrNullSeconds(channel), "a disconnected transport must not receive")
-    }
+            assertNull(
+                withTimeoutOrNullSeconds(channel),
+                "a disconnected transport must not receive",
+            )
+        }
 
     /** The same, for the pattern subscriptions, which take a different Redisson code path. */
     @Test
-    fun `disconnect removes the pattern listeners too`() = runTest(timeout = 10.seconds) {
-        val channel = Channel<EventEnvelope>(capacity = 1)
-        val subscriber = newTransport()
-        subscriber.connect(emptySet(), setOf("faction.#")) { e, _ -> channel.send(e) }
+    fun `disconnect removes the pattern listeners too`() =
+        runTest(timeout = 10.seconds) {
+            val channel = Channel<EventEnvelope>(capacity = 1)
+            val subscriber = newTransport()
+            subscriber.connect(emptySet(), setOf("faction.#")) { e, _ -> channel.send(e) }
 
-        subscriber.disconnect()
-        newTransport().publish(envelope("faction.member.kicked"), null)
+            subscriber.disconnect()
+            newTransport().publish(envelope("faction.member.kicked"), null)
 
-        assertNull(withTimeoutOrNullSeconds(channel), "a disconnected transport must not receive")
-    }
+            assertNull(withTimeoutOrNullSeconds(channel), "a disconnected transport must not receive")
+        }
 
     /**
      * Regression test for C3, second half.
@@ -170,23 +198,25 @@ class RedisEventTransportTest {
      * test that merely *usually* wins tells us nothing on a fast loopback.
      */
     @Test
-    fun `connect does not return before the subscription exists`() = runTest(timeout = 20.seconds) {
-        val api = newApi()
-        val transport = RedisEventTransport(api, api.json)
+    fun `connect does not return before the subscription exists`() =
+        runTest(timeout = 20.seconds) {
+            val api = newApi()
+            val transport = RedisEventTransport(api, api.json)
 
-        transport.connect(setOf("faction.awaited"), emptySet()) { _, _ -> }
+            transport.connect(setOf("faction.awaited"), emptySet()) { _, _ -> }
 
-        val subscribers = api.redisson
-            .getTopic(RedisChannels.json("faction.awaited"), StringCodec.INSTANCE)
-            .countSubscribers()
+            val subscribers =
+                api.redisson
+                    .getTopic(RedisChannels.json("faction.awaited"), StringCodec.INSTANCE)
+                    .countSubscribers()
 
-        assertEquals(
-            1,
-            subscribers,
-            "connect() returned while the SUBSCRIBE was still in flight; an event published " +
-                    "now would be lost, because Pub/Sub has no redelivery"
-        )
-    }
+            assertEquals(
+                1,
+                subscribers,
+                "connect() returned while the SUBSCRIBE was still in flight; an event published " +
+                    "now would be lost, because Pub/Sub has no redelivery",
+            )
+        }
 
     /**
      * Waits up to a second of **real** time for a delivery.
@@ -201,17 +231,18 @@ class RedisEventTransportTest {
             withTimeoutOrNull(1.seconds) { channel.receive() }
         }
 
-    private fun envelope(topic: String) = EventEnvelope(
-        topic = topic,
-        type = "dev.example.Test",
-        originInstanceId = "test-instance",
-        publishedAtEpochMs = System.currentTimeMillis(),
-        payload = "{}"
-    )
+    private fun envelope(topic: String) =
+        EventEnvelope(
+            topic = topic,
+            type = "dev.example.Test",
+            originInstanceId = "test-instance",
+            publishedAtEpochMs = System.currentTimeMillis(),
+            payload = "{}",
+        )
 
     companion object {
         private lateinit var redis: GenericContainer<*>
-        private val apis = mutableListOf<RedisApi>()
+        private val apis = mutableListOf<SurfRedisApi>()
 
         @JvmStatic
         @BeforeAll
@@ -222,9 +253,10 @@ class RedisEventTransportTest {
 
         @JvmStatic
         @AfterAll
-        fun stopRedis() = kotlinx.coroutines.runBlocking {
-            apis.forEach { runCatching { it.disconnect() } }
-            redis.stop()
-        }
+        fun stopRedis() =
+            kotlinx.coroutines.runBlocking {
+                apis.forEach { runCatching { it.disconnect() } }
+                redis.stop()
+            }
     }
 }

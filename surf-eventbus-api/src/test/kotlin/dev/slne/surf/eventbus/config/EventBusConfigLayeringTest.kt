@@ -36,8 +36,8 @@ class EventBusConfigLayeringTest {
     @Test
     fun `the global yaml beats the default`() {
         val global = EventBusConfig(
-            rabbitmq = RabbitMQSection(host = StringOrDefault.of("rabbit-global")),
-            redis = RedisSection(host = StringOrDefault.of("redis-global")),
+            rabbitmq = EventBusRabbitMQConfig(host = StringOrDefault.of("rabbit-global")),
+            redis = EventBusRedisConfig(host = StringOrDefault.of("redis-global")),
         )
 
         val resolved = resolveEventBusConfig(global = global, environment = noEnvironment)
@@ -50,12 +50,12 @@ class EventBusConfigLayeringTest {
     fun `the plugin yaml beats the global yaml`() {
         val resolved = resolveEventBusConfig(
             global = EventBusConfig(
-                rabbitmq = RabbitMQSection(host = StringOrDefault.of("rabbit-global")),
-                redis = RedisSection(host = StringOrDefault.of("redis-global")),
+                rabbitmq = EventBusRabbitMQConfig(host = StringOrDefault.of("rabbit-global")),
+                redis = EventBusRedisConfig(host = StringOrDefault.of("redis-global")),
             ),
             plugin = EventBusConfig(
-                rabbitmq = RabbitMQSection(host = StringOrDefault.of("rabbit-plugin")),
-                redis = RedisSection(host = StringOrDefault.of("redis-plugin")),
+                rabbitmq = EventBusRabbitMQConfig(host = StringOrDefault.of("rabbit-plugin")),
+                redis = EventBusRedisConfig(host = StringOrDefault.of("redis-plugin")),
             ),
             environment = noEnvironment,
         )
@@ -68,12 +68,12 @@ class EventBusConfigLayeringTest {
     fun `the environment beats every yaml layer`() {
         val resolved = resolveEventBusConfig(
             global = EventBusConfig(
-                rabbitmq = RabbitMQSection(host = StringOrDefault.of("rabbit-global")),
-                redis = RedisSection(host = StringOrDefault.of("redis-global")),
+                rabbitmq = EventBusRabbitMQConfig(host = StringOrDefault.of("rabbit-global")),
+                redis = EventBusRedisConfig(host = StringOrDefault.of("redis-global")),
             ),
             plugin = EventBusConfig(
-                rabbitmq = RabbitMQSection(host = StringOrDefault.of("rabbit-plugin")),
-                redis = RedisSection(host = StringOrDefault.of("redis-plugin")),
+                rabbitmq = EventBusRabbitMQConfig(host = StringOrDefault.of("rabbit-plugin")),
+                redis = EventBusRedisConfig(host = StringOrDefault.of("redis-plugin")),
             ),
             environment = environment(
                 "SURF_EVENTBUS_RABBITMQ_HOST" to "rabbit-env",
@@ -91,18 +91,18 @@ class EventBusConfigLayeringTest {
         // key in it discarded every other value the global file set.
         val resolved = resolveEventBusConfig(
             global = EventBusConfig(
-                rabbitmq = RabbitMQSection(
+                rabbitmq = EventBusRabbitMQConfig(
                     host = StringOrDefault.of("rabbit-global"),
                     port = IntOr.Default(5673),
                 ),
-                redis = RedisSection(
+                redis = EventBusRedisConfig(
                     host = StringOrDefault.of("redis-global"),
                     port = IntOr.Default(6380),
                 ),
             ),
             plugin = EventBusConfig(
-                rabbitmq = RabbitMQSection(host = StringOrDefault.of("rabbit-plugin")),
-                redis = RedisSection(host = StringOrDefault.of("redis-plugin")),
+                rabbitmq = EventBusRabbitMQConfig(host = StringOrDefault.of("rabbit-plugin")),
+                redis = EventBusRedisConfig(host = StringOrDefault.of("redis-plugin")),
             ),
             environment = noEnvironment,
         )
@@ -117,7 +117,7 @@ class EventBusConfigLayeringTest {
     fun `a boolean set to false in yaml is not mistaken for unset`() {
         val resolved = resolveEventBusConfig(
             global = EventBusConfig(
-                rabbitmq = RabbitMQSection(persistRequests = BooleanOrDefault.FALSE)
+                rabbitmq = EventBusRabbitMQConfig(persistRequests = BooleanOrDefault.FALSE)
             ),
             environment = noEnvironment,
         )

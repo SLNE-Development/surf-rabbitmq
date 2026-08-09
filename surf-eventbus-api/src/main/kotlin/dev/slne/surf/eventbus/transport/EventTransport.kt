@@ -1,7 +1,5 @@
 package dev.slne.surf.eventbus.transport
 
-import dev.slne.surf.eventbus.transport.EventEnvelope
-
 /**
  * The seam between the bus and the Redis event channels.
  *
@@ -9,7 +7,6 @@ import dev.slne.surf.eventbus.transport.EventEnvelope
  * be tested without a server — not a promise that other transports can be plugged in.
  */
 interface EventTransport {
-
     /**
      * Subscribes and starts delivering.
      *
@@ -21,10 +18,13 @@ interface EventTransport {
     suspend fun connect(
         exactTopics: Set<String>,
         wildcardPatterns: Set<String>,
-        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit
+        onEvent: suspend (EventEnvelope, ByteArray?) -> Unit,
     )
 
-    suspend fun publish(envelope: EventEnvelope, binaryPayload: ByteArray?)
+    suspend fun publish(
+        envelope: EventEnvelope,
+        binaryPayload: ByteArray?,
+    )
 
     suspend fun disconnect()
 }

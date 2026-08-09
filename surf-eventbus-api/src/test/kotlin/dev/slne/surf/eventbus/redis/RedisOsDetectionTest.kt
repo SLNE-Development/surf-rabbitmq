@@ -1,5 +1,6 @@
 package dev.slne.surf.eventbus.redis
 
+import dev.slne.surf.eventbus.redis.connection.RedisConnection
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Tag
@@ -17,7 +18,7 @@ import kotlin.test.assertTrue
 /**
  * Regression test for C9.
  *
- * [RedisApi.FETCH_OS_LUA] used to be written in a Kotlin raw string with doubled backslashes,
+ * [RedisConnection.FETCH_OS_LUA] used to be written in a Kotlin raw string with doubled backslashes,
  * which Lua then read as a character class excluding backslash, `r` and `n` rather than CR and
  * LF. It still matched - just two characters of the OS name - so the `os == null` fallback
  * never fired and `redisOsType` stayed null on Windows forever.
@@ -27,25 +28,25 @@ import kotlin.test.assertTrue
  */
 @Tag("integration")
 class RedisOsDetectionTest {
-
     @Test
     fun `the OS line is extracted whole, not truncated to two characters`() {
-        val os = redisson.script.eval<String?>(
-            RScript.Mode.READ_ONLY,
-            RedisApi.FETCH_OS_LUA,
-            RScript.ReturnType.STRING,
-        )
+        val os =
+            redisson.script.eval<String?>(
+                RScript.Mode.READ_ONLY,
+                RedisConnection.FETCH_OS_LUA,
+                RScript.ReturnType.STRING,
+            )
 
         assertNotNull(os, "INFO server always reports an os: line")
 
         // The old pattern returned exactly "Li" for "os:Linux 5.15.0 x86_64".
         assertTrue(
             os.length > 2,
-            "expected the whole OS string, got '$os' - the Lua character class is escaping wrong"
+            "expected the whole OS string, got '$os' - the Lua character class is escaping wrong",
         )
         assertTrue(
             os.startsWith("Linux"),
-            "the redis:7-alpine container runs Linux, got '$os'"
+            "the redis:7-alpine container runs Linux, got '$os'",
         )
         assertEquals(os.trim(), os, "the match must stop at CR/LF, leaving no trailing newline")
     }
@@ -66,14 +67,16 @@ class RedisOsDetectionTest {
         @JvmStatic
         @BeforeAll
         fun start() {
-            container = GenericContainer(DockerImageName.parse("redis:7-alpine"))
-                .withExposedPorts(6379)
+            container =
+                GenericContainer(DockerImageName.parse("redis:7-alpine"))
+                    .withExposedPorts(6379)
             container.start()
 
-            val config = Config().apply {
-                useSingleServer().address =
-                    "redis://${container.host}:${container.getMappedPort(6379)}"
-            }
+            val config =
+                Config().apply {
+                    useSingleServer().address =
+                        "redis://${container.host}:${container.getMappedPort(6379)}"
+                }
             redisson = Redisson.create(config)
         }
 

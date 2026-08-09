@@ -7,7 +7,6 @@ import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
 import dev.slne.surf.eventbus.rabbitmq.testing.RabbitBrokerExtension
 import dev.slne.surf.eventbus.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.testing.testConfig
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitServiceUnavailableException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -18,6 +17,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitServiceUnavailableException
 
 @RpcService
 interface WorkService {

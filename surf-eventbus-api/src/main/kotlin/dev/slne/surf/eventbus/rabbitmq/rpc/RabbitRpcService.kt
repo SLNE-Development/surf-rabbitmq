@@ -9,7 +9,7 @@ import kotlin.reflect.KClass
  * Dispatches RPC calls and hosts RPC service implementations.
  *
  * Capability follows from which methods a process calls: [createService] makes it a client of
- * [Service], [registerService] makes it a host. A single process can be both for the same or
+ * [RpcService], [registerService] makes it a host. A single process can be both for the same or
  * different services over one connection.
  */
 @InternalEventBusApi
@@ -25,9 +25,16 @@ interface RabbitRpcService {
      * default. Proxies are cached per `(serviceKClass, target)` pair, so calling this in a loop
      * body with an [RabbitTarget.InstanceTarget] does not construct a new proxy each time.
      */
-    fun <Service : Any> createService(serviceKClass: KClass<Service>, target: RabbitTarget?): Service
+    fun <Service : Any> createService(
+        serviceKClass: KClass<Service>,
+        target: RabbitTarget?,
+    ): Service
 
-    fun <Service : Any> registerService(serviceKClass: KClass<Service>, serviceInstance: Service)
+    fun <Service : Any> registerService(
+        serviceKClass: KClass<Service>,
+        serviceInstance: Service,
+    )
+
     fun <Service : Any> unregisterService(serviceKClass: KClass<Service>)
 
     /**

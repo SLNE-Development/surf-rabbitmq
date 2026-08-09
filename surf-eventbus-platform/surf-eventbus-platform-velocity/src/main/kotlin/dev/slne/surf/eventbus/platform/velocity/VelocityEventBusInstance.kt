@@ -37,6 +37,6 @@ class VelocityEventBusInstance : EventBusPlatformInstance() {
     companion object {
         private const val FALLBACK_NAME = "surf-eventbus-velocity"
 
-        fun get(): VelocityEventBusInstance = EventBusInstance.instance as VelocityEventBusInstance
+        fun get(): VelocityEventBusInstance = EventBusInstance.INSTANCE as VelocityEventBusInstance
     }
 }

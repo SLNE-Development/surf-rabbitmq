@@ -2,14 +2,14 @@ package dev.slne.surf.eventbus.rabbitmq.connection
 
 import dev.slne.surf.eventbus.InternalEventBusApi
 import dev.slne.surf.eventbus.audit.AuditSink
+import dev.slne.surf.eventbus.connection.EventBusConnection
 import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitRequestPacket
 import dev.slne.surf.eventbus.rabbitmq.packet.RabbitResponsePacket
 import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
 
 @InternalEventBusApi
-interface RabbitMQConnection {
-
+interface RabbitMQConnection : EventBusConnection {
     /**
      * Where this connection reports message loss.
      *
@@ -19,20 +19,19 @@ interface RabbitMQConnection {
      */
     val auditSink: AuditSink
 
-    suspend fun connect()
-    suspend fun disconnect()
-
     suspend fun <R : RabbitResponsePacket> sendRequest(
         request: RabbitRequestPacket<R>,
         responseClass: Class<R>,
-        target: RabbitTarget
+        target: RabbitTarget,
     ): R
 
-    suspend fun send(packet: RabbitRequestPacket<*>, target: RabbitTarget)
+    suspend fun send(
+        packet: RabbitRequestPacket<*>,
+        target: RabbitTarget,
+    )
 
     @InternalEventBusApi
     companion object {
-        fun create(api: SurfRabbitApi): RabbitMQConnection =
-            RabbitMQConnectionFactory.createConnection(api)
+        fun create(api: SurfRabbitApi): RabbitMQConnection = RabbitMQConnectionFactory.createConnection(api)
     }
 }

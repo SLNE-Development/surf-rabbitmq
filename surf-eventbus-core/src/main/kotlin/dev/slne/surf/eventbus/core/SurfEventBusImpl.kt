@@ -2,13 +2,11 @@ package dev.slne.surf.eventbus.core
 
 import dev.slne.surf.eventbus.SurfEventBus
 import dev.slne.surf.eventbus.audit.AuditSink
-import dev.slne.surf.eventbus.serialization.KotlinSerializerCache
 import dev.slne.surf.eventbus.core.audit.LoggingAuditSink
 import dev.slne.surf.eventbus.core.dispatch.BusEventCodecs
 import dev.slne.surf.eventbus.core.dispatch.EventDispatcher
 import dev.slne.surf.eventbus.core.dispatch.EventTypeResolver
 import dev.slne.surf.eventbus.core.dispatch.QueryDispatcher
-import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.core.registry.EventSubscriptionRegistry
 import dev.slne.surf.eventbus.core.registry.QueryServiceRegistry
 import dev.slne.surf.eventbus.event.BusEventCodec
@@ -17,7 +15,9 @@ import dev.slne.surf.eventbus.event.SurfBusEvent
 import dev.slne.surf.eventbus.query.QueryService
 import dev.slne.surf.eventbus.query.descriptor.QueryServiceDescriptor
 import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
+import dev.slne.surf.eventbus.serialization.KotlinSerializerCache
+import dev.slne.surf.eventbus.transport.EventEnvelope
 import dev.slne.surf.eventbus.transport.EventTransport
 import dev.slne.surf.eventbus.transport.QueryTransport
 import io.netty.buffer.Unpooled
@@ -33,6 +33,7 @@ import kotlin.reflect.KClass
  * loudly and names the builder call. [freeze] rejects a subscription without its transport and
  * names the handler.
  */
+
 /**
  * @param auditSink where the event and query dispatchers report losses.
  *
@@ -48,36 +49,38 @@ class SurfEventBusImpl(
     @Suppress("unused") private val dataPath: Path,
     private val serializers: SerializersModule,
     private val rabbitApi: SurfRabbitApi?,
-    private val redisApi: RedisApi?,
+    private val redisApi: SurfRedisApi?,
     private val eventTransport: EventTransport?,
     private val queryTransport: QueryTransport?,
-    private val auditSink: AuditSink = LoggingAuditSink
+    private val auditSink: AuditSink = LoggingAuditSink,
 ) : SurfEventBus {
-
-    private val json = Json {
-        serializersModule = serializers
-        ignoreUnknownKeys = true
-    }
+    private val json =
+        Json {
+            serializersModule = serializers
+            ignoreUnknownKeys = true
+        }
 
     private val eventRegistry = EventSubscriptionRegistry()
     private val queryRegistry = QueryServiceRegistry()
-    private val dispatcher = EventDispatcher(
-        registry = eventRegistry,
-        instanceId = instanceId,
-        auditSink = auditSink,
-        json = json,
-        typeResolver = EventTypeResolver(),
-        serviceName = serviceName
-    )
-    private val queryDispatcher = queryTransport?.let {
-        QueryDispatcher(
-            registry = queryRegistry,
+    private val dispatcher =
+        EventDispatcher(
+            registry = eventRegistry,
             instanceId = instanceId,
             auditSink = auditSink,
             json = json,
-            transport = it
+            typeResolver = EventTypeResolver(),
+            serviceName = serviceName,
         )
-    }
+    private val queryDispatcher =
+        queryTransport?.let {
+            QueryDispatcher(
+                registry = queryRegistry,
+                instanceId = instanceId,
+                auditSink = auditSink,
+                json = json,
+                transport = it,
+            )
+        }
     private val serializerCache = KotlinSerializerCache<SurfBusEvent>(serializers)
 
     @Volatile
@@ -88,7 +91,10 @@ class SurfEventBusImpl(
         eventRegistry.register(listener)
     }
 
-    override fun <T : Any> registerService(contract: KClass<T>, implementation: T) {
+    override fun <T : Any> registerService(
+        contract: KClass<T>,
+        implementation: T,
+    ) {
         check(!frozen) { "registration is closed: freeze() has already run" }
 
         val javaContract = contract.java
@@ -100,7 +106,10 @@ class SurfEventBusImpl(
         // Not @QueryService: assume @RpcService and let SurfRabbitApi's own descriptor lookup
         // reject it if it isn't one - @RpcService uses BINARY retention, so it cannot be
         // checked for here the way @QueryService just was.
-        requireRabbit("registerService(${javaContract.simpleName})").registerService(contract, implementation)
+        requireRabbit("registerService(${javaContract.simpleName})").registerService(
+            contract,
+            implementation,
+        )
     }
 
     override suspend fun publish(event: SurfBusEvent) {
@@ -108,13 +117,22 @@ class SurfEventBusImpl(
         val topic = EventTopics.topicOf(event.javaClass)
         val codec = BusEventCodecs.codecFor(event.javaClass)
 
-        val envelope = EventEnvelope(
-            topic = topic,
-            type = event.javaClass.name,
-            originInstanceId = instanceId,
-            publishedAtEpochMs = System.currentTimeMillis(),
-            payload = if (codec == null) json.encodeToString(serializerOf(event.javaClass), event) else null
-        )
+        val envelope =
+            EventEnvelope(
+                topic = topic,
+                type = event.javaClass.name,
+                originInstanceId = instanceId,
+                publishedAtEpochMs = System.currentTimeMillis(),
+                payload =
+                    if (codec == null) {
+                        json.encodeToString(
+                            serializerOf(event.javaClass),
+                            event,
+                        )
+                    } else {
+                        null
+                    },
+            )
 
         transport.publish(envelope, codec?.let { encodeBinary(it, event) })
     }
@@ -127,8 +145,7 @@ class SurfEventBusImpl(
         return descriptor.createInstance(instanceId, json, transport) as T
     }
 
-    override fun <T : Any> rpc(contract: KClass<T>): T =
-        requireRabbit("rpc(${contract.java.simpleName})").rpc(contract)
+    override fun <T : Any> rpc(contract: KClass<T>): T = requireRabbit("rpc(${contract.java.simpleName})").rpc(contract)
 
     override fun freeze() {
         if (eventTransport == null && !eventRegistry.isEmpty()) {
@@ -137,7 +154,7 @@ class SurfEventBusImpl(
                 """
                 These @SurfSubscribe handlers need the Redis transport: $handlers
                 -> add .withRedis() to SurfEventBus.builder(...)
-                """.trimIndent()
+                """.trimIndent(),
             )
         }
 
@@ -150,7 +167,7 @@ class SurfEventBusImpl(
                 """
                 These @QueryService contracts need the Redis transport: $contracts
                 -> add .withRedis() to SurfEventBus.builder(...)
-                """.trimIndent()
+                """.trimIndent(),
             )
         }
 
@@ -167,9 +184,12 @@ class SurfEventBusImpl(
             eventTransport?.connect(
                 exactTopics = eventRegistry.exactTopics(),
                 wildcardPatterns = eventRegistry.wildcardPatterns(),
-                onEvent = dispatcher::dispatch
+                onEvent = dispatcher::dispatch,
             )
-            queryTransport?.connect(queryRegistry.contracts(), instanceId) { frame -> queryDispatcher!!.dispatch(frame) }
+            queryTransport?.connect(
+                queryRegistry.contracts(),
+                instanceId,
+            ) { frame -> queryDispatcher!!.dispatch(frame) }
             rabbitApi?.connect()
         } catch (throwable: Throwable) {
             // Half connected is harder to diagnose than not started.
@@ -212,41 +232,46 @@ class SurfEventBusImpl(
     override val rabbit: SurfRabbitApi
         get() = requireRabbit("the RabbitMQ surface")
 
-    override val redis: RedisApi
-        get() = redisApi ?: error(
-            "the Redis surface requires the Redis transport,\n" +
+    override val redis: SurfRedisApi
+        get() =
+            redisApi ?: error(
+                "the Redis surface requires the Redis transport,\n" +
                     "but this bus was built without it.\n" +
-                    "-> add .withRedis() to SurfEventBus.builder(...)"
+                    "-> add .withRedis() to SurfEventBus.builder(...)",
+            )
+
+    private fun requireRabbit(verb: String): SurfRabbitApi =
+        rabbitApi ?: error(
+            "$verb requires the RabbitMQ transport,\n" +
+                "but this bus was built without it.\n" +
+                "-> add .withRabbit() to SurfEventBus.builder(...)",
         )
 
-    private fun requireRabbit(verb: String): SurfRabbitApi = rabbitApi ?: error(
-        "$verb requires the RabbitMQ transport,\n" +
-                "but this bus was built without it.\n" +
-                "-> add .withRabbit() to SurfEventBus.builder(...)"
-    )
+    private fun requireRedis(verb: String): EventTransport =
+        eventTransport ?: error(
+            """
+            $verb requires the Redis transport,
+            but this bus was built without it.
+            -> add .withRedis() to SurfEventBus.builder(...)
+            """.trimIndent(),
+        )
 
-    private fun requireRedis(verb: String): EventTransport = eventTransport ?: error(
-        """
-        $verb requires the Redis transport,
-        but this bus was built without it.
-        -> add .withRedis() to SurfEventBus.builder(...)
-        """.trimIndent()
-    )
-
-    private fun requireQueryTransport(verb: String): QueryTransport = queryTransport ?: error(
-        """
-        $verb requires the Redis transport,
-        but this bus was built without it.
-        -> add .withRedis() to SurfEventBus.builder(...)
-        """.trimIndent()
-    )
+    private fun requireQueryTransport(verb: String): QueryTransport =
+        queryTransport ?: error(
+            """
+            $verb requires the Redis transport,
+            but this bus was built without it.
+            -> add .withRedis() to SurfEventBus.builder(...)
+            """.trimIndent(),
+        )
 
     private fun <T : Any> queryDescriptorOf(contract: KClass<T>): QueryServiceDescriptor<T> {
-        val descriptor = QueryDescriptorCache.get(contract.java)
-            ?: error(
-                "no generated descriptor found for ${contract.qualifiedName ?: contract.java.name}; " +
-                        "is the interface annotated with @QueryService?"
-            )
+        val descriptor =
+            QueryDescriptorCache.get(contract.java)
+                ?: error(
+                    "no generated descriptor found for ${contract.qualifiedName ?: contract.java.name}; " +
+                        "is the interface annotated with @QueryService?",
+                )
 
         @Suppress("UNCHECKED_CAST")
         return descriptor as QueryServiceDescriptor<T>
@@ -271,7 +296,10 @@ class SurfEventBusImpl(
         serializerCache.get(eventClass)
             ?: error("no kotlinx.serialization serializer for ${eventClass.name}")
 
-    private fun encodeBinary(codec: BusEventCodec<SurfBusEvent>, event: SurfBusEvent): ByteArray {
+    private fun encodeBinary(
+        codec: BusEventCodec<SurfBusEvent>,
+        event: SurfBusEvent,
+    ): ByteArray {
         val buffer = Unpooled.buffer()
         try {
             codec.encode(buffer, event)

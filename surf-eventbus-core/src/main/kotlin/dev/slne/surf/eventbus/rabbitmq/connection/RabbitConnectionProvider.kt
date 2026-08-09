@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.IOException
-import java.io.Serial
 import java.util.concurrent.CopyOnWriteArrayList
 
 class RabbitConnectionProvider(
@@ -298,33 +297,5 @@ class RabbitConnectionProvider(
 
             listeners.clear()
         }
-    }
-}
-
-open class RabbitConnectionUnavailableException(
-    connectionName: String,
-    message: String,
-    cause: Throwable? = null
-) : IllegalStateException(
-    "RabbitMQ connection '$connectionName' is unavailable: $message",
-    cause
-) {
-    companion object {
-        @Serial
-        private const val serialVersionUID: Long = -5653758684314094973L
-    }
-}
-
-class RabbitConnectionGenerationChangedException(
-    connectionName: String,
-    expectedGeneration: Long,
-    actualGeneration: Long
-) : RabbitConnectionUnavailableException(
-    connectionName = connectionName,
-    message = "Connection generation changed from $expectedGeneration to $actualGeneration"
-) {
-    companion object {
-        @Serial
-        private const val serialVersionUID: Long = -8546463514822471092L
     }
 }

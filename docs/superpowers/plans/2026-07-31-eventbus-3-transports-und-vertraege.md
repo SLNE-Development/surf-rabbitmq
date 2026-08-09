@@ -4,18 +4,18 @@
 > plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Do **not** use
 > `superpowers:subagent-driven-development` — this repository's owner has forbidden subagents.
 
-**Goal:** Die Nähte aus Plan 2 mit den echten Transports füllen und die drei doppelten
-Mechanismen löschen: Redis trägt Events und Queries, RabbitMQ trägt RPC inklusive
-`@FireAndForget`, und die untypisierte Paket-API sowie die alten Event- und
-Request/Response-APIs verschwinden.
+**Goal:** Die Nähte aus Plan 2 mit den echten Transports füllen und die drei doppelten Mechanismen
+löschen: Redis trägt Events und Queries, RabbitMQ trägt RPC inklusive
+`@FireAndForget`, und die untypisierte Paket-API sowie die alten Event- und Request/Response-APIs
+verschwinden.
 
-**Architecture:** Jede Löschung kommt **nach** ihrem Ersatz, damit keine Etappe unübersetzbar
-endet. Zuerst der Redis-Event-Transport, dann fällt Rabbits Event-Teil; zuerst `@FireAndForget`,
-dann fällt die Paket-API; zuerst `@QueryService`, dann fällt `RedisRequest`. Der KSP-Prozessor
-generiert am Ende für zwei Vertragsarten.
+**Architecture:** Jede Löschung kommt **nach** ihrem Ersatz, damit keine Etappe unübersetzbar endet.
+Zuerst der Redis-Event-Transport, dann fällt Rabbits Event-Teil; zuerst `@FireAndForget`, dann fällt
+die Paket-API; zuerst `@QueryService`, dann fällt `RedisRequest`. Der KSP-Prozessor generiert am
+Ende für zwei Vertragsarten.
 
-**Tech Stack:** Redisson 4.6.1 (Reactive Topics), `kotlinx.serialization` JSON, Netty `ByteBuf`,
-KSP mit KotlinPoet, amqp-client 5.34.0, Testcontainers (Redis, RabbitMQ), JUnit 5.
+**Tech Stack:** Redisson 4.6.1 (Reactive Topics), `kotlinx.serialization` JSON, Netty `ByteBuf`, KSP
+mit KotlinPoet, amqp-client 5.34.0, Testcontainers (Redis, RabbitMQ), JUnit 5.
 
 ## Global Constraints
 
@@ -37,34 +37,35 @@ KSP mit KotlinPoet, amqp-client 5.34.0, Testcontainers (Redis, RabbitMQ), JUnit 
 
 ## File Structure
 
-| Datei | Verantwortung |
-|---|---|
-| `…-redis-core/…/redis/bus/RedisEventTransport.kt` | `EventTransport` über zwei Redisson-Topic-Familien |
-| `…-redis-core/…/redis/bus/RedisQueryTransport.kt` | `QueryTransport` mit Korrelation und Timeout |
-| `…-redis-core/…/redis/bus/RedisTransportProvider.kt` | `ServiceLoader`-Fund für den Builder |
-| `…-bus-api/…/transport/RedisTransportLocator.kt` | `ServiceLoader`-Aufruf, ersetzt die Vorwärtsreferenz aus Plan 2 |
-| `…-bus-core/…/dispatch/QueryDispatcher.kt` | Zustellung einer Frage an den lokalen Anbieter |
-| `…-rabbitmq-api/…/rpc/FireAndForget.kt` | Markierung an einer RPC-Methode |
-| `…-ksp/…/processor/query/*` | Generierung für `@QueryService` |
-| `…-ksp/…/processor/rpc/*` | erweitert um `@FireAndForget` |
+| Datei                                                | Verantwortung                                                   |
+|------------------------------------------------------|-----------------------------------------------------------------|
+| `…-redis-core/…/redis/bus/RedisEventTransport.kt`    | `EventTransport` über zwei Redisson-Topic-Familien              |
+| `…-redis-core/…/redis/bus/RedisQueryTransport.kt`    | `QueryTransport` mit Korrelation und Timeout                    |
+| `…-redis-core/…/redis/bus/RedisTransportProvider.kt` | `ServiceLoader`-Fund für den Builder                            |
+| `…-bus-api/…/transport/RedisTransportLocator.kt`     | `ServiceLoader`-Aufruf, ersetzt die Vorwärtsreferenz aus Plan 2 |
+| `…-bus-core/…/dispatch/QueryDispatcher.kt`           | Zustellung einer Frage an den lokalen Anbieter                  |
+| `…-rabbitmq-api/…/rpc/FireAndForget.kt`              | Markierung an einer RPC-Methode                                 |
+| `…-ksp/…/processor/query/*`                          | Generierung für `@QueryService`                                 |
+| `…-ksp/…/processor/rpc/*`                            | erweitert um `@FireAndForget`                                   |
 
 **Gelöscht:**
 
-| Datei/Typ | Ersetzt durch |
-|---|---|
+| Datei/Typ                                                                                                                                                                | Ersetzt durch                                                     |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------|
 | `…redis/event/RedisEvent.kt`, `OnRedisEvent.kt`, `RedisEventBus.kt`, `RedisEventBusImpl.kt`, `RedisEventInvoker.kt`, `RedisEventCodec.kt`, `RedisEventCodecRegistrar.kt` | `SurfBusEvent`, `@SurfSubscribe`, `SurfEventBus`, `BusEventCodec` |
-| `…redis/request/**` (7 Dateien), `RequestResponseBusImpl.kt`, `RedisRequestHandlerInvoker.kt` | `@QueryService` |
-| `…rabbitmq/api/event/**` (4 Dateien) | `@BusEvent`, `@SurfSubscribe` |
-| `…rabbitmq/core/event/**` (4 Dateien) | Registry und Dispatcher aus `-bus-core` |
-| `…rabbitmq/api/packet/RabbitRequestPacket.kt`, `RabbitResponsePacket.kt`, `packet/standard/**` (6 Dateien) | Rückgabetypen der Vertragsmethode |
-| `…rabbitmq/api/handler/RabbitHandler.kt` | `@RpcService`-Methoden |
-| `RabbitTopology.EVENTS_EXCHANGE`, `sharedEventQueue`, `instanceEventQueue`, `QueueArguments.sharedEventQueue` | nichts — Events sind Redis |
+| `…redis/request/**` (7 Dateien), `RequestResponseBusImpl.kt`, `RedisRequestHandlerInvoker.kt`                                                                            | `@QueryService`                                                   |
+| `…rabbitmq/api/event/**` (4 Dateien)                                                                                                                                     | `@BusEvent`, `@SurfSubscribe`                                     |
+| `…rabbitmq/core/event/**` (4 Dateien)                                                                                                                                    | Registry und Dispatcher aus `-bus-core`                           |
+| `…rabbitmq/api/packet/RabbitRequestPacket.kt`, `RabbitResponsePacket.kt`, `packet/standard/**` (6 Dateien)                                                               | Rückgabetypen der Vertragsmethode                                 |
+| `…rabbitmq/api/handler/RabbitHandler.kt`                                                                                                                                 | `@RpcService`-Methoden                                            |
+| `RabbitTopology.EVENTS_EXCHANGE`, `sharedEventQueue`, `instanceEventQueue`, `QueueArguments.sharedEventQueue`                                                            | nichts — Events sind Redis                                        |
 
 ---
 
 ## Task 1: Redis-Event-Transport
 
 **Files:**
+
 - Create: `…-redis-core/src/main/kotlin/dev/slne/surf/eventbus/redis/bus/RedisEventTransport.kt`
 - Create: `…-redis-core/…/bus/RedisChannels.kt`
 - Create: `…-redis-core/…/bus/RedisTransportProvider.kt`
@@ -73,12 +74,15 @@ KSP mit KotlinPoet, amqp-client 5.34.0, Testcontainers (Redis, RabbitMQ), JUnit 
 - Create: `…-redis-core/src/test/…/bus/RedisEventTransportTest.kt` (`@RequiresDocker`)
 
 **Interfaces:**
+
 - Consumes: `EventTransport`, `EventEnvelope` aus Plan 2.
 - Produces:
-  - `object RedisChannels { fun json(topic: String): String; fun binary(topic: String): String; fun query(contract: String): String; fun reply(instanceId: String): String; const val JSON_PATTERN: String; const val BINARY_PATTERN: String }`
-  - `class RedisEventTransport(redis: RedisApi, json: Json) : EventTransport`
-  - `interface RedisTransportProvider { fun event(redis: RedisApi, json: Json): EventTransport; fun query(...): QueryTransport }`
-  - `object RedisTransportLocator { fun event(): EventTransport; fun query(): QueryTransport }`
+    -
+    `object RedisChannels { fun json(topic: String): String; fun binary(topic: String): String; fun query(contract: String): String; fun reply(instanceId: String): String; const val JSON_PATTERN: String; const val BINARY_PATTERN: String }`
+    - `class RedisEventTransport(redis: RedisApi, json: Json) : EventTransport`
+    -
+    `interface RedisTransportProvider { fun event(redis: RedisApi, json: Json): EventTransport; fun query(...): QueryTransport }`
+    - `object RedisTransportLocator { fun event(): EventTransport; fun query(): QueryTransport }`
 
 - [ ] **Step 1: Failing test für die Kanalnamen**
 
@@ -375,8 +379,8 @@ interface RedisTransportProvider {
 }
 ```
 
-Die Implementierung in `…-redis-core` trägt `@AutoService(RedisTransportProvider::class)` und
-baut ihre Transports über `RedisApi`.
+Die Implementierung in `…-redis-core` trägt `@AutoService(RedisTransportProvider::class)` und baut
+ihre Transports über `SurfRedisApi`.
 
 - [ ] **Step 8: Integrationstest gegen echten Redis schreiben**
 
@@ -390,7 +394,8 @@ Codec-Event kommt binär an; ein Wildcard-Abonnement bekommt JSON und Codec.
 
 - [ ] **Step 9: Ausführung dokumentieren, nicht behaupten**
 
-Run: `./gradlew :surf-eventbus-redis:surf-eventbus-redis-core:test --tests '*RedisEventTransportTest*'`
+Run:
+`./gradlew :surf-eventbus-redis:surf-eventbus-redis-core:test --tests '*RedisEventTransportTest*'`
 Expected: SKIPPED — kein Docker-Daemon. In
 `docs/superpowers/notes/2026-07-31-fundament-verification.md` als „geschrieben, nicht verifiziert"
 nachtragen, mit der Testklasse namentlich.
@@ -411,6 +416,7 @@ envelope readable in front of a codec payload."
 ## Task 2: Alte Redis-Event-API löschen
 
 **Files:**
+
 - Delete: `…redis/event/RedisEvent.kt`, `OnRedisEvent.kt`, `RedisEventBus.kt`,
   `RedisEventCodec.kt`, `RedisEventCodecRegistrar.kt`, `RedisEventBusImpl.kt`,
   `RedisEventInvoker.kt`, `CustomEventPacketCodec.kt`
@@ -421,9 +427,10 @@ envelope readable in front of a codec payload."
 - Modify: `…-redis-core/src/jmh/…/event/EventTransportBenchmark.kt`
 
 **Interfaces:**
+
 - Consumes: `RedisEventTransport` aus Task 1, `BusEventCodec` aus Plan 2.
-- Produces: `EventCodecRegistry` schlüsselt über den Event-Typ statt über `eventId`; der
-  Benchmark misst `RedisEventTransport` statt `RedisEventBusImpl`.
+- Produces: `EventCodecRegistry` schlüsselt über den Event-Typ statt über `eventId`; der Benchmark
+  misst `RedisEventTransport` statt `RedisEventBusImpl`.
 
 - [ ] **Step 1: Lincheck-Test auf den neuen Schlüssel umstellen**
 
@@ -440,13 +447,14 @@ Expected: FAIL — die Registry hat den neuen Schlüssel noch nicht.
 
 - [ ] **Step 3: Registry umstellen**
 
-`EventCodecRegistry` verliert `eventId` und schlüsselt über `Class<out SurfBusEvent>`. Was
-bleibt: die Thread-Sicherheit, die der Lincheck-Test prüft, und die Registrierung beim Auffinden
-eines Listeners.
+`EventCodecRegistry` verliert `eventId` und schlüsselt über `Class<out SurfBusEvent>`. Was bleibt:
+die Thread-Sicherheit, die der Lincheck-Test prüft, und die Registrierung beim Auffinden eines
+Listeners.
 
 - [ ] **Step 4: Tests laufen lassen**
 
-Run: `./gradlew :surf-eventbus-redis:surf-eventbus-redis-core:test --tests '*EventCodecRegistry*' --tests '*CustomEventPacketCodec*'`
+Run:
+`./gradlew :surf-eventbus-redis:surf-eventbus-redis-core:test --tests '*EventCodecRegistry*' --tests '*CustomEventPacketCodec*'`
 Expected: PASS.
 
 - [ ] **Step 5: Alte Event-API löschen**
@@ -499,6 +507,7 @@ former stable eventId. The Lincheck test moved first."
 ## Task 3: Rabbits Event-Teil löschen
 
 **Files:**
+
 - Delete: `…rabbitmq/api/event/RabbitEvent.kt`, `RabbitEventPacket.kt`, `RabbitSubscribe.kt`,
   `SubscriptionMode.kt`
 - Delete: `…rabbitmq/core/event/EventDispatcher.kt`, `EventSubscription.kt`,
@@ -512,9 +521,11 @@ former stable eventId. The Lincheck test moved first."
 - Modify: `…common/topology/RabbitTopologyDeclarer.kt` (`declareSharedEventQueue`,
   `declareInstanceEventQueue` entfallen, `declareExchanges` ohne `surf.events`)
 - Modify: `…core/publish/MessageKind.kt` (Event-Zweig entfällt)
-- Modify: `RabbitTopologyTest`, `RabbitTopologyDeclarerTest`, `QueueArgumentsTest`, `MessageKindTest`
+- Modify: `RabbitTopologyTest`, `RabbitTopologyDeclarerTest`, `QueueArgumentsTest`,
+  `MessageKindTest`
 
 **Interfaces:**
+
 - Consumes: Task 1 und 2 — Events laufen bereits über Redis.
 - Produces: `RabbitTopology` mit `RPC_EXCHANGE`, `DLX_EXCHANGE`, `UNROUTABLE_QUEUE`,
   `serviceQueue`, `instanceQueue`, `replyQueue`, `deadLetterQueue`, `sanitize`. Plan 4 entfernt die
@@ -537,7 +548,8 @@ einen negativen Fall ergänzen, der festhält, dass es keinen Events-Exchange me
 
 - [ ] **Step 2: Test laufen lassen**
 
-Run: `./gradlew :surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core:test --tests '*RabbitTopologyTest*'`
+Run:
+`./gradlew :surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core:test --tests '*RabbitTopologyTest*'`
 Expected: FAIL beim neuen Fall.
 
 - [ ] **Step 3: Löschen**
@@ -556,8 +568,8 @@ Dann `SurfRabbitApi.publish`, `SurfRabbitApi.registerListener`, die Event-Zweige
 `RabbitConnection`/`RabbitConnectionImpl`, `RabbitTopology.EVENTS_EXCHANGE`,
 `RabbitTopology.sharedEventQueue`, `RabbitTopology.instanceEventQueue`,
 `QueueArguments.sharedEventQueue`, `RabbitTopologyDeclarer.declareSharedEventQueue`,
-`declareInstanceEventQueue` und den Event-Zweig in `MessageKind` entfernen. Der Compiler nennt
-jede Fundstelle; keine davon ist Anwendungscode.
+`declareInstanceEventQueue` und den Event-Zweig in `MessageKind` entfernen. Der Compiler nennt jede
+Fundstelle; keine davon ist Anwendungscode.
 
 - [ ] **Step 4: Tests laufen lassen**
 
@@ -584,6 +596,7 @@ external consumers, so nothing outside this repository notices."
 ## Task 4: `@FireAndForget`
 
 **Files:**
+
 - Create: `…-rabbitmq-api/…/rpc/FireAndForget.kt`
 - Modify: `…-ksp/…/processor/Names.kt`, `…/processor/rpc/model/RpcFunctionModel.kt`,
   `RpcServiceModelFactory.kt`, `…/codegen/RpcClientImplCodegen.kt`,
@@ -595,11 +608,12 @@ external consumers, so nothing outside this repository notices."
 - Create: `…-ksp/src/test/…/FireAndForgetValidationTest.kt`
 
 **Interfaces:**
+
 - Produces:
-  - `annotation class FireAndForget`
-  - `RabbitRpcCallable.fireAndForget: Boolean`
-  - `RabbitRpcService.createService(kClass: KClass<T>, target: RabbitTarget): T`
-  - `SurfRabbitApi.rpc(kClass: KClass<T>, target: RabbitTarget? = null): T`
+    - `annotation class FireAndForget`
+    - `RabbitRpcCallable.fireAndForget: Boolean`
+    - `RabbitRpcService.createService(kClass: KClass<T>, target: RabbitTarget): T`
+    - `SurfRabbitApi.rpc(kClass: KClass<T>, target: RabbitTarget? = null): T`
 
 - [ ] **Step 1: KSP-Validierungstest schreiben**
 
@@ -658,8 +672,8 @@ class FireAndForgetValidationTest {
 }
 ```
 
-`compile(...)` ist ein kleiner Helfer über `kotlin-compile-testing` mit dem KSP-Prozessor; er
-gehört in `…-ksp/src/test/…/CompilationSupport.kt` und braucht
+`compile(...)` ist ein kleiner Helfer über `kotlin-compile-testing` mit dem KSP-Prozessor; er gehört
+in `…-ksp/src/test/…/CompilationSupport.kt` und braucht
 `testImplementation("dev.zacsweers.kctfork:ksp:+")` im KSP-Modul.
 
 - [ ] **Step 2: Test laufen lassen**
@@ -721,8 +735,8 @@ Expected: PASS, beide Fälle.
 
 - [ ] **Step 6: Ziel- und Proxy-Cache im Client**
 
-`RabbitRpcServiceImpl.createService` nimmt statt `service: String?` ein `RabbitTarget` und cacht
-pro Paar:
+`RabbitRpcServiceImpl.createService` nimmt statt `service: String?` ein `RabbitTarget` und cacht pro
+Paar:
 
 ```kotlin
     private val proxies = Caffeine.newBuilder().build<Pair<KClass<*>, RabbitTarget>, Any>()
@@ -745,14 +759,14 @@ pro Paar:
     }
 ```
 
-Der Cache ist der Grund, warum `bus.rpc<PlayerService>(InstanceTarget(id))` in einem
-Schleifenkörper stehen darf — ohne ihn wäre jeder Durchlauf eine Proxy-Konstruktion.
+Der Cache ist der Grund, warum `bus.rpc<PlayerService>(InstanceTarget(id))` in einem Schleifenkörper
+stehen darf — ohne ihn wäre jeder Durchlauf eine Proxy-Konstruktion.
 
 - [ ] **Step 7: Contract-Test schreiben (Docker)**
 
-`FireAndForgetContractTest` mit `@RequiresDocker` deckt die Fälle 14, 15, 17, 18, 20 der
-RPC-Suite ab: der Aufrufer kehrt vor der Verarbeitung zurück; ein Auftrag überlebt einen
-Serverneustart in der durable Queue; `InstanceTarget` trifft genau eine von drei Instanzen; ein
+`FireAndForgetContractTest` mit `@RequiresDocker` deckt die Fälle 14, 15, 17, 18, 20 der RPC-Suite
+ab: der Aufrufer kehrt vor der Verarbeitung zurück; ein Auftrag überlebt einen Serverneustart in der
+durable Queue; `InstanceTarget` trifft genau eine von drei Instanzen; ein
 `InstanceTarget` auf eine tote Instanz wird unroutable; zweimal `rpc<T>(InstanceTarget(x))`
 liefert dieselbe Proxy-Instanz.
 
@@ -774,6 +788,7 @@ are cached per interface and target so instance-addressed calls are cheap."
 ## Task 5: Untypisierte Paket-API löschen
 
 **Files:**
+
 - Delete: `…rabbitmq/api/packet/RabbitRequestPacket.kt`, `RabbitResponsePacket.kt`,
   `packet/standard/**` (6 Dateien), `api/handler/RabbitHandler.kt`
 - Modify: `…rabbitmq/api/SurfRabbitApi.kt` (`send`, `registerRequestHandler`,
@@ -784,6 +799,7 @@ are cached per interface and target so instance-addressed calls are cheap."
   `ChunkingTest`, `ChunkSeriesTest` — jeder Test mit eigener `RabbitRequestPacket`-Klasse
 
 **Interfaces:**
+
 - Consumes: `@FireAndForget` aus Task 4 — der Ersatz existiert, bevor gelöscht wird.
 - Produces: `SurfRabbitApi` ohne Paket-API; `RabbitPacket`, `RpcCallRequestPacket`,
   `RpcCallResponsePacket` bleiben intern.
@@ -803,10 +819,11 @@ interface WorkService {
 
 und die Serverseite ist eine Implementierung, die `bus.registerService<WorkService>(impl)`
 registriert. Die Behauptungen bleiben wörtlich: der Handler läuft genau einmal, die Nachricht ist
-nach dem Ack aus der Queue verschwunden, und nach fünf Sekunden — länger als das
-Request-Timeout — ist er nicht ein zweites Mal gelaufen.
+nach dem Ack aus der Queue verschwunden, und nach fünf Sekunden — länger als das Request-Timeout —
+ist er nicht ein zweites Mal gelaufen.
 
-Run: `./gradlew :surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core:test --tests '*FireAndForgetTest*'`
+Run:
+`./gradlew :surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core:test --tests '*FireAndForgetTest*'`
 Expected: SKIPPED (Docker). Übersetzbarkeit ist hier das Prüfkriterium:
 `./gradlew :surf-eventbus-rabbitmq:surf-eventbus-rabbitmq-core:compileTestKotlin` muss durchlaufen.
 
@@ -855,11 +872,13 @@ internal packet layer — RpcCallRequestPacket, chunking, properties — stays."
 ## Task 6: `@QueryService` generieren
 
 **Files:**
+
 - Create: `…-ksp/…/processor/query/QueryServiceProcessor.kt`, `…/query/codegen/*`
 - Modify: `…-ksp/…/processor/Names.kt`
 - Create: `…-ksp/src/test/…/QueryServiceValidationTest.kt`
 
 **Interfaces:**
+
 - Consumes: `@QueryService` aus Plan 2 Task 7.
 - Produces: pro Vertrag ein `<Name>Descriptor` mit Kanalnamen, Timeout und pro Methode einem
   Callable; ein Client-Proxy, der `QueryTransport.ask` aufruft und die Antwort deserialisiert.
@@ -971,8 +990,8 @@ Expected: FAIL, alle fünf — der Prozessor kennt `@QueryService` nicht und lä
 
 - [ ] **Step 3: Prozessor schreiben**
 
-Der Generator ist derselbe Mechanismus wie für `@RpcService`: Descriptor plus Client-Proxy. Was
-sich unterscheidet, ist die Validierung (drei Regeln oben) und der Aufrufpfad — `QueryTransport.ask`
+Der Generator ist derselbe Mechanismus wie für `@RpcService`: Descriptor plus Client-Proxy. Was sich
+unterscheidet, ist die Validierung (drei Regeln oben) und der Aufrufpfad — `QueryTransport.ask`
 statt `connection.sendRequest`. Die drei Fehlermeldungen sind Teil der API und lauten wörtlich:
 
 ```kotlin
@@ -1009,6 +1028,7 @@ return, never Unit, never @FireAndForget."
 ## Task 7: Redis-Query-Transport und Query-Dispatch
 
 **Files:**
+
 - Create: `…-redis-core/…/bus/RedisQueryTransport.kt`
 - Create: `…-bus-core/…/dispatch/QueryDispatcher.kt`
 - Create: `…-bus-core/src/test/…/dispatch/QueryDispatcherTest.kt`
@@ -1017,8 +1037,9 @@ return, never Unit, never @FireAndForget."
 - Modify: `…redis/RedisApi.kt` (`sendRequest`, `registerRequestHandler` entfallen)
 
 **Interfaces:**
-- Consumes: `QueryTransport`, `QueryFrame`, `QueryServiceRegistry` aus Plan 2; Generierung aus
-  Task 6.
+
+- Consumes: `QueryTransport`, `QueryFrame`, `QueryServiceRegistry` aus Plan 2; Generierung aus Task
+  6.
 - Produces: `class QueryDispatcher(registry, instanceId, auditSink, json, transport)` mit
   `suspend fun dispatch(frame: QueryFrame)`.
 
@@ -1164,8 +1185,8 @@ Expected: PASS, alle vier.
 `ask` publiziert auf `RedisChannels.query(contract)`, legt ein `CompletableDeferred` unter der
 `correlationId` ab und wartet mit `withTimeoutOrNull(timeoutMillis)`. Läuft die Zeit ab, wird der
 Eintrag entfernt und `null` zurückgegeben — **keine** Ausnahme. `answer` publiziert auf
-`RedisChannels.reply(frame.originInstanceId)`. `connect` abonniert einen Kanal pro Vertrag plus
-den eigenen Reply-Kanal.
+`RedisChannels.reply(frame.originInstanceId)`. `connect` abonniert einen Kanal pro Vertrag plus den
+eigenen Reply-Kanal.
 
 - [ ] **Step 6: Alte Request/Response-API löschen**
 
@@ -1177,7 +1198,7 @@ git rm -r "$api/request"
 git rm "$core/request/RequestResponseBusImpl.kt" "$core/request/RedisRequestHandlerInvoker.kt"
 ```
 
-Aus `RedisApi` `sendRequest`, `registerRequestHandler` und den `requestResponseBus`-Zugang
+Aus `SurfRedisApi` `sendRequest`, `registerRequestHandler` und den `requestResponseBus`-Zugang
 entfernen.
 
 - [ ] **Step 7: Integrationstest schreiben (Docker)**
@@ -1185,8 +1206,8 @@ entfernen.
 `RedisQueryTransportTest` mit `@RequiresDocker` deckt die Fälle 13–20 und 23 der Query-Suite ab:
 drei Anbieter, einer antwortet; zwei antworten, die erste gewinnt; alle abstinieren → `null` nach
 dem Timeout; kein Anbieter → `null`; ein Handler wirft, ein anderer antwortet; ein Handler wirft,
-niemand antwortet; ein Prozess ohne den Vertrag empfängt den Kanal nicht; nur der Fragende
-empfängt die Antwort.
+niemand antwortet; ein Prozess ohne den Vertrag empfängt den Kanal nicht; nur der Fragende empfängt
+die Antwort.
 
 - [ ] **Step 8: Build, Tests, ABI, Commit**
 
@@ -1209,12 +1230,14 @@ handler is audited rather than answered."
 ## Task 8: Redis-Lebenszyklus und Konfiguration
 
 **Files:**
+
 - Modify: `…redis/RedisApi.kt` (vier `@Blocking`-Stellen → `suspend`)
 - Modify: `…redis/config/RedisConfig.kt` (vierstufiges Layering)
 - Create: `…-redis-core/src/test/…/config/RedisConfigLayeringTest.kt`
 - Modify: `…-bus-core/…/SurfEventBusImpl.kt` (Redis in `connect`/`disconnect` einhängen)
 
 **Interfaces:**
+
 - Produces: `suspend fun RedisApi.connect()`, `suspend fun RedisApi.disconnect()`;
   `resolveRedisConfig(global, plugin, environment): RedisConfig`.
 
@@ -1283,7 +1306,8 @@ class RedisConfigLayeringTest {
 
 - [ ] **Step 2: Test laufen lassen**
 
-Run: `./gradlew :surf-eventbus-redis:surf-eventbus-redis-core:test --tests '*RedisConfigLayeringTest*'`
+Run:
+`./gradlew :surf-eventbus-redis:surf-eventbus-redis-core:test --tests '*RedisConfigLayeringTest*'`
 Expected: FAIL, „Unresolved reference: resolveRedisConfig".
 
 - [ ] **Step 3: Layering implementieren**
@@ -1295,12 +1319,13 @@ Schichten.
 
 - [ ] **Step 4: Test laufen lassen**
 
-Run: `./gradlew :surf-eventbus-redis:surf-eventbus-redis-core:test --tests '*RedisConfigLayeringTest*'`
+Run:
+`./gradlew :surf-eventbus-redis:surf-eventbus-redis-core:test --tests '*RedisConfigLayeringTest*'`
 Expected: PASS, alle fünf.
 
 - [ ] **Step 5: `connect()` auf `suspend` umstellen**
 
-Die vier `@Blocking`-Stellen in `RedisApi` werden `suspend`. Die Reactor-Interna
+Die vier `@Blocking`-Stellen in `SurfRedisApi` werden `suspend`. Die Reactor-Interna
 (`Initializable.init(): Mono<Void>`) bleiben; nur die Naht nach außen wird `suspend`, über
 `awaitFirstOrNull()`. Danach hängt `SurfEventBusImpl.connect()` den Redis-Client mit an — und
 `disconnect()` in umgekehrter Reihenfolge.
@@ -1326,30 +1351,30 @@ env > plugin yaml > global yaml > default like RabbitMQ always did."
 
 **Spec-Abdeckung (Spec → Task):**
 
-| Spec | Task |
-|---|---|
-| Etappe 6: Kanalfamilien, exakt/Muster, `BusEventCodec`-Registry | 1, 2 |
-| Etappe 6: `RedisEvent`, `@OnRedisEvent`, `RedisEventBus` löschen | 2 |
-| Etappe 7: Rabbits Event-Teil löschen | 3 |
-| Etappe 8: `@FireAndForget`, `rpc<T>(target)`, Proxy-Cache | 4 |
-| Etappe 9: Paket-API löschen, Tests umschreiben | 5 |
+| Spec                                                              | Task |
+|-------------------------------------------------------------------|------|
+| Etappe 6: Kanalfamilien, exakt/Muster, `BusEventCodec`-Registry   | 1, 2 |
+| Etappe 6: `RedisEvent`, `@OnRedisEvent`, `RedisEventBus` löschen  | 2    |
+| Etappe 7: Rabbits Event-Teil löschen                              | 3    |
+| Etappe 8: `@FireAndForget`, `rpc<T>(target)`, Proxy-Cache         | 4    |
+| Etappe 9: Paket-API löschen, Tests umschreiben                    | 5    |
 | Etappe 10: `@QueryService` generieren, Kanäle, Abstinenz, Timeout | 6, 7 |
-| Etappe 10: `RedisRequest` löschen | 7 |
-| Etappe 11: `RedisApi.connect()` suspend, Config-Layering | 8 |
-| Verifikation Query-Suite 13–23 | 6, 7 |
-| Verifikation RPC-Suite 14–20, 30, 32 | 4 |
-| Verifikation Event-Suite 1–5, 12a–12c | 1 |
+| Etappe 10: `RedisRequest` löschen                                 | 7    |
+| Etappe 11: `RedisApi.connect()` suspend, Config-Layering          | 8    |
+| Verifikation Query-Suite 13–23                                    | 6, 7 |
+| Verifikation RPC-Suite 14–20, 30, 32                              | 4    |
+| Verifikation Event-Suite 1–5, 12a–12c                             | 1    |
 
-**Nicht hier:** der Audit-Meldeweg über RabbitMQ und der Microservice (Plan 4), die
-Aggregat-Module und die Plattform-Vereinigung (Plan 4), die Entfernung von `surf.dlx`,
+**Nicht hier:** der Audit-Meldeweg über RabbitMQ und der Microservice (Plan 4), die Aggregat-Module
+und die Plattform-Vereinigung (Plan 4), die Entfernung von `surf.dlx`,
 `surf.dlq.*`, `surf.unroutable` (Plan 4 Task 1 — sie fällt zusammen mit dem Meldeweg, der sie
 ersetzt).
 
-**Typkonsistenz:** `QueryTransport.answer(frame, payload)` in Plan 2 entspricht dem Aufruf in
-Task 7 Step 3. `RabbitRpcService.createService(kClass, target: RabbitTarget?)` in Task 4 Step 6
-ist die Signatur, die `SurfEventBus.rpc(contract, target)` in Plan 4 benutzt.
-`RedisChannels.query(contract)` nimmt den FQCN, und `QueryServiceRegistry.contracts()` liefert
-genau FQCNs — beide Seiten passen.
+**Typkonsistenz:** `QueryTransport.answer(frame, payload)` in Plan 2 entspricht dem Aufruf in Task 7
+Step 3. `RabbitRpcService.createService(kClass, target: RabbitTarget?)` in Task 4 Step 6 ist die
+Signatur, die `SurfEventBus.rpc(contract, target)` in Plan 4 benutzt.
+`RedisChannels.query(contract)` nimmt den FQCN, und `QueryServiceRegistry.contracts()` liefert genau
+FQCNs — beide Seiten passen.
 
 **Reihenfolge, die nicht verhandelbar ist:** 1 vor 2 (Ersatz vor Löschung, Event-Seite), 4 vor 5
 (RPC-Seite), 6 vor 7 (Query-Seite). Wer eine Löschung vorzieht, hat eine Etappe, die nicht

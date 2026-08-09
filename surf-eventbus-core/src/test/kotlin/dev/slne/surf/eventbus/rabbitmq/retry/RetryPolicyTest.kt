@@ -69,7 +69,7 @@ class RetryPolicyTest {
     @Test
     fun `the default tier ttls match the specification`() {
         // The built-in default is what production runs on; tests override it.
-        val config = dev.slne.surf.eventbus.config.RabbitMQSettings()
+        val config = dev.slne.surf.eventbus.config.settings.RabbitMQSettings()
 
         assertEquals(listOf(10_000L, 60_000L, 300_000L), config.retryTtlMillis)
     }

@@ -6,5 +6,7 @@ package dev.slne.surf.eventbus.exception
  * A consumer that wants to catch "the bus failed" had to name two unrelated hierarchies and
  * knew of neither that it was the complete set.
  */
-abstract class SurfEventBusException(message: String, cause: Throwable? = null) :
-    RuntimeException(message, cause)
+abstract class SurfEventBusException(
+    message: String,
+    cause: Throwable? = null,
+) : RuntimeException(message, cause)

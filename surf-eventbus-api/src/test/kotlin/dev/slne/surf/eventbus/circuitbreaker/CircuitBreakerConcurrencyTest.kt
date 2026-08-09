@@ -30,7 +30,7 @@ class CircuitBreakerConcurrencyTest {
 
         assertFailsWith<Boom> { cb.withBreaker { throw Boom() } }
         clock.advance(30.seconds)
-        assertEquals(CircuitState.HALF_OPEN, cb.state)
+        assertEquals(CircuitState.HALF_OPEN, cb.currentState())
 
         val admitted = AtomicInteger()
         val rejected = AtomicInteger()
@@ -65,7 +65,7 @@ class CircuitBreakerConcurrencyTest {
 
         assertEquals(1, admitted.get(), "exactly one probe may run")
         assertEquals(63, rejected.get(), "every other caller must be rejected")
-        assertEquals(CircuitState.CLOSED, cb.state, "the successful probe closes the breaker")
+        assertEquals(CircuitState.CLOSED, cb.currentState(), "the successful probe closes the breaker")
     }
 
     @Test
@@ -91,7 +91,7 @@ class CircuitBreakerConcurrencyTest {
             }
         }.awaitAll()
 
-        assertEquals(CircuitState.OPEN, cb.state)
+        assertEquals(CircuitState.OPEN, cb.currentState())
 
         // The definitive check: with the breaker open, one more call must be rejected
         // without the block ever running.

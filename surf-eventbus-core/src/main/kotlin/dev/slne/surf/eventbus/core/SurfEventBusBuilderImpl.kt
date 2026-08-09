@@ -1,30 +1,29 @@
 package dev.slne.surf.eventbus.core
 
-import dev.slne.surf.eventbus.core.RedisTransportLocator
 import dev.slne.surf.eventbus.SurfEventBus
 import dev.slne.surf.eventbus.SurfEventBusBuilder
 import dev.slne.surf.eventbus.audit.AuditReport
 import dev.slne.surf.eventbus.audit.AuditSink
 import dev.slne.surf.eventbus.core.audit.LoggingAuditSink
+import dev.slne.surf.eventbus.platform.StandaloneLifecycleHook
 import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
 import dev.slne.surf.eventbus.transport.EventTransport
 import dev.slne.surf.eventbus.transport.QueryTransport
 import kotlinx.serialization.modules.SerializersModule
 import java.nio.file.Path
 import java.util.UUID
-import dev.slne.surf.eventbus.platform.StandaloneLifecycleHook
 
 internal class SurfEventBusBuilderImpl(
     private val serviceName: String,
-    private val dataPath: Path
+    private val dataPath: Path,
 ) : SurfEventBusBuilder {
     private var instanceName: String? = null
     private var serializers: SerializersModule = SerializersModule { }
     private var rabbitEnabled = false
     private var eventTransport: EventTransport? = null
     private var queryTransport: QueryTransport? = null
-    private var redisApi: RedisApi? = null
+    private var redisApi: SurfRedisApi? = null
     private var standaloneHook: StandaloneLifecycleHook? = null
 
     override fun instanceName(name: String) = apply { instanceName = name }
@@ -40,15 +39,19 @@ internal class SurfEventBusBuilderImpl(
      * plugin's `eventbus-plugin.yml` overrides the broker-wide `eventbus.yml` field by field —
      * the same four layers RabbitMQ has always resolved.
      */
-    override fun withRedis() = apply {
-        val transports = RedisTransportLocator.transports(dataPath)
+    override fun withRedis() =
+        apply {
+            val transports = RedisTransportLocator.transports(dataPath)
 
-        eventTransport = transports.event
-        queryTransport = transports.query
-        redisApi = transports.redisApi
-    }
+            eventTransport = transports.event
+            queryTransport = transports.query
+            redisApi = transports.redisApi
+        }
 
-    override fun withRedis(event: EventTransport, query: QueryTransport) = apply {
+    override fun withRedis(
+        event: EventTransport,
+        query: QueryTransport,
+    ) = apply {
         eventTransport = event
         queryTransport = query
     }
@@ -56,7 +59,7 @@ internal class SurfEventBusBuilderImpl(
     override fun build(environment: Map<String, String>?): SurfEventBus {
         check(rabbitEnabled || eventTransport != null) {
             "a bus needs at least one transport: add .withRabbit(), .withRedis(), or both to " +
-                    "SurfEventBus.builder(\"$serviceName\", …)"
+                "SurfEventBus.builder(\"$serviceName\", …)"
         }
 
         val resolvedInstanceId = instanceName ?: "$serviceName-${UUID.randomUUID()}"
@@ -64,16 +67,18 @@ internal class SurfEventBusBuilderImpl(
         // Built here, not in withRabbit(): serializers()/instanceName() may still be called
         // after withRabbit() in a fluent chain, and both matter to the identity this shares
         // with the rest of the bus.
-        val rabbitApi = if (rabbitEnabled) {
-            SurfRabbitApi.builder(serviceName, dataPath)
-                .instanceName(resolvedInstanceId)
-                .serializers(serializers)
-                .apply { standaloneHook?.let { standaloneHook(it) } }
-                .apply { environment?.let { environment(it) } }
-                .build()
-        } else {
-            null
-        }
+        val rabbitApi =
+            if (rabbitEnabled) {
+                SurfRabbitApi
+                    .builder(serviceName, dataPath)
+                    .instanceName(resolvedInstanceId)
+                    .serializers(serializers)
+                    .apply { standaloneHook?.let { standaloneHook(it) } }
+                    .apply { environment?.let { environment(it) } }
+                    .build()
+            } else {
+                null
+            }
 
         return SurfEventBusImpl(
             serviceName = serviceName,
@@ -84,7 +89,7 @@ internal class SurfEventBusBuilderImpl(
             redisApi = redisApi,
             eventTransport = eventTransport,
             queryTransport = queryTransport,
-            auditSink = auditSinkFor(rabbitApi)
+            auditSink = auditSinkFor(rabbitApi),
         )
     }
 
@@ -101,8 +106,7 @@ internal class SurfEventBusBuilderImpl(
         if (rabbitApi == null) return LoggingAuditSink
 
         return object : AuditSink {
-            override suspend fun report(report: AuditReport) =
-                rabbitApi.connection.auditSink.report(report)
+            override suspend fun report(report: AuditReport) = rabbitApi.connection.auditSink.report(report)
         }
     }
 }

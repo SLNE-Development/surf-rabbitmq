@@ -2,13 +2,13 @@ package dev.slne.surf.eventbus.rabbitmq.publisher
 
 import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.Channel
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitPublishException
 import dev.slne.surf.eventbus.rabbitmq.connection.RabbitConnectionGenerationChangedException
 import dev.slne.surf.eventbus.rabbitmq.connection.RabbitConnectionProvider
 import dev.slne.surf.eventbus.rabbitmq.connection.ReturnListenerBridge
 import kotlinx.coroutines.*
 import java.lang.AutoCloseable
 import java.util.concurrent.Executors
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitPublishException
 
 class RabbitPublisher(
     private val connectionProvider: RabbitConnectionProvider,

@@ -1,7 +1,7 @@
 package dev.slne.surf.eventbus.redis.sync.set
 
 import dev.slne.surf.api.core.util.logger
-import dev.slne.surf.eventbus.redis.RedisApi
+import dev.slne.surf.eventbus.redis.SurfRedisApi
 import dev.slne.surf.eventbus.redis.sync.AbstractStreamSyncStructure
 import dev.slne.surf.eventbus.redis.sync.AbstractSyncStructure
 import dev.slne.surf.eventbus.redis.sync.AbstractSyncStructure.SimpleVersionedSnapshot
@@ -18,20 +18,19 @@ import kotlin.concurrent.write
 import kotlin.time.Duration
 
 class SyncSetImpl<T : Any> internal constructor(
-    api: RedisApi,
+    api: SurfRedisApi,
     id: String,
     ttl: Duration,
-    private val elementCodec: SyncValueCodec<T>
+    private val elementCodec: SyncValueCodec<T>,
 ) : AbstractStreamSyncStructure<SyncSetChange, SimpleVersionedSnapshot<Set<String>>>(
-    api,
-    id,
-    ttl,
-    Scripts,
-    NAMESPACE,
-    elementCodec.descriptor
-),
+        api,
+        id,
+        ttl,
+        Scripts,
+        NAMESPACE,
+        elementCodec.descriptor,
+    ),
     SyncSet<T> {
-
     companion object {
         private val log = logger()
         private const val NAMESPACE = AbstractSyncStructure.NAMESPACE + "set:"
@@ -60,7 +59,7 @@ class SyncSetImpl<T : Any> internal constructor(
     private val remoteSet by lazy {
         api.redissonReactive.getSet<String>(
             dataKey,
-            StringCodec.INSTANCE
+            StringCodec.INSTANCE,
         )
     }
 
@@ -69,15 +68,18 @@ class SyncSetImpl<T : Any> internal constructor(
         trackDisposable(RedisExpirableUtils.refreshContinuously(ttl, remoteSet))
     }
 
-    override fun registerListeners0(): List<Mono<Int>> = listOf(
-        remoteSet.addListener(DeletedObjectListener { requestResync() }),
-        remoteSet.addListener(ExpiredObjectListener { requestResync() })
-    )
+    override fun registerListeners0(): List<Mono<Int>> =
+        listOf(
+            remoteSet.addListener(DeletedObjectListener { requestResync() }),
+            remoteSet.addListener(ExpiredObjectListener { requestResync() }),
+        )
 
     override fun unregisterListener(id: Int): Mono<*> = remoteSet.removeListener(id)
 
     override fun snapshot() = lock.read { ObjectOpenHashSet(set) }
+
     override fun size() = lock.read { set.size }
+
     override fun contains(element: T) = lock.read { set.contains(element) }
 
     override fun add(element: T): Boolean {
@@ -100,11 +102,12 @@ class SyncSetImpl<T : Any> internal constructor(
     }
 
     override fun clear() {
-        val hadElements = lock.write {
-            val had = set.isNotEmpty()
-            set.clear()
-            had
-        }
+        val hadElements =
+            lock.write {
+                val had = set.isNotEmpty()
+                set.clear()
+                had
+            }
         if (!hadElements) return
 
         clearRemote()
@@ -112,19 +115,20 @@ class SyncSetImpl<T : Any> internal constructor(
     }
 
     override fun removeIf(predicate: (T) -> Boolean): Boolean {
-        val removedElements = lock.write {
-            val removed = ObjectOpenHashSet<T>()
-            val iterator = set.iterator()
-            while (iterator.hasNext()) {
-                val element = iterator.next()
-                if (predicate(element)) {
-                    iterator.remove()
-                    removed.add(element)
+        val removedElements =
+            lock.write {
+                val removed = ObjectOpenHashSet<T>()
+                val iterator = set.iterator()
+                while (iterator.hasNext()) {
+                    val element = iterator.next()
+                    if (predicate(element)) {
+                        iterator.remove()
+                        removed.add(element)
+                    }
                 }
-            }
 
-            removed
-        }
+                removed
+            }
 
         if (removedElements.isEmpty()) return false
 
@@ -154,7 +158,10 @@ class SyncSetImpl<T : Any> internal constructor(
         writeToRemote(CLEAR_SCRIPT, EVENT_CLEARED)
     }
 
-    override fun onStreamEvent(type: String, data: StreamEventData) = when (type) {
+    override fun onStreamEvent(
+        type: String,
+        data: StreamEventData,
+    ) = when (type) {
         EVENT_ADDED -> onAddedEvent(data)
         EVENT_REMOVED -> onDeletedEvent(data)
         EVENT_CLEARED -> onClearEvent(data)
@@ -183,21 +190,24 @@ class SyncSetImpl<T : Any> internal constructor(
 
     @Suppress("UNUSED_PARAMETER")
     private fun onClearEvent(data: StreamEventData) {
-        val hadElements = lock.write {
-            val had = set.isNotEmpty()
-            set.clear()
-            had
-        }
+        val hadElements =
+            lock.write {
+                val had = set.isNotEmpty()
+                set.clear()
+                had
+            }
 
         if (hadElements) {
             notifyListeners(SyncSetChange.Cleared)
         }
     }
 
-    override fun loadFromRemote0(): Mono<SimpleVersionedSnapshot<Set<String>>> = Mono.zip(
-        remoteSet.readAll(),
-        versionCounter.get().onErrorReturn(0)
-    ).map { SimpleVersionedSnapshot.fromTuple(it) }
+    override fun loadFromRemote0(): Mono<SimpleVersionedSnapshot<Set<String>>> =
+        Mono
+            .zip(
+                remoteSet.readAll(),
+                versionCounter.get().onErrorReturn(0),
+            ).map { SimpleVersionedSnapshot.fromTuple(it) }
 
     override fun overrideFromRemote(raw: SimpleVersionedSnapshot<Set<String>>) {
         val rawValue = raw.value
@@ -210,5 +220,6 @@ class SyncSetImpl<T : Any> internal constructor(
     }
 
     private fun encodeValue(value: T) = elementCodec.encode(value)
+
     private fun decodeValue(value: String) = elementCodec.decode(value)
 }

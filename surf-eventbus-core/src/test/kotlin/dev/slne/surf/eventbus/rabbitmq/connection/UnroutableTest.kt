@@ -1,7 +1,6 @@
 package dev.slne.surf.eventbus.rabbitmq.connection
 
 import dev.slne.surf.eventbus.rabbitmq.SurfRabbitApi
-import dev.slne.surf.eventbus.rabbitmq.exception.SurfRabbitServiceUnavailableException
 import dev.slne.surf.eventbus.rabbitmq.target.RabbitTarget
 import dev.slne.surf.eventbus.testing.RequiresDocker
 import dev.slne.surf.eventbus.rabbitmq.testing.testConfig
@@ -12,6 +11,7 @@ import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import dev.slne.surf.eventbus.rabbitmq.exception.connection.SurfRabbitServiceUnavailableException
 
 @RequiresDocker
 class UnroutableTest {

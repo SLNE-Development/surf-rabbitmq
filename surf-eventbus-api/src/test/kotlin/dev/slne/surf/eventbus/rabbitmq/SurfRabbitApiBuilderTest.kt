@@ -1,10 +1,12 @@
 package dev.slne.surf.eventbus.rabbitmq
 
-import dev.slne.surf.eventbus.config.RabbitMQSettings
+import dev.slne.surf.eventbus.config.settings.RabbitMQSettings
+import dev.slne.surf.eventbus.exception.api.SurfEventBusAlreadyFrozenException
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SurfRabbitApiBuilderTest {
@@ -54,7 +56,7 @@ class SurfRabbitApiBuilderTest {
     @Test
     fun `a fresh api is not frozen`() {
         val api = builder("svc").build()
-        assertTrue(!api.isFrozen())
+        assertFalse(api.isFrozen)
     }
 
     @Test
@@ -62,7 +64,7 @@ class SurfRabbitApiBuilderTest {
         val api = builder("svc").build()
         api.freeze()
 
-        assertFailsWith<IllegalStateException> { api.freeze() }
+        assertFailsWith<SurfEventBusAlreadyFrozenException> { api.freeze() }
     }
 
     @Test
@@ -70,7 +72,7 @@ class SurfRabbitApiBuilderTest {
         val api = builder("svc").build()
         api.freeze()
 
-        assertFailsWith<IllegalStateException> {
+        assertFailsWith<SurfEventBusAlreadyFrozenException> {
             api.registerService(Any::class, Any())
         }
     }

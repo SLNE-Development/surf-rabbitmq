@@ -21,35 +21,35 @@ import java.util.concurrent.ConcurrentHashMap
  */
 @InternalEventBusApi
 object EventBusConfigFiles {
-
     const val GLOBAL_FILE_NAME = "eventbus.yml"
     const val PLUGIN_FILE_NAME = "eventbus-plugin.yml"
 
     private val globalCache = ConcurrentHashMap<Pair<Path, String>, EventBusConfig>()
 
     /** The broker-wide file every service on this host reads. */
-    fun global(path: Path, fileName: String = GLOBAL_FILE_NAME): EventBusConfig {
+    fun global(
+        path: Path,
+        fileName: String = GLOBAL_FILE_NAME,
+    ): EventBusConfig {
         val key = path.toAbsolutePath().normalize() to fileName
 
         return globalCache.computeIfAbsent(key) {
             surfConfigApi.createSpongeYmlConfig<EventBusConfig>(
                 configFolder = path,
-                configFileName = fileName
+                configFileName = fileName,
             )
         }
     }
 
     /**
      * The per-plugin file that overrides it, field by field.
-     *
-     * No migrations: 2.0 renamed the file, so there is no older revision of *this* file to
-     * migrate from. A plugin that had a 1.6 `rabbitmq.yml` gets a fresh `eventbus-plugin.yml`
-     * of sentinels, which overrides nothing until an operator edits it — the correct starting
-     * point, and the one `docs/rollout-2.0.md` describes.
      */
-    fun plugin(path: Path, fileName: String = PLUGIN_FILE_NAME): EventBusConfig =
+    fun plugin(
+        path: Path,
+        fileName: String = PLUGIN_FILE_NAME,
+    ): EventBusConfig =
         surfConfigApi.createSpongeYmlConfig<EventBusConfig>(
             configFolder = path,
-            configFileName = fileName
+            configFileName = fileName,
         )
 }

@@ -9,7 +9,7 @@ abstract class LuaScriptRegistry(prefix: String) {
 
     protected fun load(name: String) {
         val path = "/$prefix/$name.lua"
-        val stream = EventBusInstance.instance.getResourceAsStream(path)
+        val stream = EventBusInstance.INSTANCE.getResourceAsStream(path)
 
         requireNotNull(stream) { "Lua script resource not found on classpath: '$path'. Ensure that '$name.lua' is packaged under '$prefix' and available at initialization." }
 

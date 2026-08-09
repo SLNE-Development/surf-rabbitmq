@@ -5,17 +5,6 @@ import kotlinx.serialization.Serializable
 import java.lang.reflect.Constructor
 import java.lang.reflect.Modifier
 
-@Serializable
-data class StackElement(
-    val clazz: String,
-    val method: String,
-    val fileName: String?,
-    val lineNumber: Int
-) {
-    fun toStackTraceElement(): StackTraceElement =
-        StackTraceElement(clazz, method, fileName, lineNumber)
-}
-
 /**
  * A serializable snapshot of a [Throwable] including message, stack trace, cause chain
  * and suppressed exceptions, used to transport server-side RPC failures to the client.
@@ -176,24 +165,4 @@ data class SerializedException(
             )
         }
     }
-}
-
-/**
- * Fallback for remote exceptions whose original class could not be reconstructed.
- * Preserves the original `toString()`, message, stack trace and cause chain.
- */
-class DeserializedException(
-    private val toStringMessage: String,
-    override val message: String?,
-    stacktrace: List<StackElement>,
-    cause: SerializedException?,
-    val className: String
-) : Throwable() {
-    override val cause: Throwable? = cause?.deserialize()
-
-    init {
-        stackTrace = stacktrace.map { it.toStackTraceElement() }.toTypedArray()
-    }
-
-    override fun toString(): String = toStringMessage
 }
