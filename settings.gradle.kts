@@ -10,24 +10,13 @@ plugins {
     id("dev.slne.surf.api.gradle.settings") version "+"
 }
 
-rootProject.name = "surf-rabbitmq"
+rootProject.name = "surf-eventbus"
 
-include("surf-rabbitmq-api:surf-rabbitmq-common-api")
-include("surf-rabbitmq-api:surf-rabbitmq-client-api")
-include("surf-rabbitmq-api:surf-rabbitmq-server-api")
-include("surf-rabbitmq-server")
-include("surf-rabbitmq-client")
-include("surf-rabbitmq-common")
+include("surf-eventbus-api")
+include("surf-eventbus-core")
 
-include("surf-rabbitmq-paper")
-include("surf-rabbitmq-velocity")
-include("surf-rabbitmq-ksp")
+include("surf-eventbus-ksp")
 
-val isCi = providers.environmentVariable("CI").isPresent
-
-if (!isCi) {
-    include("surf-rabbitmq-test")
-    include("surf-rabbitmq-test:surf-rabbitmq-test-common")
-    include("surf-rabbitmq-test:surf-rabbitmq-test-paper")
-    include("surf-rabbitmq-test:surf-rabbitmq-test-server")
-}
+include("surf-eventbus-platform:surf-eventbus-platform-paper")
+include("surf-eventbus-platform:surf-eventbus-platform-velocity")
+include("surf-eventbus-platform:surf-eventbus-platform-standalone")

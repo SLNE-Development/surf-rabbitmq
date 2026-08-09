@@ -1,9 +1,29 @@
 [versions]
 amqp-client = "5.34.0" # Update netty version if needed
-netty = "4.2.16.Final" # Keep in sync with https://github.com/rabbitmq/rabbitmq-java-client/blob/main/pom.xml
+netty = "4.2.16.Final" # Rabbit's pin wins; Redisson tests against 4.2.15
+redisson = "4.6.1"
+lincheck = "3.6"
 surf-microservice = "2.+"
+junit = "5.11.4"
+coroutines = "1.10.2"
+testcontainers = "1.21.3"
+ktlint-plugin = "13.1.0"
+
+[plugins]
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint-plugin" }
 
 [libraries]
 amqp-client = { module = "com.rabbitmq:amqp-client", version.ref = "amqp-client" }
 netty-bom = { group = "io.netty", name = "netty-bom", version.ref = "netty" }
+redisson = { group = "org.redisson", name = "redisson", version.ref = "redisson" }
+lincheck = { group = "org.jetbrains.lincheck", name = "lincheck", version.ref = "lincheck" }
 surf-microservice = { group = "dev.slne.surf.microservice", name = "surf-microservice-api-microservice", version.ref = "surf-microservice" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
+testcontainers-core = { module = "org.testcontainers:testcontainers" }
+testcontainers-junit = { module = "org.testcontainers:junit-jupiter" }
+testcontainers-rabbitmq = { module = "org.testcontainers:rabbitmq" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql" }

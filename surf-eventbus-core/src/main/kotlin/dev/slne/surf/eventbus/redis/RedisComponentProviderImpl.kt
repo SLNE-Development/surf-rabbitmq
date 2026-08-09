@@ -1,0 +1,189 @@
+package dev.slne.surf.eventbus.redis
+
+import com.google.auto.service.AutoService
+import dev.slne.surf.eventbus.platform.EventBusInstance
+import dev.slne.surf.eventbus.redis.cache.*
+import dev.slne.surf.eventbus.redis.codec.RedisCodec
+import dev.slne.surf.eventbus.redis.internal.RedissonConfigDetails
+import dev.slne.surf.eventbus.redis.sync.BinarySyncValueCodec
+import dev.slne.surf.eventbus.redis.sync.JsonSyncValueCodec
+import dev.slne.surf.eventbus.redis.sync.list.SyncList
+import dev.slne.surf.eventbus.redis.sync.list.SyncListImpl
+import dev.slne.surf.eventbus.redis.sync.map.SyncMap
+import dev.slne.surf.eventbus.redis.sync.map.SyncMapImpl
+import dev.slne.surf.eventbus.redis.sync.set.SyncSet
+import dev.slne.surf.eventbus.redis.sync.set.SyncSetImpl
+import dev.slne.surf.eventbus.redis.sync.value.SyncValue
+import dev.slne.surf.eventbus.redis.sync.value.SyncValueImpl
+import kotlinx.serialization.KSerializer
+import org.redisson.config.Config
+import org.redisson.config.EqualJitterDelay
+import org.redisson.config.Protocol
+import java.util.*
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.toJavaDuration
+
+@AutoService(RedisComponentProvider::class)
+class RedisComponentProviderImpl : RedisComponentProvider {
+    override val eventLoopGroup get() = RedisRuntime.instance.eventLoopGroup
+    override val redissonExecutorService get() = RedisRuntime.instance.redissonExecutorService
+    override val clientId =
+        UUID
+            .randomUUID()
+            .toString()
+            .split("-")
+            .take(2)
+            .joinToString("")
+
+    override fun createRedissonConfig(details: RedissonConfigDetails): Config {
+        val redisURI = details.redisURI
+
+        val config =
+            Config()
+                .setPassword(redisURI.password)
+                .setExecutor(redissonExecutorService)
+                .setTransportMode(TransportInfo.instance.redissonTransportMode)
+                .setEventLoopGroup(eventLoopGroup)
+                .setTcpKeepAlive(true)
+                .setTcpUserTimeout(10.seconds.inWholeMilliseconds.toInt())
+                .setTcpKeepAliveCount(3)
+                .setTcpKeepAliveInterval(10)
+                .setTcpKeepAliveIdle(60)
+                .setTcpNoDelay(true)
+                .setKeepPubSubOrder(false)
+                .setProtocol(Protocol.RESP3)
+                .apply {
+                    useSingleServer()
+                        .setConnectionMinimumIdleSize(2)
+                        .setConnectionPoolSize(8)
+                        .setClientName(details.settings.clientName + "-" + details.pluginName)
+                        .setPingConnectionInterval(10.seconds.inWholeMilliseconds.toInt())
+                        .setConnectTimeout(5.seconds.inWholeMilliseconds.toInt())
+                        .setRetryAttempts(10)
+                        .setRetryDelay(
+                            EqualJitterDelay(
+                                200.milliseconds.toJavaDuration(),
+                                1.seconds.toJavaDuration(),
+                            ),
+                        ).setAddress(redisURI.scheme + "://" + redisURI.host + ":" + redisURI.port)
+                }
+
+        return config
+    }
+
+    /**
+     * The plugin to attribute [clazz] to, or a fallback when there is no platform.
+     *
+     * The name is decoration: it labels a Redis connection in `CLIENT LIST` and picks a
+     * per-plugin config section. A process with no registered platform — a test, or a
+     * standalone host that builds a `RedisApi` directly — used to get a
+     * `ServiceConfigurationError` out of `RedisApi.create(uri)` here, which is a hard failure
+     * over a log label.
+     */
+    override fun tryExtractPluginNameFromClass(clazz: Class<*>): String =
+        EventBusInstance.orNull()?.tryExtractPluginName(clazz) ?: UNATTRIBUTED_PLUGIN_NAME
+
+    override fun <K : Any, V : Any> createSimpleCache(
+        namespace: String,
+        serializer: KSerializer<V>,
+        ttl: Duration,
+        keyToString: (K) -> String,
+        redisApi: SurfRedisApi,
+    ): SimpleRedisCache<K, V> = SimpleRedisCacheImpl(namespace, serializer, keyToString, ttl, redisApi)
+
+    override fun <T : Any> createSimpleSetRedisCache(
+        namespace: String,
+        serializer: KSerializer<T>,
+        ttl: Duration,
+        idOf: (T) -> String,
+        indexes: RedisSetIndexes<T>,
+        redisApi: SurfRedisApi,
+    ): SimpleSetRedisCache<T> = SimpleSetRedisCacheImpl(namespace, serializer, idOf, indexes, ttl, redisApi)
+
+    override fun <E : Any> createSyncList(
+        id: String,
+        elementSerializer: KSerializer<E>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncList<E> = SyncListImpl(api, id, ttl, JsonSyncValueCodec(api, elementSerializer))
+
+    override fun <E : Any> createSyncList(
+        id: String,
+        codec: RedisCodec<E>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncList<E> = SyncListImpl(api, id, ttl, BinarySyncValueCodec(codec, "SyncList '$id' element"))
+
+    override fun <E : Any> createSyncSet(
+        id: String,
+        elementSerializer: KSerializer<E>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncSet<E> = SyncSetImpl(api, id, ttl, JsonSyncValueCodec(api, elementSerializer))
+
+    override fun <E : Any> createSyncSet(
+        id: String,
+        codec: RedisCodec<E>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncSet<E> = SyncSetImpl(api, id, ttl, BinarySyncValueCodec(codec, "SyncSet '$id' element"))
+
+    override fun <T : Any> createSyncValue(
+        id: String,
+        serializer: KSerializer<T>,
+        defaultValue: T,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncValue<T> = SyncValueImpl(api, id, JsonSyncValueCodec(api, serializer), defaultValue, ttl)
+
+    override fun <T : Any> createSyncValue(
+        id: String,
+        codec: RedisCodec<T>,
+        defaultValue: T,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncValue<T> =
+        SyncValueImpl(
+            api,
+            id,
+            BinarySyncValueCodec(codec, "SyncValue '$id' value"),
+            defaultValue,
+            ttl,
+        )
+
+    override fun <K : Any, V : Any> createSyncMap(
+        id: String,
+        keySerializer: KSerializer<K>,
+        valueSerializer: KSerializer<V>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncMap<K, V> =
+        SyncMapImpl(
+            api,
+            id,
+            ttl,
+            JsonSyncValueCodec(api, keySerializer),
+            JsonSyncValueCodec(api, valueSerializer),
+        )
+
+    override fun <K : Any, V : Any> createSyncMap(
+        id: String,
+        keyCodec: RedisCodec<K>,
+        valueCodec: RedisCodec<V>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncMap<K, V> =
+        SyncMapImpl(
+            api,
+            id,
+            ttl,
+            BinarySyncValueCodec(keyCodec, "SyncMap '$id' key"),
+            BinarySyncValueCodec(valueCodec, "SyncMap '$id' value"),
+        )
+
+    private companion object {
+        const val UNATTRIBUTED_PLUGIN_NAME = "surf-eventbus"
+    }
+}

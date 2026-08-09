@@ -17,18 +17,46 @@ buildscript {
     }
 }
 
+plugins {
+    alias(libs.plugins.ktlint) apply false
+}
+
 allprojects {
-    group = "dev.slne.surf.rabbitmq"
+    group = "dev.slne.surf.eventbus"
     version = findProperty("version") as String
 }
 
 subprojects {
-    if (name.contains("surf-rabbitmq-test")) return@subprojects
+    // Only where there is Kotlin to lint. `surf-eventbus-platform` is a container project with
+    // no build file, so it declares no repositories and cannot resolve a linter's own
+    // dependencies - applying there fails the build before it reaches a single source file.
+    plugins.withId("org.jetbrains.kotlin.jvm") {
+        // Detekt is deliberately absent. 1.23.8 (latest stable) embeds Kotlin 1.9's compiler,
+        // whose JvmTarget enum stops at 22, and detekt-core derives that target from the JVM it
+        // runs on - which is the Gradle daemon, since DefaultCliInvoker invokes the CLI
+        // in-process rather than forking. On this project's JDK 25 toolchain every detekt task
+        // dies with a bare `IllegalArgumentException: 25` (EnvironmentAware.kt:45) before
+        // reading a source file, and there is no launcher or jvmTarget to redirect because
+        // nothing is forked. There is no released 2.x. Add it when one ships.
+        apply(plugin = "org.jlleitschuh.gradle.ktlint")
+
+        // ktlint adds itself to `check`, which is what CI runs. The baseline carries the
+        // existing findings so the gate starts green and only *new* violations fail: a linter
+        // introduced with 2,000 pre-existing findings is a linter everyone learns to ignore.
+        extensions.configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
+            baseline.set(file("config/ktlint/baseline.xml"))
+
+            // Generated sources are not ours to format.
+            filter {
+                exclude { it.file.path.contains("${File.separator}build${File.separator}") }
+            }
+        }
+    }
 
     afterEvaluate {
         extensions.findByType<KotlinJvmExtension>()?.apply {
             compilerOptions {
-                optIn.add("dev.slne.surf.rabbitmq.api.InternalRabbitMQ")
+                optIn.add("dev.slne.surf.eventbus.InternalEventBusApi")
             }
         }
 
@@ -40,10 +68,18 @@ subprojects {
             exclude("org/slf4j/**")
             exclude("io/ktor/**")
 
-            val base = "dev.slne.surf.rabbitmq.libs."
+            val base = "dev.slne.surf.eventbus.libs."
             relocate("com.rabbitmq", base + "com.rabbitmq")
+            relocate("org.redisson", base + "redisson")
+            relocate("com.esotericsoftware", base + "kryo")
+            relocate("io.reactivex", base + "reactivex")
+            relocate("javax.cache", base + "javax.cache")
+            relocate("jodd", base + "jodd")
+            relocate("net.bytebuddy", base + "bytebuddy")
+            relocate("org.objenesis", base + "objenesis")
+            relocate("org.yaml", base + "yaml")
 
-            val nettyBase = "dev.slne.surf.rabbitmq.shaded." // fails to load if contains "lib"
+            val nettyBase = "dev.slne.surf.eventbus.shaded." // fails to load if contains "lib"
             val mangledPrefix: String = nettyBase
                 .replace("_", "_1")
                 .replace(".", "_")

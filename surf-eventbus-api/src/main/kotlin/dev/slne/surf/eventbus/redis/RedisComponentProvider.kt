@@ -1,0 +1,114 @@
+package dev.slne.surf.eventbus.redis
+
+import dev.slne.surf.api.core.util.requiredService
+import dev.slne.surf.eventbus.InternalEventBusApi
+import dev.slne.surf.eventbus.redis.cache.RedisSetIndexes
+import dev.slne.surf.eventbus.redis.cache.SimpleRedisCache
+import dev.slne.surf.eventbus.redis.cache.SimpleSetRedisCache
+import dev.slne.surf.eventbus.redis.codec.RedisCodec
+import dev.slne.surf.eventbus.redis.internal.RedissonConfigDetails
+import dev.slne.surf.eventbus.redis.sync.list.SyncList
+import dev.slne.surf.eventbus.redis.sync.map.SyncMap
+import dev.slne.surf.eventbus.redis.sync.set.SyncSet
+import dev.slne.surf.eventbus.redis.sync.value.SyncValue
+import io.netty.channel.MultiThreadIoEventLoopGroup
+import kotlinx.serialization.KSerializer
+import org.redisson.config.Config
+import java.util.concurrent.ExecutorService
+import kotlin.time.Duration
+
+@InternalEventBusApi
+interface RedisComponentProvider {
+    val eventLoopGroup: MultiThreadIoEventLoopGroup
+    val redissonExecutorService: ExecutorService
+
+    val clientId: String
+
+    fun createRedissonConfig(details: RedissonConfigDetails): Config
+
+    fun tryExtractPluginNameFromClass(clazz: Class<*>): String
+
+    fun <K : Any, V : Any> createSimpleCache(
+        namespace: String,
+        serializer: KSerializer<V>,
+        ttl: Duration,
+        keyToString: (K) -> String,
+        redisApi: SurfRedisApi,
+    ): SimpleRedisCache<K, V>
+
+    fun <T : Any> createSimpleSetRedisCache(
+        namespace: String,
+        serializer: KSerializer<T>,
+        ttl: Duration,
+        idOf: (T) -> String,
+        indexes: RedisSetIndexes<T>,
+        redisApi: SurfRedisApi,
+    ): SimpleSetRedisCache<T>
+
+    fun <E : Any> createSyncList(
+        id: String,
+        elementSerializer: KSerializer<E>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncList<E>
+
+    fun <E : Any> createSyncList(
+        id: String,
+        codec: RedisCodec<E>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncList<E>
+
+    fun <E : Any> createSyncSet(
+        id: String,
+        elementSerializer: KSerializer<E>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncSet<E>
+
+    fun <E : Any> createSyncSet(
+        id: String,
+        codec: RedisCodec<E>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncSet<E>
+
+    fun <T : Any> createSyncValue(
+        id: String,
+        serializer: KSerializer<T>,
+        defaultValue: T,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncValue<T>
+
+    fun <T : Any> createSyncValue(
+        id: String,
+        codec: RedisCodec<T>,
+        defaultValue: T,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncValue<T>
+
+    fun <K : Any, V : Any> createSyncMap(
+        id: String,
+        keySerializer: KSerializer<K>,
+        valueSerializer: KSerializer<V>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncMap<K, V>
+
+    fun <K : Any, V : Any> createSyncMap(
+        id: String,
+        keyCodec: RedisCodec<K>,
+        valueCodec: RedisCodec<V>,
+        ttl: Duration,
+        api: SurfRedisApi,
+    ): SyncMap<K, V>
+
+    @InternalEventBusApi
+    companion object : RedisComponentProvider by provider {
+        val INSTANCE get() = provider
+    }
+}
+
+private val provider = requiredService<RedisComponentProvider>()

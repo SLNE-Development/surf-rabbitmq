@@ -1,0 +1,186 @@
+import dev.slne.surf.api.gradle.util.slneReleases
+import me.champeau.jmh.JMHTask
+
+plugins {
+    id("dev.slne.surf.api.gradle.core")
+    id("com.github.gmazzo.buildconfig") version "6.0.9"
+    id("me.champeau.jmh") version "0.7.3"
+}
+
+buildConfig {
+    forClass("dev.slne.surf.eventbus.redis", "RedisConstants") {
+        buildConfigField("REDISSON_VERSION", libs.versions.redisson)
+    }
+}
+
+@Suppress("RedundantSuppression", "AvoidDuplicateDependencies") // different classifiers
+dependencies {
+    api(projects.surfEventbusApi)
+    api(libs.amqp.client)
+    api(platform(libs.netty.bom))
+
+    compileOnly(libs.surf.microservice)
+    compileOnly("dev.slne.surf.api:surf-api-standalone:+")
+
+    // transport classes
+    implementation("io.netty:netty-transport-classes-io_uring")
+    implementation("io.netty:netty-transport-classes-epoll")
+    implementation("io.netty:netty-transport-classes-kqueue")
+
+    // epoll natives (Linux only)
+    runtimeOnly("io.netty:netty-transport-native-epoll") {
+        artifact { classifier = "linux-x86_64" }
+    }
+    runtimeOnly("io.netty:netty-transport-native-epoll") {
+        artifact { classifier = "linux-aarch_64" }
+    }
+    runtimeOnly("io.netty:netty-transport-native-epoll") {
+        artifact { classifier = "linux-riscv64" }
+    }
+
+    // io_uring natives (Linux only)
+    runtimeOnly("io.netty:netty-transport-native-io_uring") {
+        artifact { classifier = "linux-x86_64" }
+    }
+    runtimeOnly("io.netty:netty-transport-native-io_uring") {
+        artifact { classifier = "linux-aarch_64" }
+    }
+    runtimeOnly("io.netty:netty-transport-native-io_uring") {
+        artifact { classifier = "linux-riscv64" }
+    }
+
+    // kqueue natives (macOS only)
+    runtimeOnly("io.netty:netty-transport-native-kqueue") {
+        artifact { classifier = "osx-x86_64" }
+    }
+    runtimeOnly("io.netty:netty-transport-native-kqueue") {
+        artifact { classifier = "osx-aarch_64" }
+    }
+
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.coroutines.test)
+    testImplementation(kotlin("test"))
+    testImplementation(kotlin("test-junit5"))
+    testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.11.0")
+    testImplementation(libs.lincheck)
+    testRuntimeOnly("it.unimi.dsi:fastutil:8.5.18")
+
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.core)
+    testImplementation(libs.testcontainers.junit)
+    testImplementation(libs.testcontainers.rabbitmq)
+    // For the audit suite's database; the suite itself is still blocked.
+    testImplementation(libs.testcontainers.postgresql)
+
+    // surf-api-core/surf-api-standalone are compileOnly for main (real hosts provide them),
+    // but constructing a SurfRabbitApi/RedisApi in tests needs the real runtime.
+    testImplementation("dev.slne.surf.api:surf-api-core:+")
+    testRuntimeOnly("dev.slne.surf.api:surf-api-standalone:+")
+
+    // Only the test sources use @RpcService/@QueryService contracts of their own.
+    "kspTest"(projects.surfEventbusKsp)
+
+    add("jmhImplementation", "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0")
+}
+
+afterEvaluate {
+    configurations.named("jmhRuntimeClasspath") {
+        setExtendsFrom(extendsFrom.filterNot { it.name == "testRuntimeClasspath" })
+    }
+}
+
+val requireIntegration = providers.gradleProperty("requireIntegration").isPresent
+val skipIntegration = providers.gradleProperty("skipIntegration").isPresent
+
+require(!(requireIntegration && skipIntegration)) {
+    "-PrequireIntegration and -PskipIntegration contradict each other; pass at most one."
+}
+
+tasks.test {
+    useJUnitPlatform {
+        excludeTags("lincheck")
+        // Integration tests need a Docker daemon. Excluding the tag keeps the remaining suite
+        // usable on machines without one.
+        if (skipIntegration) {
+            excludeTags("integration")
+        }
+    }
+
+    // CI sets -PrequireIntegration so that a missing Docker daemon fails the build instead of
+    // skipping silently. See DockerAvailableCondition.
+    systemProperty("surf.eventbus.requireIntegration", requireIntegration.toString())
+
+    testLogging { events("passed", "skipped", "failed") }
+}
+
+val lincheckTest = tasks.register<Test>("lincheckTest") {
+    description = "Runs the selected Lincheck concurrency tests."
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    maxHeapSize = "2g"
+    useJUnitPlatform {
+        includeTags("lincheck")
+    }
+    shouldRunAfter(tasks.test)
+}
+
+tasks.check {
+    dependsOn(lincheckTest)
+}
+
+val benchmarkSmoke = providers.gradleProperty("benchmarkSmoke").isPresent
+
+jmh {
+    jmhVersion = "1.37"
+    benchmarkMode = listOf("avgt")
+    timeUnit = "ns"
+    warmupIterations = if (benchmarkSmoke) 1 else 3
+    iterations = if (benchmarkSmoke) 1 else 5
+    fork = if (benchmarkSmoke) 1 else 2
+    warmup = if (benchmarkSmoke) "100ms" else "1s"
+    timeOnIteration = if (benchmarkSmoke) "100ms" else "1s"
+    profilers = listOf("gc")
+    resultFormat = "JSON"
+    failOnError = true
+}
+
+tasks.register<JavaExec>("eventWireSizeReport") {
+    description = "Prints JSON and binary event wire sizes for every benchmark payload."
+    group = "benchmark"
+    dependsOn(tasks.named("jmhClasses"))
+    classpath = sourceSets["jmh"].runtimeClasspath + sourceSets["main"].runtimeClasspath
+    mainClass = "dev.slne.surf.eventbus.redis.event.EventWireSizeReport"
+}
+
+val jmhPlainJar = tasks.register<Jar>("jmhPlainJar") {
+    description = "Builds the unshaded JMH harness used by forked benchmark JVMs."
+    group = "jmh"
+    dependsOn(tasks.named("jmhCompileGeneratedClasses"))
+    archiveClassifier = "jmh-plain"
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(sourceSets["main"].output)
+    from(sourceSets["jmh"].output)
+    from(layout.buildDirectory.dir("jmh-generated-classes"))
+    from(layout.buildDirectory.dir("jmh-generated-resources"))
+}
+
+tasks.named<JMHTask>("jmh") {
+    dependsOn(jmhPlainJar)
+    jarArchive = jmhPlainJar.flatMap { it.archiveFile }
+}
+
+tasks.register("codecBenchmark") {
+    description = "Runs the JMH JSON-versus-binary event transport benchmarks."
+    group = "benchmark"
+    dependsOn(tasks.named("jmh"))
+}
+
+publishing {
+    repositories {
+        slneReleases()
+    }
+}
