@@ -21,6 +21,7 @@ include("surf-rabbitmq-common")
 
 include("surf-rabbitmq-paper")
 include("surf-rabbitmq-velocity")
+include("surf-rabbitmq-minestom")
 include("surf-rabbitmq-ksp")
 
 val isCi = providers.environmentVariable("CI").isPresent
