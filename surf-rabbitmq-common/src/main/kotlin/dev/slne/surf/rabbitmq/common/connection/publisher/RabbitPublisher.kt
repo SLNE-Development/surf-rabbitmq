@@ -21,11 +21,11 @@ class RabbitPublisher(
     )
 
     private val dispatcher: CoroutineDispatcher = Executors
-        .newSingleThreadExecutor { runnable ->
-            Thread(runnable, "rabbit-publisher-$name").apply {
-                isDaemon = true
-            }
-        }
+        .newSingleThreadExecutor(
+            Thread.ofVirtual()
+                .name("rabbit-publisher-$name")
+                .factory()
+        )
         .asCoroutineDispatcher()
 
     private var channel: Channel? = null

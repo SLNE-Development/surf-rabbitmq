@@ -36,14 +36,11 @@ class RabbitConsumer(
     }
 
     private val channelDispatcher = Executors
-        .newSingleThreadExecutor { runnable ->
-            Thread(
-                runnable,
-                "rabbit-consumer-channel-${connectionProvider.connectionName}-$name"
-            ).apply {
-                isDaemon = true
-            }
-        }
+        .newSingleThreadExecutor(
+            Thread.ofVirtual()
+                .name("rabbit-consumer-channel-${connectionProvider.connectionName}-$name")
+                .factory()
+        )
         .asCoroutineDispatcher()
 
     private val channelScope = CoroutineScope(
