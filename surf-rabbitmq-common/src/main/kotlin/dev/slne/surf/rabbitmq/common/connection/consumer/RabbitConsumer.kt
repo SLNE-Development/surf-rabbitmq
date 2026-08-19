@@ -207,7 +207,13 @@ class RabbitConsumer(
             channelDispatcher = channelDispatcher,
             channel = consumerChannel,
             deliveryTag = message.envelope.deliveryTag,
-            enabled = !registration.autoAck
+            enabled = !registration.autoAck,
+            onChannelFailure = { cause ->
+                scheduleChannelRecovery(
+                    failedChannel = consumerChannel,
+                    cause = cause
+                )
+            }
         )
 
         val job = processingScope.launch(
@@ -292,7 +298,7 @@ class RabbitConsumer(
 
     private fun scheduleChannelRecovery(
         failedChannel: Channel,
-        cause: ShutdownSignalException
+        cause: Throwable
     ) {
         channelScope.launch {
             if (closed || channel !== failedChannel) {
@@ -308,6 +314,15 @@ class RabbitConsumer(
             recoveringConsumer = true
 
             try {
+                cancelActiveDeliveries(
+                    message = "RabbitMQ consumer channel became unusable",
+                    cause = cause
+                )
+
+                runCatching {
+                    failedChannel.abort()
+                }
+
                 log.atWarning()
                     .withCause(cause)
                     .log(

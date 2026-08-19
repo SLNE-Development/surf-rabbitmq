@@ -17,7 +17,8 @@ class RabbitAck(
     private val channelDispatcher: CoroutineDispatcher,
     private val channel: Channel,
     private val deliveryTag: Long,
-    private val enabled: Boolean
+    private val enabled: Boolean,
+    private val onChannelFailure: (Throwable) -> Unit
 ) {
     private val settlementClaimed = AtomicBoolean(false)
 
@@ -67,6 +68,10 @@ class RabbitAck(
                 cause is ShutdownSignalException ||
                 !channel.isOpen
             ) {
+                runCatching {
+                    onChannelFailure(cause)
+                }
+
                 false
             } else {
                 throw cause
