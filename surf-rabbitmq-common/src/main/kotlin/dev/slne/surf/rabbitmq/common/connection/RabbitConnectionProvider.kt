@@ -42,6 +42,54 @@ class RabbitConnectionProvider(
         listeners -= listener
     }
 
+    fun reportConnectionFailure(
+        expectedGeneration: Long,
+        cause: Throwable
+    ) {
+        if (!cause.isConnectionLevelFailure()) {
+            return
+        }
+
+        markUnavailable(expectedGeneration)
+    }
+
+    private fun markUnavailable(expectedGeneration: Long) {
+        if (closed) {
+            return
+        }
+
+        val snapshot = state.value
+
+        if (
+            snapshot.status == RabbitConnectionStatus.OPEN &&
+            snapshot.generation == expectedGeneration
+        ) {
+            updateStatus(RabbitConnectionStatus.UNAVAILABLE)
+        }
+    }
+
+    private fun Throwable.isConnectionLevelFailure(): Boolean {
+        var current: Throwable? = this
+
+        while (current != null) {
+            when (current) {
+                is ShutdownSignalException -> {
+                    if (current.isHardError) {
+                        return true
+                    }
+                }
+
+                is IOException -> {
+                    return true
+                }
+            }
+
+            current = current.cause
+        }
+
+        return false
+    }
+
     fun connection(): RecoverableConnection {
         check(!closed) {
             "RabbitMQ connection provider '$connectionName' is closed"
@@ -119,10 +167,14 @@ class RabbitConnectionProvider(
                 ?: error("Recoverable connection returned a non-recoverable channel")
         } catch (cause: Throwable) {
             val latestSnapshot = state.value
+            val connectionFailure = cause.isConnectionLevelFailure()
+
+            if (connectionFailure || !currentConnection.isOpen) {
+                markUnavailable(expectedGeneration)
+            }
 
             if (
-                cause is IOException ||
-                cause is ShutdownSignalException ||
+                connectionFailure ||
                 latestSnapshot.status != RabbitConnectionStatus.OPEN ||
                 latestSnapshot.generation != expectedGeneration ||
                 !currentConnection.isOpen

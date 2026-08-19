@@ -95,6 +95,11 @@ class RabbitPublisher(
                 cause
             )
         } catch (cause: Throwable) {
+            connectionProvider.reportConnectionFailure(
+                expectedGeneration = publisherChannel.connectionGeneration,
+                cause = cause
+            )
+
             resetChannelSafely()
 
             throw SurfRabbitPublishException(
