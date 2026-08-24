@@ -1,6 +1,6 @@
 [versions]
-amqp-client = "5.34.0" # Update netty version if needed
-netty = "4.2.16.Final" # Keep in sync with https://github.com/rabbitmq/rabbitmq-java-client/blob/main/pom.xml
+amqp-client = "5.35.0" # Update netty version if needed
+netty = "4.2.17.Final" # Keep in sync with https://github.com/rabbitmq/rabbitmq-java-client/blob/main/pom.xml
 surf-microservice = "2.+"
 
 [libraries]
