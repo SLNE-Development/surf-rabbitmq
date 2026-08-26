@@ -34,13 +34,15 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.seconds
 
 class RabbitClient private constructor(
-    private val connectionProvider: RabbitConnectionProvider,
-    private val publisherPool: RabbitPublisherPool
+    private val logicalConnectionName: String,
+    private val publisherConnectionProvider: RabbitConnectionProvider,
+    private val consumerConnectionProvider: RabbitConnectionProvider,
+    private val publisherPool: RabbitPublisherPool,
 ) : AutoCloseable {
     private val consumers = ConcurrentLinkedQueue<RabbitConsumer>()
 
-    val connectionGeneration: Long
-        get() = connectionProvider.generation
+    val consumerConnectionGeneration: Long
+        get() = consumerConnectionProvider.generation
 
     companion object {
         private data class NettyTransport(
@@ -129,9 +131,55 @@ class RabbitClient private constructor(
             connectionName: String,
             publisherOptions: RabbitPublisherOptions = RabbitPublisherOptions()
         ): RabbitClient {
+            val publisherConnectionProvider = createConnectionProvider(
+                config = config,
+                logicalConnectionName = connectionName,
+                role = "publisher",
+                topologyRecovery = false,
+            )
+
+            val consumerConnectionProvider = createConnectionProvider(
+                config = config,
+                logicalConnectionName = connectionName,
+                role = "consumer",
+                topologyRecovery = true,
+            )
+
+            val publisherPool = RabbitPublisherPool(
+                connectionProvider = publisherConnectionProvider,
+                size = config.getPublisherPoolSize(),
+                options = publisherOptions,
+            )
+
+            val client = RabbitClient(
+                logicalConnectionName = connectionName,
+                publisherConnectionProvider = publisherConnectionProvider,
+                consumerConnectionProvider = consumerConnectionProvider,
+                publisherPool = publisherPool,
+            )
+
+            activeClients[client] = ActiveClientInfo(
+                connectionName = connectionName,
+                createdAtMillis = System.currentTimeMillis(),
+                creationThread = Thread.currentThread().name,
+                creationStackTrace = Throwable().stackTrace
+                    .drop(1)
+                    .take(12)
+                    .map { it.toString() },
+            )
+
+            return client
+        }
+
+        private fun createConnectionProvider(
+            config: CommonRabbitMQConfig,
+            logicalConnectionName: String,
+            role: String,
+            topologyRecovery: Boolean,
+        ): RabbitConnectionProvider {
             val nettyChannel = AtomicReference<Channel?>()
 
-            val connectionFactory = ConnectionFactory().apply {
+            val factory = ConnectionFactory().apply {
                 host = config.getHost()
                 port = config.getPort()
                 username = config.getUsername()
@@ -139,7 +187,7 @@ class RabbitClient private constructor(
                 virtualHost = config.getVhost()
 
                 isAutomaticRecoveryEnabled = true
-                isTopologyRecoveryEnabled = true
+                isTopologyRecoveryEnabled = topologyRecovery
 
                 /**
                  * Uses capped exponential backoff with jitter instead of a fixed exponential delay.
@@ -168,18 +216,21 @@ class RabbitClient private constructor(
                         )
                 }
 
-                setRecoveredQueueNameSupplier { queue ->
-                    if (
-                        RabbitQueueNames.isCallbackQueue(
-                            connectionName = connectionName,
-                            queueName = queue.name
-                        )
-                    ) {
-                        RabbitQueueNames.newCallbackQueueName(connectionName)
-                    } else {
-                        queue.name
+                if (topologyRecovery) {
+                    setRecoveredQueueNameSupplier { queue ->
+                        if (
+                            RabbitQueueNames.isCallbackQueue(
+                                connectionName = logicalConnectionName,
+                                queueName = queue.name
+                            )
+                        ) {
+                            RabbitQueueNames.newCallbackQueueName(logicalConnectionName)
+                        } else {
+                            queue.name
+                        }
                     }
                 }
+
 
                 requestedHeartbeat = 60
                 connectionTimeout = config.getTimeout().seconds.inWholeMilliseconds.toInt()
@@ -194,36 +245,13 @@ class RabbitClient private constructor(
                 }
             }
 
-            val connectionProvider = RabbitConnectionProvider(
-                factory = connectionFactory,
-                connectionName = connectionName,
+            return RabbitConnectionProvider(
+                factory = factory,
+                connectionName = "$logicalConnectionName/$role",
                 invalidateTransport = {
                     nettyChannel.getAndSet(null)?.close()
                 },
             )
-
-            val publisherPool = RabbitPublisherPool(
-                connectionProvider = connectionProvider,
-                size = config.getPublisherPoolSize(),
-                options = publisherOptions,
-            )
-
-            val client = RabbitClient(
-                connectionProvider = connectionProvider,
-                publisherPool = publisherPool,
-            )
-
-            activeClients[client] = ActiveClientInfo(
-                connectionName = connectionName,
-                createdAtMillis = System.currentTimeMillis(),
-                creationThread = Thread.currentThread().name,
-                creationStackTrace = Throwable().stackTrace
-                    .drop(1)
-                    .take(12)
-                    .map { it.toString() },
-            )
-
-            return client
         }
 
         fun healthSnapshot(): List<RabbitClientHealthSnapshot> {
@@ -231,7 +259,8 @@ class RabbitClient private constructor(
                 .map { (client, info) ->
                     RabbitClientHealthSnapshot(
                         connectionName = info.connectionName,
-                        connected = client.connectionProvider.isOpen
+                        publisherConnected = client.publisherConnectionProvider.isOpen,
+                        consumerConnected = client.consumerConnectionProvider.isOpen,
                     )
                 }
                 .sortedBy(RabbitClientHealthSnapshot::connectionName)
@@ -302,7 +331,7 @@ class RabbitClient private constructor(
 
     fun newConsumer(name: String): RabbitConsumer {
         val consumer = RabbitConsumer(
-            connectionProvider = connectionProvider,
+            connectionProvider = consumerConnectionProvider,
             name = name
         )
         consumers.add(consumer)
@@ -311,15 +340,19 @@ class RabbitClient private constructor(
     }
 
     fun newCallbackQueueName(): String {
-        return RabbitQueueNames.newCallbackQueueName(connectionProvider.connectionName)
+        return RabbitQueueNames.newCallbackQueueName(logicalConnectionName)
     }
 
-    fun addConnectionListener(listener: RabbitConnectionListener) {
-        connectionProvider.addListener(listener)
+    fun addConsumerConnectionListener(
+        listener: RabbitConnectionListener
+    ) {
+        consumerConnectionProvider.addListener(listener)
     }
 
-    fun removeConnectionListener(listener: RabbitConnectionListener) {
-        connectionProvider.removeListener(listener)
+    fun removeConsumerConnectionListener(
+        listener: RabbitConnectionListener
+    ) {
+        consumerConnectionProvider.removeListener(listener)
     }
 
     override fun close() {
@@ -335,7 +368,11 @@ class RabbitClient private constructor(
             }
 
             runCatching {
-                connectionProvider.close()
+                publisherConnectionProvider.close()
+            }
+
+            runCatching {
+                consumerConnectionProvider.close()
             }
         } finally {
             activeClients.remove(this)
