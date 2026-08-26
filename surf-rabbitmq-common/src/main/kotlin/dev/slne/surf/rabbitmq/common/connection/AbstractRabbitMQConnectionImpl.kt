@@ -19,6 +19,8 @@ abstract class AbstractRabbitMQConnectionImpl(
         private set
 
     override suspend fun connect() {
+        client.connect()
+
         mainConsumer = client.newConsumer("main")
 
         queueName = mainConsumer.declareQueue(

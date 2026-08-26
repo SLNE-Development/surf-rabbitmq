@@ -25,6 +25,9 @@ import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.channel.uring.IoUring
 import io.netty.channel.uring.IoUringIoHandler
 import io.netty.channel.uring.IoUringSocketChannel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import org.jetbrains.annotations.Blocking
 import java.lang.AutoCloseable
 import java.time.Duration
@@ -309,6 +312,19 @@ class RabbitClient private constructor(
             }
             sharedEventLoopGroup.shutdownGracefully().syncUninterruptibly()
         }
+    }
+
+    suspend fun connect() = coroutineScope {
+        val publisher = async(Dispatchers.IO) {
+            publisherConnectionProvider.awaitOpen()
+        }
+
+        val consumer = async(Dispatchers.IO) {
+            consumerConnectionProvider.awaitOpen()
+        }
+
+        publisher.await()
+        consumer.await()
     }
 
     suspend fun publish(
