@@ -11,21 +11,37 @@ class RabbitMQMicroserviceHealthContributor : MicroserviceHealthContributor {
     override val name: String = "rabbitmq"
 
     override suspend fun check(): List<MicroserviceHealthCheckResult> {
-        return RabbitClient.healthSnapshot().map { client ->
-            if (client.connected) {
-                MicroserviceHealthCheckResult(
-                    component = name,
-                    instance = client.connectionName,
-                    status = MicroserviceHealthStatus.HEALTHY
-                )
-            } else {
-                MicroserviceHealthCheckResult(
-                    component = name,
-                    instance = client.connectionName,
-                    status = MicroserviceHealthStatus.UNHEALTHY,
-                    message = "RabbitMQ connection is not open."
-                )
-            }
+        return RabbitClient.healthSnapshot().flatMap { client ->
+            listOf(
+                connectionHealthCheck(
+                    instance = "${client.connectionName}/publisher",
+                    connected = client.publisherConnected,
+                ),
+                connectionHealthCheck(
+                    instance = "${client.connectionName}/consumer",
+                    connected = client.consumerConnected,
+                ),
+            )
+        }
+    }
+
+    private fun connectionHealthCheck(
+        instance: String,
+        connected: Boolean,
+    ): MicroserviceHealthCheckResult {
+        return if (connected) {
+            MicroserviceHealthCheckResult(
+                component = name,
+                instance = instance,
+                status = MicroserviceHealthStatus.HEALTHY,
+            )
+        } else {
+            MicroserviceHealthCheckResult(
+                component = name,
+                instance = instance,
+                status = MicroserviceHealthStatus.UNHEALTHY,
+                message = "RabbitMQ connection is not open.",
+            )
         }
     }
 }

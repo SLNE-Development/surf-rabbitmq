@@ -200,16 +200,25 @@ class RabbitConsumer(
         consumerTag: String,
         message: Delivery
     ) {
+        val connectionGeneration = connectionProvider.generation
+
         val ack = RabbitAck(
             channelDispatcher = channelDispatcher,
             channel = consumerChannel,
             deliveryTag = message.envelope.deliveryTag,
             enabled = !registration.autoAck,
             onChannelFailure = { cause ->
-                scheduleChannelRecovery(
-                    failedChannel = consumerChannel,
-                    cause = cause
+                val connectionFailure = connectionProvider.reportConnectionFailure(
+                    expectedGeneration = connectionGeneration,
+                    cause = cause,
                 )
+
+                if (!connectionFailure && connectionProvider.isOpen) {
+                    scheduleChannelRecovery(
+                        failedChannel = consumerChannel,
+                        cause = cause,
+                    )
+                }
             }
         )
 

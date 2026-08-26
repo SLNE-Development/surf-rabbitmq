@@ -10,7 +10,8 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 class RabbitConnectionProvider(
     private val factory: ConnectionFactory,
-    val connectionName: String
+    val connectionName: String,
+    private val invalidateTransport: () -> Unit
 ) : AutoCloseable {
 
     private val lock = Any()
@@ -45,26 +46,40 @@ class RabbitConnectionProvider(
     fun reportConnectionFailure(
         expectedGeneration: Long,
         cause: Throwable
-    ) {
+    ): Boolean {
         if (!cause.isConnectionLevelFailure()) {
-            return
+            return false
         }
 
-        markUnavailable(expectedGeneration)
+        if (markUnavailable(expectedGeneration)) {
+            invalidateTransport()
+        }
+
+        return true
     }
 
-    private fun markUnavailable(expectedGeneration: Long) {
+    private fun markUnavailable(expectedGeneration: Long): Boolean {
         if (closed) {
-            return
+            return false
         }
 
-        val snapshot = state.value
+        while (true) {
+            val snapshot = state.value
 
-        if (
-            snapshot.status == RabbitConnectionStatus.OPEN &&
-            snapshot.generation == expectedGeneration
-        ) {
-            updateStatus(RabbitConnectionStatus.UNAVAILABLE)
+            if (
+                snapshot.status == RabbitConnectionStatus.OPEN &&
+                snapshot.generation == expectedGeneration
+            ) {
+                return false
+            }
+
+            val unavailable = snapshot.copy(
+                status = RabbitConnectionStatus.UNAVAILABLE
+            )
+
+            if (state.compareAndSet(snapshot, unavailable)) {
+                return true
+            }
         }
     }
 
@@ -166,12 +181,16 @@ class RabbitConnectionProvider(
             created as? RecoverableChannel
                 ?: error("Recoverable connection returned a non-recoverable channel")
         } catch (cause: Throwable) {
-            val latestSnapshot = state.value
-            val connectionFailure = cause.isConnectionLevelFailure()
+            val connectionFailure = reportConnectionFailure(
+                expectedGeneration = expectedGeneration,
+                cause = cause,
+            )
 
-            if (connectionFailure || !currentConnection.isOpen) {
+            if (!currentConnection.isOpen) {
                 markUnavailable(expectedGeneration)
             }
+
+            val latestSnapshot = state.value
 
             if (
                 connectionFailure ||
@@ -291,13 +310,22 @@ class RabbitConnectionProvider(
             return
         }
 
-        val current = state.value
+        while (true) {
+            val current = state.value
 
-        if (current.status == RabbitConnectionStatus.CLOSED) {
-            return
+            if (current.status == RabbitConnectionStatus.CLOSED) {
+                return
+            }
+
+            if (
+                state.compareAndSet(
+                    current,
+                    current.copy(status = status),
+                )
+            ) {
+                return
+            }
         }
-
-        state.value = current.copy(status = status)
     }
 
     private fun markOpen(): RabbitConnectionSnapshot {

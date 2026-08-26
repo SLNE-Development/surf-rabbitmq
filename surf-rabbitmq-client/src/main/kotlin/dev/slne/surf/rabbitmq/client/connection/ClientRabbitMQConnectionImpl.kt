@@ -109,13 +109,13 @@ class ClientRabbitMQConnectionImpl(
 
             replyEndpoint.value = ReplyEndpoint(
                 queueName = queueName,
-                connectionGeneration = generation
+                consumerGeneration = generation
             )
         }
     }
 
     init {
-        client.addConnectionListener(connectionListener)
+        client.addConsumerConnectionListener(connectionListener)
     }
 
     override suspend fun connect() {
@@ -135,7 +135,7 @@ class ClientRabbitMQConnectionImpl(
 
         replyEndpoint.value = ReplyEndpoint(
             queueName = callbackQueueName,
-            connectionGeneration = client.connectionGeneration
+            consumerGeneration = client.consumerConnectionGeneration
         )
     }
 
@@ -311,7 +311,6 @@ class ClientRabbitMQConnectionImpl(
                         // server, it should expire after the timeout.
                         .expiration(requestTimeoutSeconds.inWholeMilliseconds.toString())
                         .build(),
-                    expectedConnectionGeneration = endpoint.connectionGeneration
                 )
             }
 
@@ -327,7 +326,7 @@ class ClientRabbitMQConnectionImpl(
 
     private data class ReplyEndpoint(
         val queueName: String,
-        val connectionGeneration: Long
+        val consumerGeneration: Long
     )
 
     class SurfRabbitConnectionLostException(
