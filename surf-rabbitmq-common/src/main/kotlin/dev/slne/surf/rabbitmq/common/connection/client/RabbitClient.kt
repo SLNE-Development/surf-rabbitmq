@@ -30,6 +30,7 @@ import java.lang.AutoCloseable
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.*
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.seconds
 
 class RabbitClient private constructor(
@@ -128,6 +129,8 @@ class RabbitClient private constructor(
             connectionName: String,
             publisherOptions: RabbitPublisherOptions = RabbitPublisherOptions()
         ): RabbitClient {
+            val nettyChannel = AtomicReference<Channel?>()
+
             val connectionFactory = ConnectionFactory().apply {
                 host = config.getHost()
                 port = config.getPort()
@@ -186,22 +189,28 @@ class RabbitClient private constructor(
                 netty().bootstrapCustomizer { bootstrap ->
                     bootstrap.channel(transport.channelClass)
                 }
+                netty().channelCustomizer { channel ->
+                    nettyChannel.set(channel)
+                }
             }
 
             val connectionProvider = RabbitConnectionProvider(
                 factory = connectionFactory,
-                connectionName = connectionName
+                connectionName = connectionName,
+                invalidateTransport = {
+                    nettyChannel.getAndSet(null)?.close()
+                },
             )
 
             val publisherPool = RabbitPublisherPool(
                 connectionProvider = connectionProvider,
                 size = config.getPublisherPoolSize(),
-                options = publisherOptions
+                options = publisherOptions,
             )
 
             val client = RabbitClient(
                 connectionProvider = connectionProvider,
-                publisherPool = publisherPool
+                publisherPool = publisherPool,
             )
 
             activeClients[client] = ActiveClientInfo(
@@ -211,7 +220,7 @@ class RabbitClient private constructor(
                 creationStackTrace = Throwable().stackTrace
                     .drop(1)
                     .take(12)
-                    .map { it.toString() }
+                    .map { it.toString() },
             )
 
             return client

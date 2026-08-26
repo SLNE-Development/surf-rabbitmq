@@ -95,12 +95,14 @@ class RabbitPublisher(
                 cause
             )
         } catch (cause: Throwable) {
-            connectionProvider.reportConnectionFailure(
+            val connectionFailure = connectionProvider.reportConnectionFailure(
                 expectedGeneration = publisherChannel.connectionGeneration,
-                cause = cause
+                cause = cause,
             )
 
-            resetChannelSafely()
+            if (!connectionFailure) {
+                resetChannelSafely()
+            }
 
             throw SurfRabbitPublishException(
                 "Could not publish RabbitMQ message",
