@@ -67,8 +67,8 @@ class RabbitConnectionProvider(
             val snapshot = state.value
 
             if (
-                snapshot.status == RabbitConnectionStatus.OPEN &&
-                snapshot.generation == expectedGeneration
+                snapshot.status != RabbitConnectionStatus.OPEN &&
+                snapshot.generation != expectedGeneration
             ) {
                 return false
             }
