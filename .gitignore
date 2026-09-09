@@ -46,3 +46,7 @@ bin/
 ### Mac OS ###
 .DS_Store
 .idea
+### ProjectAtlas ###
+/.projectatlas/*
+!/.projectatlas/config.toml
+!/.projectatlas/projectatlas-nonsource-files.toon
