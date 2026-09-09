@@ -13,6 +13,14 @@ package dev.slne.surf.rabbitmq.api.rpc
  * the client and the server classpath so both sides use the same method names,
  * parameter types, return types, and serializers.
  *
+ * RPC endpoints may declare default parameter values. Kotlin resolves them at the caller's call
+ * site, so the full argument list is always transmitted and the server never needs to know the
+ * default. Adding a new parameter with a default to an existing endpoint is therefore wire
+ * compatible towards older servers, which ignore the additional value. The reverse is not: a caller
+ * built against the older signature omits the argument, and the newer server rejects the call with
+ * a `MissingFieldException` instead of applying its own default. Deploy the clients before the
+ * server when adding such a parameter.
+ *
  * All RPC parameter types and return types must be serializable by the
  * `kotlinx.serialization` configuration used by the client and server APIs.
  * This includes:
