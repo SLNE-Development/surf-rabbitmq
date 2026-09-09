@@ -1,6 +1,7 @@
 package dev.slne.surf.rabbitmq.common.rpc.serialization
 
 import dev.slne.surf.rabbitmq.api.rpc.callable.RabbitRpcCallable
+import it.unimi.dsi.fastutil.objects.ObjectArrayList
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.MissingFieldException
@@ -40,8 +41,10 @@ class CallableParametersSerializer(
 
     @OptIn(ExperimentalSerializationApi::class)
     override fun deserialize(decoder: Decoder): Array<Any?> = decoder.decodeStructure(descriptor) {
-        val result = arrayOfNulls<Any?>(callable.parameters.size)
-        val seen = BooleanArray(callable.parameters.size)
+        val parameterCount = callable.parameters.size
+        val result = arrayOfNulls<Any?>(parameterCount)
+        val seen = BooleanArray(parameterCount)
+        var remaining = parameterCount
 
         while (true) {
             val index = decodeElementIndex(descriptor)
@@ -50,15 +53,24 @@ class CallableParametersSerializer(
             }
 
             result[index] = decodeSerializableElement(descriptor, index, callableSerializers[index])
-            seen[index] = true
-        }
-
-        for (i in callable.parameters.indices) {
-            val parameter = callable.parameters[i]
-            if (!seen[i] && !parameter.isOptional) {
-                throw MissingFieldException(parameter.name, callable.name)
+            if (!seen[index]) {
+                seen[index] = true
+                remaining--
             }
         }
+
+        if (remaining != 0) {
+            val missing = ObjectArrayList<String>(remaining)
+
+            for (i in 0 until parameterCount) {
+                if (!seen[i]) {
+                    missing.add(callable.parameters[i].name)
+                }
+            }
+
+            throw MissingFieldException(missing, callable.name)
+        }
+
 
         result
     }
