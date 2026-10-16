@@ -8,9 +8,13 @@ dependencies {
     api(projects.surfRabbitmqApi.surfRabbitmqClientApi)
     api(projects.surfRabbitmqClient)
 }
+minestomPluginFile {
+    main = "dev.slne.surf.rabbitmq.RabbitMqMinestomPlugin"
+}
 
 publishing {
     repositories {
         slneReleases()
     }
 }
+

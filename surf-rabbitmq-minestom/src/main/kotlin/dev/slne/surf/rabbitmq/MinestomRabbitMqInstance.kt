@@ -7,5 +7,5 @@ import java.nio.file.Path
 
 @AutoService(RabbitMQInstance::class)
 class MinestomRabbitMqInstance: RabbitMQCommonInstance() {
-    override val dataPath: Path get() = RabbitMqMinestomEntrypoint.dataPath
+    override val dataPath: Path get() = RabbitMqMinestomPlugin.dataDirectory
 }
