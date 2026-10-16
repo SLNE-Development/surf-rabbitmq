@@ -10,7 +10,6 @@ dependencies {
 }
 minestomPluginFile {
     main = "dev.slne.surf.rabbitmq.RabbitMqMinestomPlugin"
-    authors = listOf("red")
 }
 
 publishing {
